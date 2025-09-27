@@ -4,6 +4,26 @@
 
 set -e
 
+# Container detection
+IS_CONTAINER=false
+if [ -f /.dockerenv ] || [ -n "$DOCKER_CONTAINER" ] || [ -f /run/.containerenv ]; then
+    IS_CONTAINER=true
+    echo "Container environment detected - running in non-interactive mode"
+fi
+
+# Check for daemon mode flag
+DAEMON_MODE=false
+if [ "$1" = "--daemon" ] || [ "$1" = "-d" ]; then
+    DAEMON_MODE=true
+    echo "Starting in daemon mode..."
+fi
+
+# Non-interactive mode for containers
+NON_INTERACTIVE=false
+if [ "$IS_CONTAINER" = true ] || [ "$CI" = true ] || [ -n "$NON_INTERACTIVE" ]; then
+    NON_INTERACTIVE=true
+fi
+
 # Cleanup function for development mode
 cleanup() {
     if [ -f "frontend-watch.pid" ]; then
@@ -81,7 +101,12 @@ fi
 # Now check if rustc is available
 if ! command_exists rustc; then
     echo -e "${YELLOW}⚠️  Rust not found. Installing latest version...${NC}"
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    if [ "$NON_INTERACTIVE" = true ]; then
+        # Non-interactive installation with default options
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile default
+    else
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    fi
     source "$HOME/.cargo/env"
     echo -e "${GREEN}✅ Rust installed${NC}"
 else
@@ -133,13 +158,17 @@ else
             
             if [ "$CURRENT_MAJOR" -lt "$LATEST_MAJOR" ]; then
                 echo -e "${YELLOW}  Node.js LTS v$LATEST_LTS is available (current: $NODE_VERSION)${NC}"
-                read -p "  Update Node.js to latest LTS? (y/N): " -n 1 -r
-                echo
-                if [[ $REPLY =~ ^[Yy]$ ]]; then
+                if [ "$NON_INTERACTIVE" = true ]; then
+                    echo "  Skipping Node.js update in non-interactive mode"
+                else
+                    read -p "  Update Node.js to latest LTS? (y/N): " -n 1 -r
+                    echo
+                    if [[ $REPLY =~ ^[Yy]$ ]]; then
                     curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
                     sudo apt-get install -y nodejs
                     NEW_NODE_VERSION=$(node --version)
-                    echo -e "${GREEN}  ✅ Node.js updated to $NEW_NODE_VERSION${NC}"
+                        echo -e "${GREEN}  ✅ Node.js updated to $NEW_NODE_VERSION${NC}"
+                    fi
                 fi
             else
                 echo -e "${GREEN}  ✅ Node.js is at latest LTS major version${NC}"
@@ -177,15 +206,19 @@ else
             
             if [ "$CURRENT_REDIS" != "$CANDIDATE_REDIS" ] && [ "$CANDIDATE_REDIS" != "(none)" ]; then
                 echo -e "${YELLOW}  Redis update available: $CURRENT_REDIS → $CANDIDATE_REDIS${NC}"
-                read -p "  Update Redis to latest version? (y/N): " -n 1 -r
-                echo
-                if [[ $REPLY =~ ^[Yy]$ ]]; then
+                if [ "$NON_INTERACTIVE" = true ]; then
+                    echo "  Skipping Redis update in non-interactive mode"
+                else
+                    read -p "  Update Redis to latest version? (y/N): " -n 1 -r
+                    echo
+                    if [[ $REPLY =~ ^[Yy]$ ]]; then
                     # Only update package lists when actually upgrading
                     echo -e "${BLUE}  Updating package lists and upgrading Redis...${NC}"
                     if timeout 60 sudo apt-get update && sudo apt-get upgrade -y redis-server; then
                         echo -e "${GREEN}  ✅ Redis updated to latest version${NC}"
                     else
-                        echo -e "${RED}  ❌ Redis update failed or timed out${NC}"
+                            echo -e "${RED}  ❌ Redis update failed or timed out${NC}"
+                        fi
                     fi
                 fi
             else
@@ -199,9 +232,12 @@ fi
 echo -e "\n${BLUE}Checking Neo4j installation...${NC}"
 if ! command_exists neo4j; then
     echo -e "${YELLOW}⚠️  Neo4j not found. Installing latest version...${NC}"
-    read -p "Do you want to install Neo4j Community Edition? (y/N): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
+    if [ "$NON_INTERACTIVE" = true ]; then
+        echo -e "${YELLOW}⚠️  Skipping Neo4j installation in non-interactive mode${NC}"
+    else
+        read -p "Do you want to install Neo4j Community Edition? (y/N): " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
         if [[ "$OS" == *"Ubuntu"* ]] || [[ "$OS" == *"Debian"* ]]; then
             # Use the new GPG key method (apt-key is deprecated)
             wget -O - https://debian.neo4j.com/neotechnology.gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/neo4j.gpg
@@ -218,7 +254,8 @@ if ! command_exists neo4j; then
             echo "Please install Neo4j manually: https://neo4j.com/download/"
         fi
     else
-        echo -e "${YELLOW}⚠️  Neo4j installation skipped (optional)${NC}"
+            echo -e "${YELLOW}⚠️  Neo4j installation skipped (optional)${NC}"
+        fi
     fi
 else
     NEO4J_VERSION=$(neo4j version 2>/dev/null | head -1)
@@ -236,15 +273,19 @@ else
             if [ -n "$CURRENT_NEO4J" ] && [ "$CURRENT_NEO4J" != "(none)" ]; then
                 if [ "$CURRENT_NEO4J" != "$CANDIDATE_NEO4J" ] && [ "$CANDIDATE_NEO4J" != "(none)" ]; then
                     echo -e "${YELLOW}  Neo4j update available: $CURRENT_NEO4J → $CANDIDATE_NEO4J${NC}"
-                    read -p "  Update Neo4j to latest version? (y/N): " -n 1 -r
-                    echo
-                    if [[ $REPLY =~ ^[Yy]$ ]]; then
+                    if [ "$NON_INTERACTIVE" = true ]; then
+                        echo "  Skipping Neo4j update in non-interactive mode"
+                    else
+                        read -p "  Update Neo4j to latest version? (y/N): " -n 1 -r
+                        echo
+                        if [[ $REPLY =~ ^[Yy]$ ]]; then
                         # Only update package lists when actually upgrading
                         echo -e "${BLUE}  Updating package lists and upgrading Neo4j...${NC}"
                         if timeout 60 sudo apt-get update && sudo apt-get upgrade -y neo4j; then
                             echo -e "${GREEN}  ✅ Neo4j updated to latest version${NC}"
                         else
-                            echo -e "${RED}  ❌ Neo4j update failed or timed out${NC}"
+                                echo -e "${RED}  ❌ Neo4j update failed or timed out${NC}"
+                            fi
                         fi
                     fi
                 else
@@ -321,7 +362,11 @@ echo -e "${BLUE}Checking build status...${NC}"
 RUST_BIN="$RUST_BINARY_PATH"
 RUST_SRC_CHANGED=false
 
-if [ ! -f "$RUST_BIN" ]; then
+# In container mode, skip source change detection if binary exists
+if [ "$IS_CONTAINER" = true ] && [ -f "$RUST_BIN" ]; then
+    echo -e "${GREEN}✅ Using existing API Gateway binary (container mode)${NC}"
+    RUST_SRC_CHANGED=false
+elif [ ! -f "$RUST_BIN" ]; then
     echo -e "${YELLOW}⚠️  No release binary found${NC}"
     RUST_SRC_CHANGED=true
 else
@@ -331,7 +376,7 @@ else
         echo -e "${YELLOW}⚠️  Source files changed since last build: $NEWEST_SRC${NC}"
         RUST_SRC_CHANGED=true
     fi
-    
+
     # Also check Cargo.toml files for dependency changes
     if find . -name "Cargo.toml" -newer "$RUST_BIN" -print -quit 2>/dev/null | grep -q .; then
         echo -e "${YELLOW}⚠️  Cargo.toml changed since last build${NC}"
@@ -405,7 +450,7 @@ else
     fi
 fi
 
-if [ "$DEV_MODE" = "true" ]; then
+if [ "$DEV_MODE" = "true" ] && [ "$IS_CONTAINER" = false ]; then
     echo -e "${BLUE}Development mode enabled - enabling file watching${NC}"
     cd frontend
     if [ ! -d "node_modules" ]; then
@@ -432,7 +477,7 @@ if [ "$DEV_MODE" = "true" ]; then
     fi
     
     cd ..
-elif [ "$FRONTEND_SRC_CHANGED" = true ]; then
+elif [ "$FRONTEND_SRC_CHANGED" = true ] && [ "$IS_CONTAINER" = false ]; then
     echo -e "${BLUE}Building WASM assets for FR-003...${NC}"
     if [ -f "./scripts/build-wasm.sh" ]; then
         ./scripts/build-wasm.sh
@@ -601,24 +646,31 @@ fi
 
 # Handle HTTPS permissions if enabled
 if [ "$ENABLE_HTTPS" = "true" ] && [ "$HTTPS_PORT" -lt "1024" ]; then
-    if [ "$EUID" -ne 0 ] && [ -z "$DOCKER_CONTAINER" ]; then
-        echo -e "${YELLOW}⚠️  Port $HTTPS_PORT requires elevated permissions.${NC}"
-        echo "Options:"
-        echo "1. Run with sudo: sudo ./start.sh"
-        echo "2. Use port forwarding: sudo iptables -t nat -A PREROUTING -p tcp --dport $HTTPS_PORT -j REDIRECT --to-port ${HTTPS_REDIRECT_PORT}"
-        echo "3. Use setcap to allow binding to privileged ports:"
-        echo "   sudo setcap 'cap_net_bind_service=+ep' $RUST_BIN"
-        echo ""
-        echo "Attempting option 3 (setcap)..."
-        
+    # Check if binary already has the capability
+    if command_exists getcap && getcap "$RUST_BIN" 2>/dev/null | grep -q cap_net_bind_service; then
+        echo -e "${GREEN}✅ Binary already has cap_net_bind_service capability${NC}"
+    else
+        echo -e "${BLUE}Setting capability for HTTPS on port $HTTPS_PORT...${NC}"
+
         if command_exists setcap; then
-            sudo setcap 'cap_net_bind_service=+ep' "$RUST_BIN" || {
-                echo -e "${RED}❌ Failed to set capability. Please run with sudo instead.${NC}"
-                exit 1
-            }
-            echo -e "${GREEN}✅ Capability set. Starting without sudo...${NC}"
+            # Use setcap to allow binding to privileged ports
+            if [ "$EUID" -eq 0 ] || [ "$IS_CONTAINER" = true ]; then
+                # Running as root or in container, can set capability directly
+                setcap 'cap_net_bind_service=+ep' "$RUST_BIN" || {
+                    echo -e "${RED}❌ Failed to set capability${NC}"
+                    exit 1
+                }
+            else
+                # Not root, need sudo
+                sudo setcap 'cap_net_bind_service=+ep' "$RUST_BIN" || {
+                    echo -e "${RED}❌ Failed to set capability. Please run with sudo.${NC}"
+                    exit 1
+                }
+            fi
+            echo -e "${GREEN}✅ Capability set for binding to port $HTTPS_PORT${NC}"
         else
-            echo -e "${RED}❌ setcap not available. Please run with sudo.${NC}"
+            echo -e "${RED}❌ setcap not available. Cannot bind to port $HTTPS_PORT${NC}"
+            echo -e "${YELLOW}Please install libcap2-bin or use a port >= 1024${NC}"
             exit 1
         fi
     fi
@@ -731,8 +783,50 @@ cleanup_agents() {
 }
 trap cleanup_agents EXIT INT TERM
 
-# Run the API Gateway (foreground)
-"$RUST_BIN" || {
+# Run the API Gateway
+if [ "$DAEMON_MODE" = true ]; then
+    # Start in background for daemon mode
+    echo -e "${BLUE}Starting API Gateway in daemon mode...${NC}"
+
+    # Use workspace or temp directories for logs and pids
+    if [ "$IS_CONTAINER" = true ]; then
+        LOG_DIR="/workspace/logs"
+        PID_DIR="/workspace/run"
+    else
+        LOG_DIR="/var/log"
+        PID_DIR="/var/run"
+    fi
+
+    # Create directories if they don't exist
+    mkdir -p "$LOG_DIR" "$PID_DIR" 2>/dev/null || true
+
+    LOG_FILE="$LOG_DIR/kalisi-gateway.log"
+    PID_FILE="$PID_DIR/kalisi-gateway.pid"
+
+    nohup "$RUST_BIN" > "$LOG_FILE" 2>&1 &
+    GATEWAY_PID=$!
+    echo $GATEWAY_PID > "$PID_FILE"
+    echo -e "${GREEN}✅ API Gateway started in daemon mode (PID: $GATEWAY_PID)${NC}"
+    echo -e "${GREEN}Log file: $LOG_FILE${NC}"
+
+    # Give it a moment to start
+    sleep 3
+
+    # Check if it's still running
+    if ps -p $GATEWAY_PID > /dev/null 2>&1; then
+        echo -e "${GREEN}✅ Kalisi System started successfully in daemon mode${NC}"
+        exit 0
+    else
+        echo -e "${RED}❌ API Gateway failed to start in daemon mode${NC}"
+        if [ -f "$LOG_FILE" ]; then
+            echo "Last 20 lines of log:"
+            tail -20 "$LOG_FILE"
+        fi
+        exit 1
+    fi
+else
+    # Run in foreground (normal mode)
+    "$RUST_BIN" || {
     EXIT_CODE=$?
 
     # Exit code 130 means terminated by Ctrl-C (SIGINT) - this is normal, not an error
@@ -758,6 +852,7 @@ trap cleanup_agents EXIT INT TERM
     fi
 
     # Clean up agent service before exiting
-    cleanup_agents
-    exit $EXIT_CODE
-}
+        cleanup_agents
+        exit $EXIT_CODE
+    }
+fi
