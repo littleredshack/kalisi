@@ -1,0 +1,1827 @@
+{
+  "nodes": [
+    {
+      "GUID": "adf16aa2-4501-4b45-b9bc-a21631d4851f",
+      "labels": [
+        "SetNode"
+      ],
+      "neo4jId": 7044,
+      "properties": {
+        "description": "View and analyze the complete codebase structure",
+        "id": "codebase-set-001",
+        "name": "CodeBase Analysis",
+        "GUID": "adf16aa2-4501-4b45-b9bc-a21631d4851f"
+      }
+    },
+    {
+      "GUID": "67bab7c7-e44b-44b2-96c2-8654b35f3145",
+      "labels": [
+        "QueryNode"
+      ],
+      "neo4jId": 7045,
+      "properties": {
+        "cypherQuery": "MATCH (root:CodebaseNode {name: \"Kalisi\"}) MATCH (root)-[r:CONTAINS*0..]->(descendant) OPTIONAL MATCH (descendant)-[rel:CONTAINS]->(child) RETURN root, descendant, r, rel, child",
+        "description": "Returns complete codebase hierarchy with all relationships",
+        "id": "codebase-query-001",
+        "name": "CodeBase Structure Query",
+        "GUID": "67bab7c7-e44b-44b2-96c2-8654b35f3145"
+      }
+    },
+    {
+      "GUID": "878cafb6-1341-4b8c-8a38-7915383c9427",
+      "labels": [
+        "ViewNode"
+      ],
+      "neo4jId": 7046,
+      "properties": {
+        "autoLayoutSettings": "{\"collapseBehavior\": \"full-size\", \"reflowBehavior\": \"static\"}",
+        "description": "Hierarchical view with containment and orthogonal routing",
+        "id": "codebase-view-001",
+        "layout_engine": "hierarchical",
+        "name": "CodeBase Hierarchical View",
+        "renderer": "composable-containment-orthogonal",
+        "GUID": "878cafb6-1341-4b8c-8a38-7915383c9427"
+      }
+    },
+    {
+      "GUID": "ac4c95e5-206b-47a9-a9fd-71ab11f437fa",
+      "labels": [
+        "ViewNode"
+      ],
+      "neo4jId": 7077,
+      "properties": {
+        "autoLayoutSettings": "{\"collapseBehavior\":\"full-size\",\"reflowBehavior\":\"static\"}",
+        "created": "DateTime(BoltDateTime { seconds: BoltInteger { value: 1758136540 }, nanoseconds: BoltInteger { value: 198000000 }, tz_offset_seconds: BoltInteger { value: 0 } })",
+        "description": "New composable architecture hierarchical containment view",
+        "id": "composable-hierarchical-b39cd9eb-03b3-48b4-82b2-628addbe32b3",
+        "layout": "{\"nodes\":[{\"id\":\"Node 1\",\"GUID\":\"parent-1\",\"type\":\"container\",\"x\":50,\"y\":50,\"width\":390,\"height\":400,\"text\":\"Node 1\",\"style\":{\"fill\":\"#1f2937\",\"stroke\":\"#4b5563\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[{\"id\":\"Node 1-1\",\"GUID\":\"child-1\",\"type\":\"node\",\"x\":93,\"y\":70.23127463863337,\"width\":180,\"height\":140,\"text\":\"Node 1-1\",\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[{\"id\":\"Node 1-1-1\",\"GUID\":\"grandchild-1\",\"type\":\"component\",\"x\":20,\"y\":40,\"width\":120,\"height\":60,\"text\":\"Node 1-1-1\",\"style\":{\"fill\":\"#2d4f22\",\"stroke\":\"#5b8729\"},\"selected\":false,\"visible\":true,\"collapsed\":true,\"dragging\":false,\"children\":[]}]}]},{\"id\":\"Node 2\",\"GUID\":\"parent-2\",\"type\":\"container\",\"x\":490,\"y\":48.79279478539189,\"width\":380,\"height\":400,\"text\":\"Node 2\",\"style\":{\"fill\":\"#1f2937\",\"stroke\":\"#4b5563\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[{\"id\":\"Node 2-2\",\"GUID\":\"child-3\",\"type\":\"node\",\"x\":46,\"y\":69.13929040735873,\"width\":160,\"height\":80,\"text\":\"Node 2-2\",\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[]},{\"id\":\"Node 2-1\",\"GUID\":\"child-2\",\"type\":\"node\",\"x\":73,\"y\":192.07095926412617,\"width\":160,\"height\":120,\"text\":\"Node 2-1\",\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[{\"id\":\"Node 2-1-1\",\"GUID\":\"grandchild-2\",\"type\":\"component\",\"x\":20,\"y\":40,\"width\":120,\"height\":60,\"text\":\"Node 2-1-1\",\"style\":{\"fill\":\"#2d4f22\",\"stroke\":\"#5b8729\"},\"selected\":false,\"visible\":true,\"collapsed\":true,\"dragging\":false,\"children\":[]}]}]}],\"edges\":[{\"id\":\"link-grandchild1-grandchild2\",\"from\":\"grandchild-1\",\"to\":\"grandchild-2\",\"label\":\"Link 11\",\"style\":{\"stroke\":\"#6ea8fe\",\"strokeWidth\":2,\"strokeDashArray\":null},\"source\":\"grandchild-1\",\"target\":\"grandchild-2\",\"type\":\"LINK\",\"GUID\":\"link-grandchild1-grandchild2\",\"fromGUID\":\"grandchild-1\",\"toGUID\":\"grandchild-2\"}],\"originalEdges\":[{\"id\":\"link-grandchild1-grandchild2\",\"from\":\"grandchild-1\",\"to\":\"grandchild-2\",\"label\":\"Link 11\",\"style\":{\"stroke\":\"#6ea8fe\",\"strokeWidth\":2,\"strokeDashArray\":null},\"source\":\"grandchild-1\",\"target\":\"grandchild-2\",\"type\":\"LINK\",\"GUID\":\"link-grandchild1-grandchild2\",\"fromGUID\":\"grandchild-1\",\"toGUID\":\"grandchild-2\"}],\"camera\":{\"x\":-241,\"y\":-141.95795006570302,\"zoom\":1}}",
+        "layout_engine": "hierarchical",
+        "name": "Composable Processes View",
+        "renderer": "composable-hierarchical",
+        "updatedAt": "DateTime(BoltDateTime { seconds: BoltInteger { value: 1758573358 }, nanoseconds: BoltInteger { value: 356000000 }, tz_offset_seconds: BoltInteger { value: 0 } })",
+        "version": "1.0",
+        "GUID": "ac4c95e5-206b-47a9-a9fd-71ab11f437fa"
+      }
+    },
+    {
+      "GUID": "36bcc622-c4cf-4b87-a772-3ae5dca63ad8",
+      "labels": [
+        "Process"
+      ],
+      "neo4jId": 7078,
+      "properties": {
+        "GUID": "36bcc622-c4cf-4b87-a772-3ae5dca63ad8",
+        "id": "Processes",
+        "name": "Processes"
+      }
+    },
+    {
+      "GUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+      "labels": [
+        "System"
+      ],
+      "neo4jId": 7079,
+      "properties": {
+        "GUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+        "id": "Systems",
+        "name": "Systems"
+      }
+    },
+    {
+      "GUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+      "labels": [
+        "System"
+      ],
+      "neo4jId": 7080,
+      "properties": {
+        "GUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+        "id": "API Gateway",
+        "name": "API Gateway"
+      }
+    },
+    {
+      "GUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+      "labels": [
+        "System"
+      ],
+      "neo4jId": 7081,
+      "properties": {
+        "GUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+        "id": "Database Cluster",
+        "name": "Database Cluster"
+      }
+    },
+    {
+      "GUID": "ff9377d6-4d13-478d-b3c4-7e626706a7c2",
+      "labels": [
+        "Component"
+      ],
+      "neo4jId": 7082,
+      "properties": {
+        "GUID": "ff9377d6-4d13-478d-b3c4-7e626706a7c2",
+        "id": "REST API",
+        "name": "REST API"
+      }
+    },
+    {
+      "GUID": "8d2e9392-ac29-4b5d-98c9-81be5de3d801",
+      "labels": [
+        "Component"
+      ],
+      "neo4jId": 7083,
+      "properties": {
+        "GUID": "8d2e9392-ac29-4b5d-98c9-81be5de3d801",
+        "id": "GraphQL API",
+        "name": "GraphQL API"
+      }
+    },
+    {
+      "GUID": "84b3acb1-45c0-4c19-8052-75288cff470f",
+      "labels": [
+        "Component"
+      ],
+      "neo4jId": 7084,
+      "properties": {
+        "GUID": "84b3acb1-45c0-4c19-8052-75288cff470f",
+        "id": "Primary DB",
+        "name": "Primary DB"
+      }
+    },
+    {
+      "GUID": "23aa2270-7a09-48a2-8c35-c1a231b86a34",
+      "labels": [
+        "Component"
+      ],
+      "neo4jId": 7085,
+      "properties": {
+        "GUID": "23aa2270-7a09-48a2-8c35-c1a231b86a34",
+        "id": "Replica DB",
+        "name": "Replica DB"
+      }
+    },
+    {
+      "GUID": "d09df8f0-2dc0-4f25-9f61-73fc919ec122",
+      "labels": [
+        "Process"
+      ],
+      "neo4jId": 7086,
+      "properties": {
+        "GUID": "d09df8f0-2dc0-4f25-9f61-73fc919ec122",
+        "id": "Order Processing",
+        "name": "Order Processing"
+      }
+    },
+    {
+      "GUID": "test-modular-root",
+      "labels": [
+        "TestModular"
+      ],
+      "neo4jId": 7087,
+      "properties": {
+        "GUID": "test-modular-root",
+        "name": "Test-modular"
+      }
+    },
+    {
+      "GUID": "parent-1",
+      "labels": [
+        "Node"
+      ],
+      "neo4jId": 7088,
+      "properties": {
+        "GUID": "parent-1",
+        "name": "Node 1",
+        "text": "Node 1",
+        "type": "container"
+      }
+    },
+    {
+      "GUID": "parent-2",
+      "labels": [
+        "Node"
+      ],
+      "neo4jId": 7089,
+      "properties": {
+        "GUID": "parent-2",
+        "name": "Node 2",
+        "text": "Node 2",
+        "type": "container"
+      }
+    },
+    {
+      "GUID": "child-1",
+      "labels": [
+        "Node"
+      ],
+      "neo4jId": 7090,
+      "properties": {
+        "GUID": "child-1",
+        "name": "Node 1-1",
+        "text": "Node 1-1",
+        "type": "node"
+      }
+    },
+    {
+      "GUID": "child-2",
+      "labels": [
+        "Node"
+      ],
+      "neo4jId": 7091,
+      "properties": {
+        "GUID": "child-2",
+        "name": "Node 2-1",
+        "text": "Node 2-1",
+        "type": "node"
+      }
+    },
+    {
+      "GUID": "grandchild-1",
+      "labels": [
+        "Node"
+      ],
+      "neo4jId": 7092,
+      "properties": {
+        "GUID": "grandchild-1",
+        "name": "Node 1-1-1",
+        "text": "Node 1-1-1",
+        "type": "component"
+      }
+    },
+    {
+      "GUID": "grandchild-2",
+      "labels": [
+        "Node"
+      ],
+      "neo4jId": 7093,
+      "properties": {
+        "GUID": "grandchild-2",
+        "name": "Node 2-1-1",
+        "text": "Node 2-1-1",
+        "type": "component"
+      }
+    },
+    {
+      "GUID": "child-3",
+      "labels": [
+        "Node"
+      ],
+      "neo4jId": 7094,
+      "properties": {
+        "GUID": "child-3",
+        "name": "Node 2-2",
+        "text": "Node 2-2",
+        "type": "node"
+      }
+    },
+    {
+      "GUID": "09b08571-1f6e-4792-ad87-f18401999e54",
+      "labels": [
+        "QueryNode"
+      ],
+      "neo4jId": 7097,
+      "properties": {
+        "createdAt": "DateTime(BoltDateTime { seconds: BoltInteger { value: 1757715676 }, nanoseconds: BoltInteger { value: 941000000 }, tz_offset_seconds: BoltInteger { value: 0 } })",
+        "cypherQuery": "MATCH (n:Node) OPTIONAL MATCH (n)-[r]-(m:Node) RETURN n, r, m",
+        "name": "TestModularQuery",
+        "updatedAt": "DateTime(BoltDateTime { seconds: BoltInteger { value: 1757715676 }, nanoseconds: BoltInteger { value: 941000000 }, tz_offset_seconds: BoltInteger { value: 0 } })",
+        "GUID": "09b08571-1f6e-4792-ad87-f18401999e54"
+      }
+    },
+    {
+      "GUID": "1ecff804-b554-49dc-93f4-59e200f2b8c5",
+      "labels": [
+        "ViewNode"
+      ],
+      "neo4jId": 7099,
+      "properties": {
+        "autoLayoutSettings": "{\"collapseBehavior\": \"full-size\", \"reflowBehavior\": \"static\"}",
+        "createdAt": "DateTime(BoltDateTime { seconds: BoltInteger { value: 1757780905 }, nanoseconds: BoltInteger { value: 630000000 }, tz_offset_seconds: BoltInteger { value: 0 } })",
+        "cypherQuery": "MATCH (root {name: \"Test-modular\"}) OPTIONAL MATCH (root)-[r:CONTAINS*0..]->(descendant) OPTIONAL MATCH (descendant)-[rel]->(child) RETURN root, descendant, rel, child",
+        "id": "compliance-001",
+        "layout": "{\"nodes\":[{\"id\":\"Node 2\",\"type\":\"container\",\"x\":50,\"y\":50,\"width\":380,\"height\":180,\"text\":\"Node 2\",\"style\":{\"fill\":\"#1f2937\",\"stroke\":\"#4b5563\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[{\"id\":\"Node 2-2\",\"type\":\"node\",\"x\":20,\"y\":40,\"width\":160,\"height\":80,\"text\":\"Node 2-2\",\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[]},{\"id\":\"Node 2-1\",\"type\":\"node\",\"x\":200,\"y\":40,\"width\":160,\"height\":120,\"text\":\"Node 2-1\",\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"selected\":true,\"visible\":true,\"collapsed\":true,\"dragging\":false,\"children\":[{\"id\":\"Node 2-1-1\",\"type\":\"component\",\"x\":20,\"y\":40,\"width\":120,\"height\":60,\"text\":\"Node 2-1-1\",\"style\":{\"fill\":\"#2d4f22\",\"stroke\":\"#5b8729\"},\"selected\":false,\"visible\":false,\"collapsed\":false,\"dragging\":false,\"children\":[]}]}]},{\"id\":\"Node 1\",\"type\":\"container\",\"x\":176,\"y\":376.5032851511169,\"width\":200,\"height\":180,\"text\":\"Node 1\",\"style\":{\"fill\":\"#1f2937\",\"stroke\":\"#4b5563\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[{\"id\":\"Node 1-1\",\"type\":\"node\",\"x\":20,\"y\":40,\"width\":160,\"height\":120,\"text\":\"Node 1-1\",\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[{\"id\":\"Node 1-1-1\",\"type\":\"component\",\"x\":20,\"y\":40,\"width\":120,\"height\":60,\"text\":\"Node 1-1-1\",\"style\":{\"fill\":\"#2d4f22\",\"stroke\":\"#5b8729\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[]}]}]}],\"edges\":[{\"id\":\"inherited-link-grandchild1-grandchild2\",\"from\":\"Node 1-1-1\",\"to\":\"Node 2-1\",\"label\":\"Link 11\",\"style\":{\"stroke\":\"#1e3a8a\",\"strokeWidth\":3,\"strokeDashArray\":[4,4]},\"source\":\"grandchild-1\",\"target\":\"grandchild-2\",\"type\":\"LINK\",\"GUID\":\"link-grandchild1-grandchild2\",\"fromGUID\":\"grandchild-1\",\"toGUID\":\"grandchild-2\"}],\"originalEdges\":[{\"id\":\"link-grandchild1-grandchild2\",\"from\":\"Node 1-1-1\",\"to\":\"Node 2-1-1\",\"label\":\"Link 11\",\"style\":{\"stroke\":\"#6ea8fe\",\"strokeWidth\":2,\"strokeDashArray\":null},\"source\":\"grandchild-1\",\"target\":\"grandchild-2\",\"type\":\"LINK\",\"GUID\":\"link-grandchild1-grandchild2\",\"fromGUID\":\"grandchild-1\",\"toGUID\":\"grandchild-2\"}],\"camera\":{\"x\":0,\"y\":0,\"zoom\":1}}",
+        "name": "Compliance",
+        "updatedAt": "DateTime(BoltDateTime { seconds: BoltInteger { value: 1758040136 }, nanoseconds: BoltInteger { value: 564000000 }, tz_offset_seconds: BoltInteger { value: 0 } })",
+        "GUID": "1ecff804-b554-49dc-93f4-59e200f2b8c5"
+      }
+    },
+    {
+      "GUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+      "labels": [
+        "SetNode"
+      ],
+      "neo4jId": 7100,
+      "properties": {
+        "description": "Set for architecture and test views",
+        "id": "test-set-001",
+        "name": "Test Architecture Set",
+        "GUID": "ded4bb66-3bca-4231-99bc-65276ca5c927"
+      }
+    },
+    {
+      "GUID": "6df5d2a2-8068-4dc3-857a-470aef528be6",
+      "labels": [
+        "QueryNode"
+      ],
+      "neo4jId": 7101,
+      "properties": {
+        "cypherQuery": "MATCH (n:Node) OPTIONAL MATCH (n)-[r]-(m:Node) RETURN n, r, m",
+        "id": "query-001",
+        "name": "Architecture Components Query",
+        "GUID": "6df5d2a2-8068-4dc3-857a-470aef528be6"
+      }
+    },
+    {
+      "GUID": "e65aca95-cc3c-4af0-acf4-c45e4bb29ce2",
+      "labels": [
+        "ViewNode"
+      ],
+      "neo4jId": 7102,
+      "properties": {
+        "autoLayoutSettings": "{\"collapseBehavior\":\"full-size\",\"reflowBehavior\":\"static\"}",
+        "description": "New composable architecture flat graph view",
+        "id": "composable-flat-0f36120d-4cc4-4ecb-b3ff-9fa589013788",
+        "layout": "{\"nodes\":[{\"id\":\"Node 1-1\",\"GUID\":\"child-1\",\"type\":\"node\",\"x\":682,\"y\":303.2759526938239,\"width\":120,\"height\":80,\"text\":\"Node 1-1\",\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[]},{\"id\":\"Node 1\",\"GUID\":\"parent-1\",\"type\":\"container\",\"x\":940.6979603717467,\"y\":512.9192297107122,\"width\":120,\"height\":80,\"text\":\"Node 1\",\"style\":{\"fill\":\"#1f2937\",\"stroke\":\"#4b5563\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[]},{\"id\":\"Node 2-2\",\"GUID\":\"child-3\",\"type\":\"node\",\"x\":490.4958132087371,\"y\":632.5755955769692,\"width\":120,\"height\":80,\"text\":\"Node 2-2\",\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[]},{\"id\":\"Node 2\",\"GUID\":\"parent-2\",\"type\":\"container\",\"x\":142.80622641951618,\"y\":476.31945478803203,\"width\":120,\"height\":80,\"text\":\"Node 2\",\"style\":{\"fill\":\"#1f2937\",\"stroke\":\"#4b5563\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[]},{\"id\":\"Node 2-1\",\"GUID\":\"child-2\",\"type\":\"node\",\"x\":273.8062264195162,\"y\":254.71865296492467,\"width\":120,\"height\":80,\"text\":\"Node 2-1\",\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[]},{\"id\":\"Node 1-1-1\",\"GUID\":\"grandchild-1\",\"type\":\"component\",\"x\":516.4958132087371,\"y\":77.71481178176933,\"width\":120,\"height\":80,\"text\":\"Node 1-1-1\",\"style\":{\"fill\":\"#2d4f22\",\"stroke\":\"#5b8729\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[]},{\"id\":\"Node 2-1-1\",\"GUID\":\"grandchild-2\",\"type\":\"component\",\"x\":70.69796037174672,\"y\":79.47528766480988,\"width\":120,\"height\":80,\"text\":\"Node 2-1-1\",\"style\":{\"fill\":\"#2d4f22\",\"stroke\":\"#5b8729\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[]}],\"edges\":[{\"id\":\"contains-parent1-child1\",\"from\":\"parent-1\",\"to\":\"child-1\",\"fromGUID\":\"parent-1\",\"toGUID\":\"child-1\",\"label\":\"CONTAINS\",\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null},\"source\":\"parent-1\",\"target\":\"child-1\",\"type\":\"CONTAINS\",\"GUID\":\"contains-parent1-child1\",\"waypoints\":[{\"x\":1000.6979603717467,\"y\":552.9192297107122},{\"x\":742,\"y\":552.9192297107122},{\"x\":742,\"y\":343.2759526938239}]},{\"id\":\"contains-parent2-child3\",\"from\":\"parent-2\",\"to\":\"child-3\",\"fromGUID\":\"parent-2\",\"toGUID\":\"child-3\",\"label\":\"CONTAINS\",\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null},\"source\":\"parent-2\",\"target\":\"child-3\",\"type\":\"CONTAINS\",\"GUID\":\"contains-parent2-child3\",\"waypoints\":[{\"x\":202.80622641951618,\"y\":516.3194547880321},{\"x\":550.4958132087371,\"y\":516.3194547880321},{\"x\":550.4958132087371,\"y\":672.5755955769692}]},{\"id\":\"contains-parent2-child2\",\"from\":\"parent-2\",\"to\":\"child-2\",\"fromGUID\":\"parent-2\",\"toGUID\":\"child-2\",\"label\":\"CONTAINS\",\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null},\"source\":\"parent-2\",\"target\":\"child-2\",\"type\":\"CONTAINS\",\"GUID\":\"contains-parent2-child2\",\"waypoints\":[{\"x\":202.80622641951618,\"y\":516.3194547880321},{\"x\":333.8062264195162,\"y\":516.3194547880321},{\"x\":333.8062264195162,\"y\":294.7186529649247}]},{\"id\":\"contains-child1-grandchild1\",\"from\":\"child-1\",\"to\":\"grandchild-1\",\"fromGUID\":\"child-1\",\"toGUID\":\"grandchild-1\",\"label\":\"CONTAINS\",\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null},\"source\":\"child-1\",\"target\":\"grandchild-1\",\"type\":\"CONTAINS\",\"GUID\":\"contains-child1-grandchild1\",\"waypoints\":[{\"x\":742,\"y\":343.2759526938239},{\"x\":576.4958132087371,\"y\":343.2759526938239},{\"x\":576.4958132087371,\"y\":117.71481178176933}]},{\"id\":\"contains-child2-grandchild2\",\"from\":\"child-2\",\"to\":\"grandchild-2\",\"fromGUID\":\"child-2\",\"toGUID\":\"grandchild-2\",\"label\":\"CONTAINS\",\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null},\"source\":\"child-2\",\"target\":\"grandchild-2\",\"type\":\"CONTAINS\",\"GUID\":\"contains-child2-grandchild2\",\"waypoints\":[{\"x\":333.8062264195162,\"y\":294.7186529649247},{\"x\":130.69796037174672,\"y\":294.7186529649247},{\"x\":130.69796037174672,\"y\":119.47528766480988}]},{\"id\":\"link-grandchild1-grandchild2\",\"from\":\"grandchild-1\",\"to\":\"grandchild-2\",\"fromGUID\":\"grandchild-1\",\"toGUID\":\"grandchild-2\",\"label\":\"Link 11\",\"style\":{\"stroke\":\"#6ea8fe\",\"strokeWidth\":2,\"strokeDashArray\":null},\"source\":\"grandchild-1\",\"target\":\"grandchild-2\",\"type\":\"LINK\",\"GUID\":\"link-grandchild1-grandchild2\",\"waypoints\":[{\"x\":576.4958132087371,\"y\":117.71481178176933},{\"x\":130.69796037174672,\"y\":117.71481178176933},{\"x\":130.69796037174672,\"y\":119.47528766480988}]}],\"originalEdges\":[{\"id\":\"contains-parent1-child1\",\"from\":\"parent-1\",\"to\":\"child-1\",\"fromGUID\":\"parent-1\",\"toGUID\":\"child-1\",\"label\":\"CONTAINS\",\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null},\"source\":\"parent-1\",\"target\":\"child-1\",\"type\":\"CONTAINS\",\"GUID\":\"contains-parent1-child1\",\"waypoints\":[{\"x\":584.6979603717467,\"y\":496.366296493606},{\"x\":660,\"y\":496.366296493606},{\"x\":660,\"y\":340}]},{\"id\":\"contains-parent2-child3\",\"from\":\"parent-2\",\"to\":\"child-3\",\"fromGUID\":\"parent-2\",\"toGUID\":\"child-3\",\"label\":\"CONTAINS\",\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null},\"source\":\"parent-2\",\"target\":\"child-3\",\"type\":\"CONTAINS\",\"GUID\":\"contains-parent2-child3\",\"waypoints\":[{\"x\":279.8062264195162,\"y\":426.77674782351164},{\"x\":415.4958132087371,\"y\":426.77674782351164},{\"x\":415.4958132087371,\"y\":534.9855824363647}]},{\"id\":\"contains-parent2-child2\",\"from\":\"parent-2\",\"to\":\"child-2\",\"fromGUID\":\"parent-2\",\"toGUID\":\"child-2\",\"label\":\"CONTAINS\",\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null},\"source\":\"parent-2\",\"target\":\"child-2\",\"type\":\"CONTAINS\",\"GUID\":\"contains-parent2-child2\",\"waypoints\":[{\"x\":279.8062264195162,\"y\":426.77674782351164},{\"x\":279.8062264195162,\"y\":253.22325217648842}]},{\"id\":\"contains-child1-grandchild1\",\"from\":\"child-1\",\"to\":\"grandchild-1\",\"fromGUID\":\"child-1\",\"toGUID\":\"grandchild-1\",\"label\":\"CONTAINS\",\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null},\"source\":\"child-1\",\"target\":\"grandchild-1\",\"type\":\"CONTAINS\",\"GUID\":\"contains-child1-grandchild1\",\"waypoints\":[{\"x\":660,\"y\":340},{\"x\":415.4958132087371,\"y\":340},{\"x\":415.4958132087371,\"y\":145.01441756363528}]},{\"id\":\"contains-child2-grandchild2\",\"from\":\"child-2\",\"to\":\"grandchild-2\",\"fromGUID\":\"child-2\",\"toGUID\":\"grandchild-2\",\"label\":\"CONTAINS\",\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null},\"source\":\"child-2\",\"target\":\"grandchild-2\",\"type\":\"CONTAINS\",\"GUID\":\"contains-child2-grandchild2\",\"waypoints\":[{\"x\":279.8062264195162,\"y\":253.22325217648842},{\"x\":130.69796037174672,\"y\":253.22325217648842},{\"x\":130.69796037174672,\"y\":119.47528766480988}]},{\"id\":\"link-grandchild1-grandchild2\",\"from\":\"grandchild-1\",\"to\":\"grandchild-2\",\"fromGUID\":\"grandchild-1\",\"toGUID\":\"grandchild-2\",\"label\":\"Link 11\",\"style\":{\"stroke\":\"#6ea8fe\",\"strokeWidth\":2,\"strokeDashArray\":null},\"source\":\"grandchild-1\",\"target\":\"grandchild-2\",\"type\":\"LINK\",\"GUID\":\"link-grandchild1-grandchild2\",\"waypoints\":[{\"x\":415.4958132087371,\"y\":145.01441756363528},{\"x\":130.69796037174672,\"y\":145.01441756363528},{\"x\":130.69796037174672,\"y\":119.47528766480988}]}],\"camera\":{\"x\":-150,\"y\":-17.471747700394232,\"zoom\":1}}",
+        "layout_engine": "flat-graph",
+        "name": "Composable Flat Graph",
+        "renderer": "composable-flat",
+        "updatedAt": "DateTime(BoltDateTime { seconds: BoltInteger { value: 1758581376 }, nanoseconds: BoltInteger { value: 175000000 }, tz_offset_seconds: BoltInteger { value: 0 } })",
+        "GUID": "e65aca95-cc3c-4af0-acf4-c45e4bb29ce2"
+      }
+    },
+    {
+      "GUID": "ff144d84-d482-487d-b3bb-35359034ff03",
+      "labels": [
+        "ViewNode"
+      ],
+      "neo4jId": 7103,
+      "properties": {
+        "autoLayoutSettings": "{\"collapseBehavior\":\"full-size\",\"reflowBehavior\":\"static\"}",
+        "id": "containment-orthogonal-001",
+        "layout": "{\"nodes\":[{\"id\":\"Node 1\",\"GUID\":\"parent-1\",\"type\":\"container\",\"x\":50,\"y\":50,\"width\":220,\"height\":400,\"text\":\"Node 1\",\"style\":{\"fill\":\"#1f2937\",\"stroke\":\"#4b5563\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[{\"id\":\"Node 1-1\",\"GUID\":\"child-1\",\"type\":\"node\",\"x\":19,\"y\":73.50722733245729,\"width\":180,\"height\":140,\"text\":\"Node 1-1\",\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[{\"id\":\"Node 1-1-1\",\"GUID\":\"grandchild-1\",\"type\":\"component\",\"x\":20,\"y\":40,\"width\":120,\"height\":60,\"text\":\"Node 1-1-1\",\"style\":{\"fill\":\"#2d4f22\",\"stroke\":\"#5b8729\"},\"selected\":false,\"visible\":true,\"collapsed\":true,\"dragging\":false,\"children\":[]}]}]},{\"id\":\"Node 2\",\"GUID\":\"parent-2\",\"type\":\"container\",\"x\":545,\"y\":347.0197109067017,\"width\":380,\"height\":400,\"text\":\"Node 2\",\"style\":{\"fill\":\"#1f2937\",\"stroke\":\"#4b5563\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[{\"id\":\"Node 2-2\",\"GUID\":\"child-3\",\"type\":\"node\",\"x\":22,\"y\":287.5361366622866,\"width\":160,\"height\":80,\"text\":\"Node 2-2\",\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"selected\":false,\"visible\":true,\"collapsed\":true,\"dragging\":false,\"children\":[]},{\"id\":\"Node 2-1\",\"GUID\":\"child-2\",\"type\":\"node\",\"x\":20,\"y\":120,\"width\":180,\"height\":140,\"text\":\"Node 2-1\",\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[{\"id\":\"Node 2-1-1\",\"GUID\":\"grandchild-2\",\"type\":\"component\",\"x\":22,\"y\":57.47174770039419,\"width\":120,\"height\":60,\"text\":\"Node 2-1-1\",\"style\":{\"fill\":\"#2d4f22\",\"stroke\":\"#5b8729\"},\"selected\":false,\"visible\":true,\"collapsed\":true,\"dragging\":false,\"children\":[]}]}]}],\"edges\":[{\"id\":\"link-grandchild1-grandchild2\",\"from\":\"grandchild-1\",\"to\":\"grandchild-2\",\"label\":\"Link 11\",\"style\":{\"stroke\":\"#6ea8fe\",\"strokeWidth\":2,\"strokeDashArray\":null},\"source\":\"grandchild-1\",\"target\":\"grandchild-2\",\"type\":\"LINK\",\"GUID\":\"link-grandchild1-grandchild2\",\"fromGUID\":\"grandchild-1\",\"toGUID\":\"grandchild-2\",\"waypoints\":[{\"x\":209,\"y\":193.5072273324573},{\"x\":647,\"y\":193.5072273324573},{\"x\":647,\"y\":524.4914586070959}]}],\"originalEdges\":[{\"id\":\"link-grandchild1-grandchild2\",\"from\":\"grandchild-1\",\"to\":\"grandchild-2\",\"label\":\"Link 11\",\"style\":{\"stroke\":\"#6ea8fe\",\"strokeWidth\":2,\"strokeDashArray\":null},\"source\":\"grandchild-1\",\"target\":\"grandchild-2\",\"type\":\"LINK\",\"GUID\":\"link-grandchild1-grandchild2\",\"fromGUID\":\"grandchild-1\",\"toGUID\":\"grandchild-2\",\"waypoints\":[{\"x\":209,\"y\":193.5072273324573},{\"x\":647,\"y\":193.5072273324573},{\"x\":647,\"y\":524.4914586070959}]}],\"camera\":{\"x\":0,\"y\":0,\"zoom\":1}}",
+        "layout_engine": "hierarchical",
+        "name": "Containment - Orthogonal",
+        "renderer": "composable-containment-orthogonal",
+        "updatedAt": "DateTime(BoltDateTime { seconds: BoltInteger { value: 1758581322 }, nanoseconds: BoltInteger { value: 604000000 }, tz_offset_seconds: BoltInteger { value: 0 } })",
+        "GUID": "ff144d84-d482-487d-b3bb-35359034ff03"
+      }
+    },
+    {
+      "GUID": "36bcc622-c4cf-4b87-a772-3ae5dca63ad8",
+      "labels": [
+        "Process"
+      ],
+      "neo4jId": 14002,
+      "properties": {
+        "GUID": "36bcc622-c4cf-4b87-a772-3ae5dca63ad8",
+        "id": "Processes",
+        "name": "Processes"
+      }
+    },
+    {
+      "GUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+      "labels": [
+        "System"
+      ],
+      "neo4jId": 14003,
+      "properties": {
+        "GUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+        "id": "Systems",
+        "name": "Systems"
+      }
+    },
+    {
+      "GUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+      "labels": [
+        "System"
+      ],
+      "neo4jId": 14004,
+      "properties": {
+        "GUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+        "id": "API Gateway",
+        "name": "API Gateway"
+      }
+    },
+    {
+      "GUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+      "labels": [
+        "System"
+      ],
+      "neo4jId": 14005,
+      "properties": {
+        "GUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+        "id": "Database Cluster",
+        "name": "Database Cluster"
+      }
+    },
+    {
+      "GUID": "d09df8f0-2dc0-4f25-9f61-73fc919ec122",
+      "labels": [
+        "Process"
+      ],
+      "neo4jId": 14010,
+      "properties": {
+        "GUID": "d09df8f0-2dc0-4f25-9f61-73fc919ec122",
+        "id": "Order Processing",
+        "name": "Order Processing"
+      }
+    },
+    {
+      "GUID": "test-modular-root",
+      "labels": [
+        "TestModular"
+      ],
+      "neo4jId": 14011,
+      "properties": {
+        "GUID": "test-modular-root",
+        "name": "Test-modular"
+      }
+    },
+    {
+      "GUID": "parent-1",
+      "labels": [
+        "Node"
+      ],
+      "neo4jId": 14012,
+      "properties": {
+        "GUID": "parent-1",
+        "name": "Node 1",
+        "text": "Node 1",
+        "type": "container"
+      }
+    },
+    {
+      "GUID": "parent-2",
+      "labels": [
+        "Node"
+      ],
+      "neo4jId": 14013,
+      "properties": {
+        "GUID": "parent-2",
+        "name": "Node 2",
+        "text": "Node 2",
+        "type": "container"
+      }
+    },
+    {
+      "GUID": "child-1",
+      "labels": [
+        "Node"
+      ],
+      "neo4jId": 14014,
+      "properties": {
+        "GUID": "child-1",
+        "name": "Node 1-1",
+        "text": "Node 1-1",
+        "type": "node"
+      }
+    },
+    {
+      "GUID": "child-2",
+      "labels": [
+        "Node"
+      ],
+      "neo4jId": 14015,
+      "properties": {
+        "GUID": "child-2",
+        "name": "Node 2-1",
+        "text": "Node 2-1",
+        "type": "node"
+      }
+    },
+    {
+      "GUID": "grandchild-1",
+      "labels": [
+        "Node"
+      ],
+      "neo4jId": 14016,
+      "properties": {
+        "GUID": "grandchild-1",
+        "name": "Node 1-1-1",
+        "text": "Node 1-1-1",
+        "type": "component"
+      }
+    },
+    {
+      "GUID": "grandchild-2",
+      "labels": [
+        "Node"
+      ],
+      "neo4jId": 14017,
+      "properties": {
+        "GUID": "grandchild-2",
+        "name": "Node 2-1-1",
+        "text": "Node 2-1-1",
+        "type": "component"
+      }
+    },
+    {
+      "GUID": "child-3",
+      "labels": [
+        "Node"
+      ],
+      "neo4jId": 14018,
+      "properties": {
+        "GUID": "child-3",
+        "name": "Node 2-2",
+        "text": "Node 2-2",
+        "type": "node"
+      }
+    },
+    {
+      "GUID": "3a18d264-1aab-451b-86ca-5ca8d8b5baa6",
+      "labels": [
+        "QueryNode"
+      ],
+      "neo4jId": 14021,
+      "properties": {
+        "createdAt": "DateTime(BoltDateTime { seconds: BoltInteger { value: 1757715676 }, nanoseconds: BoltInteger { value: 941000000 }, tz_offset_seconds: BoltInteger { value: 0 } })",
+        "cypherQuery": "MATCH (n:Node) OPTIONAL MATCH (n)-[r]-(m:Node) RETURN n, r, m",
+        "name": "TestModularQuery",
+        "updatedAt": "DateTime(BoltDateTime { seconds: BoltInteger { value: 1757715676 }, nanoseconds: BoltInteger { value: 941000000 }, tz_offset_seconds: BoltInteger { value: 0 } })",
+        "GUID": "3a18d264-1aab-451b-86ca-5ca8d8b5baa6"
+      }
+    },
+    {
+      "GUID": "af907edb-997e-4d90-bdb8-255d5a210116",
+      "labels": [
+        "QueryNode"
+      ],
+      "neo4jId": 14025,
+      "properties": {
+        "cypherQuery": "MATCH (n:Node) OPTIONAL MATCH (n)-[r]-(m:Node) RETURN n, r, m",
+        "id": "query-001",
+        "name": "Architecture Components Query",
+        "GUID": "af907edb-997e-4d90-bdb8-255d5a210116"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "GUID": "4f3436a4-4c21-453c-a7ba-5154d54a140a",
+      "endNodeId": 7046,
+      "fromGUID": "adf16aa2-4501-4b45-b9bc-a21631d4851f",
+      "neo4jId": 470,
+      "properties": {
+        "GUID": "4f3436a4-4c21-453c-a7ba-5154d54a140a",
+        "fromGUID": "adf16aa2-4501-4b45-b9bc-a21631d4851f",
+        "toGUID": "878cafb6-1341-4b8c-8a38-7915383c9427"
+      },
+      "startNodeId": 7044,
+      "toGUID": "878cafb6-1341-4b8c-8a38-7915383c9427",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "50bd773a-f403-4899-9843-52e75c84c1a1",
+      "endNodeId": 7046,
+      "fromGUID": "adf16aa2-4501-4b45-b9bc-a21631d4851f",
+      "neo4jId": 10226,
+      "properties": {
+        "GUID": "50bd773a-f403-4899-9843-52e75c84c1a1",
+        "fromGUID": "adf16aa2-4501-4b45-b9bc-a21631d4851f",
+        "toGUID": "878cafb6-1341-4b8c-8a38-7915383c9427"
+      },
+      "startNodeId": 7044,
+      "toGUID": "878cafb6-1341-4b8c-8a38-7915383c9427",
+      "type": "HAS_VIEWNODE"
+    },
+    {
+      "GUID": "38ac12a1-829c-4871-ae3e-f244e9fe2c3d",
+      "endNodeId": 7045,
+      "fromGUID": "adf16aa2-4501-4b45-b9bc-a21631d4851f",
+      "neo4jId": 10225,
+      "properties": {
+        "GUID": "38ac12a1-829c-4871-ae3e-f244e9fe2c3d",
+        "fromGUID": "adf16aa2-4501-4b45-b9bc-a21631d4851f",
+        "toGUID": "67bab7c7-e44b-44b2-96c2-8654b35f3145"
+      },
+      "startNodeId": 7044,
+      "toGUID": "67bab7c7-e44b-44b2-96c2-8654b35f3145",
+      "type": "HAS_QUERYNODE"
+    },
+    {
+      "GUID": "b61a6fb1-7e74-4dbd-86b1-6574e3bea06a",
+      "endNodeId": 7086,
+      "fromGUID": "36bcc622-c4cf-4b87-a772-3ae5dca63ad8",
+      "neo4jId": 15536,
+      "properties": {
+        "GUID": "b61a6fb1-7e74-4dbd-86b1-6574e3bea06a",
+        "endNodeId": "d09df8f0-2dc0-4f25-9f61-73fc919ec122",
+        "fromGUID": "36bcc622-c4cf-4b87-a772-3ae5dca63ad8",
+        "id": "rel_25",
+        "startNodeId": "36bcc622-c4cf-4b87-a772-3ae5dca63ad8",
+        "toGUID": "d09df8f0-2dc0-4f25-9f61-73fc919ec122"
+      },
+      "startNodeId": 7078,
+      "toGUID": "d09df8f0-2dc0-4f25-9f61-73fc919ec122",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "b61a6fb1-7e74-4dbd-86b1-6574e3bea06a",
+      "endNodeId": 14010,
+      "fromGUID": "36bcc622-c4cf-4b87-a772-3ae5dca63ad8",
+      "neo4jId": 15537,
+      "properties": {
+        "GUID": "b61a6fb1-7e74-4dbd-86b1-6574e3bea06a",
+        "endNodeId": "d09df8f0-2dc0-4f25-9f61-73fc919ec122",
+        "fromGUID": "36bcc622-c4cf-4b87-a772-3ae5dca63ad8",
+        "id": "rel_25",
+        "startNodeId": "36bcc622-c4cf-4b87-a772-3ae5dca63ad8",
+        "toGUID": "d09df8f0-2dc0-4f25-9f61-73fc919ec122"
+      },
+      "startNodeId": 7078,
+      "toGUID": "d09df8f0-2dc0-4f25-9f61-73fc919ec122",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "b61a6fb1-7e74-4dbd-86b1-6574e3bea06a",
+      "endNodeId": 7086,
+      "fromGUID": "36bcc622-c4cf-4b87-a772-3ae5dca63ad8",
+      "neo4jId": 4283,
+      "properties": {
+        "GUID": "b61a6fb1-7e74-4dbd-86b1-6574e3bea06a",
+        "endNodeId": "d09df8f0-2dc0-4f25-9f61-73fc919ec122",
+        "fromGUID": "36bcc622-c4cf-4b87-a772-3ae5dca63ad8",
+        "id": "rel_25",
+        "startNodeId": "36bcc622-c4cf-4b87-a772-3ae5dca63ad8",
+        "toGUID": "d09df8f0-2dc0-4f25-9f61-73fc919ec122"
+      },
+      "startNodeId": 7078,
+      "toGUID": "d09df8f0-2dc0-4f25-9f61-73fc919ec122",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "6007d0e6-f2a5-4c01-9fe7-b0a1281a89ce",
+      "endNodeId": 7081,
+      "fromGUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+      "neo4jId": 15524,
+      "properties": {
+        "GUID": "6007d0e6-f2a5-4c01-9fe7-b0a1281a89ce",
+        "endNodeId": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+        "fromGUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+        "id": "rel_20",
+        "startNodeId": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+        "toGUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb"
+      },
+      "startNodeId": 7079,
+      "toGUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "6007d0e6-f2a5-4c01-9fe7-b0a1281a89ce",
+      "endNodeId": 14005,
+      "fromGUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+      "neo4jId": 15525,
+      "properties": {
+        "GUID": "6007d0e6-f2a5-4c01-9fe7-b0a1281a89ce",
+        "endNodeId": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+        "fromGUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+        "id": "rel_20",
+        "startNodeId": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+        "toGUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb"
+      },
+      "startNodeId": 7079,
+      "toGUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "d4f77e58-2013-42bb-82ba-edcf1cd1f70e",
+      "endNodeId": 14004,
+      "fromGUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+      "neo4jId": 15521,
+      "properties": {
+        "GUID": "d4f77e58-2013-42bb-82ba-edcf1cd1f70e",
+        "endNodeId": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+        "fromGUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+        "id": "rel_19",
+        "startNodeId": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+        "toGUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65"
+      },
+      "startNodeId": 7079,
+      "toGUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "d4f77e58-2013-42bb-82ba-edcf1cd1f70e",
+      "endNodeId": 7080,
+      "fromGUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+      "neo4jId": 15520,
+      "properties": {
+        "GUID": "d4f77e58-2013-42bb-82ba-edcf1cd1f70e",
+        "endNodeId": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+        "fromGUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+        "id": "rel_19",
+        "startNodeId": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+        "toGUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65"
+      },
+      "startNodeId": 7079,
+      "toGUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "6007d0e6-f2a5-4c01-9fe7-b0a1281a89ce",
+      "endNodeId": 7081,
+      "fromGUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+      "neo4jId": 4278,
+      "properties": {
+        "GUID": "6007d0e6-f2a5-4c01-9fe7-b0a1281a89ce",
+        "endNodeId": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+        "fromGUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+        "id": "rel_20",
+        "startNodeId": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+        "toGUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb"
+      },
+      "startNodeId": 7079,
+      "toGUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "d4f77e58-2013-42bb-82ba-edcf1cd1f70e",
+      "endNodeId": 7080,
+      "fromGUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+      "neo4jId": 4277,
+      "properties": {
+        "GUID": "d4f77e58-2013-42bb-82ba-edcf1cd1f70e",
+        "endNodeId": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+        "fromGUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+        "id": "rel_19",
+        "startNodeId": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+        "toGUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65"
+      },
+      "startNodeId": 7079,
+      "toGUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "a31f70d6-7d7b-431d-a7a5-89dd4fecca97",
+      "endNodeId": 7083,
+      "fromGUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+      "neo4jId": 15530,
+      "properties": {
+        "GUID": "a31f70d6-7d7b-431d-a7a5-89dd4fecca97",
+        "endNodeId": "8d2e9392-ac29-4b5d-98c9-81be5de3d801",
+        "fromGUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+        "id": "rel_22",
+        "startNodeId": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+        "toGUID": "8d2e9392-ac29-4b5d-98c9-81be5de3d801"
+      },
+      "startNodeId": 7080,
+      "toGUID": "8d2e9392-ac29-4b5d-98c9-81be5de3d801",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "fea4f764-943b-42f8-8b42-624b28b96ddb",
+      "endNodeId": 7082,
+      "fromGUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+      "neo4jId": 15528,
+      "properties": {
+        "GUID": "fea4f764-943b-42f8-8b42-624b28b96ddb",
+        "endNodeId": "ff9377d6-4d13-478d-b3c4-7e626706a7c2",
+        "fromGUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+        "id": "rel_21",
+        "startNodeId": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+        "toGUID": "ff9377d6-4d13-478d-b3c4-7e626706a7c2"
+      },
+      "startNodeId": 7080,
+      "toGUID": "ff9377d6-4d13-478d-b3c4-7e626706a7c2",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "a31f70d6-7d7b-431d-a7a5-89dd4fecca97",
+      "endNodeId": 7083,
+      "fromGUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+      "neo4jId": 4280,
+      "properties": {
+        "GUID": "a31f70d6-7d7b-431d-a7a5-89dd4fecca97",
+        "endNodeId": "8d2e9392-ac29-4b5d-98c9-81be5de3d801",
+        "fromGUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+        "id": "rel_22",
+        "startNodeId": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+        "toGUID": "8d2e9392-ac29-4b5d-98c9-81be5de3d801"
+      },
+      "startNodeId": 7080,
+      "toGUID": "8d2e9392-ac29-4b5d-98c9-81be5de3d801",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "fea4f764-943b-42f8-8b42-624b28b96ddb",
+      "endNodeId": 7082,
+      "fromGUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+      "neo4jId": 4279,
+      "properties": {
+        "GUID": "fea4f764-943b-42f8-8b42-624b28b96ddb",
+        "endNodeId": "ff9377d6-4d13-478d-b3c4-7e626706a7c2",
+        "fromGUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+        "id": "rel_21",
+        "startNodeId": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+        "toGUID": "ff9377d6-4d13-478d-b3c4-7e626706a7c2"
+      },
+      "startNodeId": 7080,
+      "toGUID": "ff9377d6-4d13-478d-b3c4-7e626706a7c2",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "81677d75-87bb-49c8-9e92-8b596ad162e0",
+      "endNodeId": 7085,
+      "fromGUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+      "neo4jId": 15534,
+      "properties": {
+        "GUID": "81677d75-87bb-49c8-9e92-8b596ad162e0",
+        "endNodeId": "23aa2270-7a09-48a2-8c35-c1a231b86a34",
+        "fromGUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+        "id": "rel_24",
+        "startNodeId": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+        "toGUID": "23aa2270-7a09-48a2-8c35-c1a231b86a34"
+      },
+      "startNodeId": 7081,
+      "toGUID": "23aa2270-7a09-48a2-8c35-c1a231b86a34",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "165a36ad-5cda-480a-9ea4-580f1544e526",
+      "endNodeId": 7084,
+      "fromGUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+      "neo4jId": 15532,
+      "properties": {
+        "GUID": "165a36ad-5cda-480a-9ea4-580f1544e526",
+        "endNodeId": "84b3acb1-45c0-4c19-8052-75288cff470f",
+        "fromGUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+        "id": "rel_23",
+        "startNodeId": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+        "toGUID": "84b3acb1-45c0-4c19-8052-75288cff470f"
+      },
+      "startNodeId": 7081,
+      "toGUID": "84b3acb1-45c0-4c19-8052-75288cff470f",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "81677d75-87bb-49c8-9e92-8b596ad162e0",
+      "endNodeId": 7085,
+      "fromGUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+      "neo4jId": 4282,
+      "properties": {
+        "GUID": "81677d75-87bb-49c8-9e92-8b596ad162e0",
+        "endNodeId": "23aa2270-7a09-48a2-8c35-c1a231b86a34",
+        "fromGUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+        "id": "rel_24",
+        "startNodeId": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+        "toGUID": "23aa2270-7a09-48a2-8c35-c1a231b86a34"
+      },
+      "startNodeId": 7081,
+      "toGUID": "23aa2270-7a09-48a2-8c35-c1a231b86a34",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "165a36ad-5cda-480a-9ea4-580f1544e526",
+      "endNodeId": 7084,
+      "fromGUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+      "neo4jId": 4281,
+      "properties": {
+        "GUID": "165a36ad-5cda-480a-9ea4-580f1544e526",
+        "endNodeId": "84b3acb1-45c0-4c19-8052-75288cff470f",
+        "fromGUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+        "id": "rel_23",
+        "startNodeId": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+        "toGUID": "84b3acb1-45c0-4c19-8052-75288cff470f"
+      },
+      "startNodeId": 7081,
+      "toGUID": "84b3acb1-45c0-4c19-8052-75288cff470f",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-root-parent2",
+      "endNodeId": 14013,
+      "fromGUID": "test-modular-root",
+      "neo4jId": 15545,
+      "properties": {
+        "GUID": "contains-root-parent2",
+        "fromGUID": "test-modular-root",
+        "toGUID": "parent-2"
+      },
+      "startNodeId": 7087,
+      "toGUID": "parent-2",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-root-parent2",
+      "endNodeId": 7089,
+      "fromGUID": "test-modular-root",
+      "neo4jId": 15544,
+      "properties": {
+        "GUID": "contains-root-parent2",
+        "fromGUID": "test-modular-root",
+        "toGUID": "parent-2"
+      },
+      "startNodeId": 7087,
+      "toGUID": "parent-2",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-root-parent1",
+      "endNodeId": 7088,
+      "fromGUID": "test-modular-root",
+      "neo4jId": 15540,
+      "properties": {
+        "GUID": "contains-root-parent1",
+        "fromGUID": "test-modular-root",
+        "toGUID": "parent-1"
+      },
+      "startNodeId": 7087,
+      "toGUID": "parent-1",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-root-parent1",
+      "endNodeId": 14012,
+      "fromGUID": "test-modular-root",
+      "neo4jId": 15541,
+      "properties": {
+        "GUID": "contains-root-parent1",
+        "fromGUID": "test-modular-root",
+        "toGUID": "parent-1"
+      },
+      "startNodeId": 7087,
+      "toGUID": "parent-1",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-root-parent2",
+      "endNodeId": 7089,
+      "fromGUID": "test-modular-root",
+      "neo4jId": 4285,
+      "properties": {
+        "GUID": "contains-root-parent2",
+        "fromGUID": "test-modular-root",
+        "toGUID": "parent-2"
+      },
+      "startNodeId": 7087,
+      "toGUID": "parent-2",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-root-parent1",
+      "endNodeId": 7088,
+      "fromGUID": "test-modular-root",
+      "neo4jId": 4284,
+      "properties": {
+        "GUID": "contains-root-parent1",
+        "fromGUID": "test-modular-root",
+        "toGUID": "parent-1"
+      },
+      "startNodeId": 7087,
+      "toGUID": "parent-1",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-parent1-child1",
+      "endNodeId": 14014,
+      "fromGUID": "parent-1",
+      "neo4jId": 15549,
+      "properties": {
+        "GUID": "contains-parent1-child1",
+        "fromGUID": "parent-1",
+        "toGUID": "child-1"
+      },
+      "startNodeId": 7088,
+      "toGUID": "child-1",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-parent1-child1",
+      "endNodeId": 7090,
+      "fromGUID": "parent-1",
+      "neo4jId": 15548,
+      "properties": {
+        "GUID": "contains-parent1-child1",
+        "fromGUID": "parent-1",
+        "toGUID": "child-1"
+      },
+      "startNodeId": 7088,
+      "toGUID": "child-1",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-parent1-child1",
+      "endNodeId": 7090,
+      "fromGUID": "parent-1",
+      "neo4jId": 4286,
+      "properties": {
+        "GUID": "contains-parent1-child1",
+        "fromGUID": "parent-1",
+        "toGUID": "child-1"
+      },
+      "startNodeId": 7088,
+      "toGUID": "child-1",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-parent2-child3",
+      "endNodeId": 14018,
+      "fromGUID": "parent-2",
+      "neo4jId": 15569,
+      "properties": {
+        "GUID": "contains-parent2-child3",
+        "fromGUID": "parent-2",
+        "toGUID": "child-3"
+      },
+      "startNodeId": 7089,
+      "toGUID": "child-3",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-parent2-child3",
+      "endNodeId": 7094,
+      "fromGUID": "parent-2",
+      "neo4jId": 15568,
+      "properties": {
+        "GUID": "contains-parent2-child3",
+        "fromGUID": "parent-2",
+        "toGUID": "child-3"
+      },
+      "startNodeId": 7089,
+      "toGUID": "child-3",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-parent2-child2",
+      "endNodeId": 14015,
+      "fromGUID": "parent-2",
+      "neo4jId": 15553,
+      "properties": {
+        "GUID": "contains-parent2-child2",
+        "fromGUID": "parent-2",
+        "toGUID": "child-2"
+      },
+      "startNodeId": 7089,
+      "toGUID": "child-2",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-parent2-child2",
+      "endNodeId": 7091,
+      "fromGUID": "parent-2",
+      "neo4jId": 15552,
+      "properties": {
+        "GUID": "contains-parent2-child2",
+        "fromGUID": "parent-2",
+        "toGUID": "child-2"
+      },
+      "startNodeId": 7089,
+      "toGUID": "child-2",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-parent2-child3",
+      "endNodeId": 7094,
+      "fromGUID": "parent-2",
+      "neo4jId": 4291,
+      "properties": {
+        "GUID": "contains-parent2-child3",
+        "fromGUID": "parent-2",
+        "toGUID": "child-3"
+      },
+      "startNodeId": 7089,
+      "toGUID": "child-3",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-parent2-child2",
+      "endNodeId": 7091,
+      "fromGUID": "parent-2",
+      "neo4jId": 4287,
+      "properties": {
+        "GUID": "contains-parent2-child2",
+        "fromGUID": "parent-2",
+        "toGUID": "child-2"
+      },
+      "startNodeId": 7089,
+      "toGUID": "child-2",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-child1-grandchild1",
+      "endNodeId": 7092,
+      "fromGUID": "child-1",
+      "neo4jId": 15556,
+      "properties": {
+        "GUID": "contains-child1-grandchild1",
+        "fromGUID": "child-1",
+        "toGUID": "grandchild-1"
+      },
+      "startNodeId": 7090,
+      "toGUID": "grandchild-1",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-child1-grandchild1",
+      "endNodeId": 14016,
+      "fromGUID": "child-1",
+      "neo4jId": 15557,
+      "properties": {
+        "GUID": "contains-child1-grandchild1",
+        "fromGUID": "child-1",
+        "toGUID": "grandchild-1"
+      },
+      "startNodeId": 7090,
+      "toGUID": "grandchild-1",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-child1-grandchild1",
+      "endNodeId": 7092,
+      "fromGUID": "child-1",
+      "neo4jId": 4288,
+      "properties": {
+        "GUID": "contains-child1-grandchild1",
+        "fromGUID": "child-1",
+        "toGUID": "grandchild-1"
+      },
+      "startNodeId": 7090,
+      "toGUID": "grandchild-1",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-child2-grandchild2",
+      "endNodeId": 14017,
+      "fromGUID": "child-2",
+      "neo4jId": 15561,
+      "properties": {
+        "GUID": "contains-child2-grandchild2",
+        "fromGUID": "child-2",
+        "toGUID": "grandchild-2"
+      },
+      "startNodeId": 7091,
+      "toGUID": "grandchild-2",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-child2-grandchild2",
+      "endNodeId": 7093,
+      "fromGUID": "child-2",
+      "neo4jId": 15560,
+      "properties": {
+        "GUID": "contains-child2-grandchild2",
+        "fromGUID": "child-2",
+        "toGUID": "grandchild-2"
+      },
+      "startNodeId": 7091,
+      "toGUID": "grandchild-2",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-child2-grandchild2",
+      "endNodeId": 7093,
+      "fromGUID": "child-2",
+      "neo4jId": 4289,
+      "properties": {
+        "GUID": "contains-child2-grandchild2",
+        "fromGUID": "child-2",
+        "toGUID": "grandchild-2"
+      },
+      "startNodeId": 7091,
+      "toGUID": "grandchild-2",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "link-grandchild1-grandchild2",
+      "endNodeId": 7093,
+      "fromGUID": "grandchild-1",
+      "neo4jId": 15564,
+      "properties": {
+        "GUID": "link-grandchild1-grandchild2",
+        "fromGUID": "grandchild-1",
+        "label": "Link 11",
+        "toGUID": "grandchild-2",
+        "type": "LINK"
+      },
+      "startNodeId": 7092,
+      "toGUID": "grandchild-2",
+      "type": "LINK"
+    },
+    {
+      "GUID": "link-grandchild1-grandchild2",
+      "endNodeId": 14017,
+      "fromGUID": "grandchild-1",
+      "neo4jId": 15565,
+      "properties": {
+        "GUID": "link-grandchild1-grandchild2",
+        "fromGUID": "grandchild-1",
+        "label": "Link 11",
+        "toGUID": "grandchild-2",
+        "type": "LINK"
+      },
+      "startNodeId": 7092,
+      "toGUID": "grandchild-2",
+      "type": "LINK"
+    },
+    {
+      "GUID": "link-grandchild1-grandchild2",
+      "endNodeId": 7093,
+      "fromGUID": "grandchild-1",
+      "neo4jId": 4290,
+      "properties": {
+        "GUID": "link-grandchild1-grandchild2",
+        "fromGUID": "grandchild-1",
+        "label": "Link 11",
+        "toGUID": "grandchild-2",
+        "type": "LINK"
+      },
+      "startNodeId": 7092,
+      "toGUID": "grandchild-2",
+      "type": "LINK"
+    },
+    {
+      "GUID": "a3e630bd-dce6-4ca7-acf2-e012e98c3649",
+      "endNodeId": 14025,
+      "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+      "neo4jId": 15517,
+      "properties": {
+        "GUID": "a3e630bd-dce6-4ca7-acf2-e012e98c3649",
+        "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+        "toGUID": "af907edb-997e-4d90-bdb8-255d5a210116"
+      },
+      "startNodeId": 7100,
+      "toGUID": "af907edb-997e-4d90-bdb8-255d5a210116",
+      "type": "HAS_QUERYNODE"
+    },
+    {
+      "GUID": "24921268-8ab5-4c35-8f63-aae4edc3f491",
+      "endNodeId": 7101,
+      "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+      "neo4jId": 15516,
+      "properties": {
+        "GUID": "24921268-8ab5-4c35-8f63-aae4edc3f491",
+        "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+        "toGUID": "6df5d2a2-8068-4dc3-857a-470aef528be6"
+      },
+      "startNodeId": 7100,
+      "toGUID": "6df5d2a2-8068-4dc3-857a-470aef528be6",
+      "type": "HAS_QUERYNODE"
+    },
+    {
+      "GUID": "aad810d9-82f1-4227-b4aa-0fe659e0ae4d",
+      "endNodeId": 7077,
+      "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+      "neo4jId": 15512,
+      "properties": {
+        "GUID": "aad810d9-82f1-4227-b4aa-0fe659e0ae4d",
+        "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+        "toGUID": "ac4c95e5-206b-47a9-a9fd-71ab11f437fa"
+      },
+      "startNodeId": 7100,
+      "toGUID": "ac4c95e5-206b-47a9-a9fd-71ab11f437fa",
+      "type": "HAS_VIEWNODE"
+    },
+    {
+      "GUID": "d0311f91-fee1-4e81-91da-95282d14643a",
+      "endNodeId": 7097,
+      "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+      "neo4jId": 15508,
+      "properties": {
+        "GUID": "d0311f91-fee1-4e81-91da-95282d14643a",
+        "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+        "toGUID": "09b08571-1f6e-4792-ad87-f18401999e54"
+      },
+      "startNodeId": 7100,
+      "toGUID": "09b08571-1f6e-4792-ad87-f18401999e54",
+      "type": "HAS_QUERYNODE"
+    },
+    {
+      "GUID": "4f34f4b3-75f0-423a-ae38-2e2d8810a786",
+      "endNodeId": 14021,
+      "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+      "neo4jId": 15509,
+      "properties": {
+        "GUID": "4f34f4b3-75f0-423a-ae38-2e2d8810a786",
+        "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+        "toGUID": "3a18d264-1aab-451b-86ca-5ca8d8b5baa6"
+      },
+      "startNodeId": 7100,
+      "toGUID": "3a18d264-1aab-451b-86ca-5ca8d8b5baa6",
+      "type": "HAS_QUERYNODE"
+    },
+    {
+      "GUID": "46c49b37-3db1-446a-9d10-de7418060dc2",
+      "endNodeId": 7102,
+      "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+      "neo4jId": 15500,
+      "properties": {
+        "GUID": "46c49b37-3db1-446a-9d10-de7418060dc2",
+        "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+        "toGUID": "e65aca95-cc3c-4af0-acf4-c45e4bb29ce2"
+      },
+      "startNodeId": 7100,
+      "toGUID": "e65aca95-cc3c-4af0-acf4-c45e4bb29ce2",
+      "type": "HAS_VIEWNODE"
+    },
+    {
+      "GUID": "1f7d5871-e696-4c1f-a9cd-60aea97c89e1",
+      "endNodeId": 7103,
+      "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+      "neo4jId": 4295,
+      "properties": {
+        "GUID": "1f7d5871-e696-4c1f-a9cd-60aea97c89e1",
+        "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+        "toGUID": "ff144d84-d482-487d-b3bb-35359034ff03"
+      },
+      "startNodeId": 7100,
+      "toGUID": "ff144d84-d482-487d-b3bb-35359034ff03",
+      "type": "HAS_VIEWNODE"
+    },
+    {
+      "GUID": "357a056e-e974-4bb0-8128-c1ce5b8ec45b",
+      "endNodeId": 7101,
+      "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+      "neo4jId": 4276,
+      "properties": {
+        "GUID": "357a056e-e974-4bb0-8128-c1ce5b8ec45b",
+        "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+        "toGUID": "6df5d2a2-8068-4dc3-857a-470aef528be6"
+      },
+      "startNodeId": 7100,
+      "toGUID": "6df5d2a2-8068-4dc3-857a-470aef528be6",
+      "type": "HAS_QUERYNODE"
+    },
+    {
+      "GUID": "5e9799f2-2254-4e0e-afc0-451132d2ec2a",
+      "endNodeId": 7077,
+      "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+      "neo4jId": 4275,
+      "properties": {
+        "GUID": "5e9799f2-2254-4e0e-afc0-451132d2ec2a",
+        "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+        "toGUID": "ac4c95e5-206b-47a9-a9fd-71ab11f437fa"
+      },
+      "startNodeId": 7100,
+      "toGUID": "ac4c95e5-206b-47a9-a9fd-71ab11f437fa",
+      "type": "HAS_VIEWNODE"
+    },
+    {
+      "GUID": "fad3a0b7-5335-44aa-8e1c-f1215fb737b6",
+      "endNodeId": 7097,
+      "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+      "neo4jId": 4274,
+      "properties": {
+        "GUID": "fad3a0b7-5335-44aa-8e1c-f1215fb737b6",
+        "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+        "toGUID": "09b08571-1f6e-4792-ad87-f18401999e54"
+      },
+      "startNodeId": 7100,
+      "toGUID": "09b08571-1f6e-4792-ad87-f18401999e54",
+      "type": "HAS_QUERYNODE"
+    },
+    {
+      "GUID": "904d68b0-b22f-4979-aca1-0a6b88a5a681",
+      "endNodeId": 7102,
+      "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+      "neo4jId": 4272,
+      "properties": {
+        "GUID": "904d68b0-b22f-4979-aca1-0a6b88a5a681",
+        "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+        "toGUID": "e65aca95-cc3c-4af0-acf4-c45e4bb29ce2"
+      },
+      "startNodeId": 7100,
+      "toGUID": "e65aca95-cc3c-4af0-acf4-c45e4bb29ce2",
+      "type": "HAS_VIEWNODE"
+    },
+    {
+      "GUID": "f54091aa-2ee3-48dc-b96e-1cc7fdcf671e",
+      "endNodeId": 14025,
+      "fromGUID": "e65aca95-cc3c-4af0-acf4-c45e4bb29ce2",
+      "neo4jId": 15506,
+      "properties": {
+        "GUID": "f54091aa-2ee3-48dc-b96e-1cc7fdcf671e",
+        "fromGUID": "e65aca95-cc3c-4af0-acf4-c45e4bb29ce2",
+        "toGUID": "af907edb-997e-4d90-bdb8-255d5a210116"
+      },
+      "startNodeId": 7102,
+      "toGUID": "af907edb-997e-4d90-bdb8-255d5a210116",
+      "type": "HAS_QUERY"
+    },
+    {
+      "GUID": "8a07e445-abfb-4a88-9cf6-319d5b15b16c",
+      "endNodeId": 7101,
+      "fromGUID": "e65aca95-cc3c-4af0-acf4-c45e4bb29ce2",
+      "neo4jId": 15504,
+      "properties": {
+        "GUID": "8a07e445-abfb-4a88-9cf6-319d5b15b16c",
+        "fromGUID": "e65aca95-cc3c-4af0-acf4-c45e4bb29ce2",
+        "toGUID": "6df5d2a2-8068-4dc3-857a-470aef528be6"
+      },
+      "startNodeId": 7102,
+      "toGUID": "6df5d2a2-8068-4dc3-857a-470aef528be6",
+      "type": "HAS_QUERY"
+    },
+    {
+      "GUID": "8f0a6beb-8353-4d29-880d-e40f7de68f81",
+      "endNodeId": 7101,
+      "fromGUID": "e65aca95-cc3c-4af0-acf4-c45e4bb29ce2",
+      "neo4jId": 4273,
+      "properties": {
+        "GUID": "8f0a6beb-8353-4d29-880d-e40f7de68f81",
+        "fromGUID": "e65aca95-cc3c-4af0-acf4-c45e4bb29ce2",
+        "toGUID": "6df5d2a2-8068-4dc3-857a-470aef528be6"
+      },
+      "startNodeId": 7102,
+      "toGUID": "6df5d2a2-8068-4dc3-857a-470aef528be6",
+      "type": "HAS_QUERY"
+    },
+    {
+      "GUID": "b61a6fb1-7e74-4dbd-86b1-6574e3bea06a",
+      "endNodeId": 14010,
+      "fromGUID": "36bcc622-c4cf-4b87-a772-3ae5dca63ad8",
+      "neo4jId": 15539,
+      "properties": {
+        "GUID": "b61a6fb1-7e74-4dbd-86b1-6574e3bea06a",
+        "endNodeId": "d09df8f0-2dc0-4f25-9f61-73fc919ec122",
+        "fromGUID": "36bcc622-c4cf-4b87-a772-3ae5dca63ad8",
+        "id": "rel_25",
+        "startNodeId": "36bcc622-c4cf-4b87-a772-3ae5dca63ad8",
+        "toGUID": "d09df8f0-2dc0-4f25-9f61-73fc919ec122"
+      },
+      "startNodeId": 14002,
+      "toGUID": "d09df8f0-2dc0-4f25-9f61-73fc919ec122",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "b61a6fb1-7e74-4dbd-86b1-6574e3bea06a",
+      "endNodeId": 7086,
+      "fromGUID": "36bcc622-c4cf-4b87-a772-3ae5dca63ad8",
+      "neo4jId": 15538,
+      "properties": {
+        "GUID": "b61a6fb1-7e74-4dbd-86b1-6574e3bea06a",
+        "endNodeId": "d09df8f0-2dc0-4f25-9f61-73fc919ec122",
+        "fromGUID": "36bcc622-c4cf-4b87-a772-3ae5dca63ad8",
+        "id": "rel_25",
+        "startNodeId": "36bcc622-c4cf-4b87-a772-3ae5dca63ad8",
+        "toGUID": "d09df8f0-2dc0-4f25-9f61-73fc919ec122"
+      },
+      "startNodeId": 14002,
+      "toGUID": "d09df8f0-2dc0-4f25-9f61-73fc919ec122",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "6007d0e6-f2a5-4c01-9fe7-b0a1281a89ce",
+      "endNodeId": 14005,
+      "fromGUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+      "neo4jId": 15527,
+      "properties": {
+        "GUID": "6007d0e6-f2a5-4c01-9fe7-b0a1281a89ce",
+        "endNodeId": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+        "fromGUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+        "id": "rel_20",
+        "startNodeId": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+        "toGUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb"
+      },
+      "startNodeId": 14003,
+      "toGUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "6007d0e6-f2a5-4c01-9fe7-b0a1281a89ce",
+      "endNodeId": 7081,
+      "fromGUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+      "neo4jId": 15526,
+      "properties": {
+        "GUID": "6007d0e6-f2a5-4c01-9fe7-b0a1281a89ce",
+        "endNodeId": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+        "fromGUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+        "id": "rel_20",
+        "startNodeId": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+        "toGUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb"
+      },
+      "startNodeId": 14003,
+      "toGUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "d4f77e58-2013-42bb-82ba-edcf1cd1f70e",
+      "endNodeId": 14004,
+      "fromGUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+      "neo4jId": 15523,
+      "properties": {
+        "GUID": "d4f77e58-2013-42bb-82ba-edcf1cd1f70e",
+        "endNodeId": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+        "fromGUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+        "id": "rel_19",
+        "startNodeId": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+        "toGUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65"
+      },
+      "startNodeId": 14003,
+      "toGUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "d4f77e58-2013-42bb-82ba-edcf1cd1f70e",
+      "endNodeId": 7080,
+      "fromGUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+      "neo4jId": 15522,
+      "properties": {
+        "GUID": "d4f77e58-2013-42bb-82ba-edcf1cd1f70e",
+        "endNodeId": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+        "fromGUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+        "id": "rel_19",
+        "startNodeId": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+        "toGUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65"
+      },
+      "startNodeId": 14003,
+      "toGUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "a31f70d6-7d7b-431d-a7a5-89dd4fecca97",
+      "endNodeId": 7083,
+      "fromGUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+      "neo4jId": 15531,
+      "properties": {
+        "GUID": "a31f70d6-7d7b-431d-a7a5-89dd4fecca97",
+        "endNodeId": "8d2e9392-ac29-4b5d-98c9-81be5de3d801",
+        "fromGUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+        "id": "rel_22",
+        "startNodeId": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+        "toGUID": "8d2e9392-ac29-4b5d-98c9-81be5de3d801"
+      },
+      "startNodeId": 14004,
+      "toGUID": "8d2e9392-ac29-4b5d-98c9-81be5de3d801",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "fea4f764-943b-42f8-8b42-624b28b96ddb",
+      "endNodeId": 7082,
+      "fromGUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+      "neo4jId": 15529,
+      "properties": {
+        "GUID": "fea4f764-943b-42f8-8b42-624b28b96ddb",
+        "endNodeId": "ff9377d6-4d13-478d-b3c4-7e626706a7c2",
+        "fromGUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+        "id": "rel_21",
+        "startNodeId": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+        "toGUID": "ff9377d6-4d13-478d-b3c4-7e626706a7c2"
+      },
+      "startNodeId": 14004,
+      "toGUID": "ff9377d6-4d13-478d-b3c4-7e626706a7c2",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "81677d75-87bb-49c8-9e92-8b596ad162e0",
+      "endNodeId": 7085,
+      "fromGUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+      "neo4jId": 15535,
+      "properties": {
+        "GUID": "81677d75-87bb-49c8-9e92-8b596ad162e0",
+        "endNodeId": "23aa2270-7a09-48a2-8c35-c1a231b86a34",
+        "fromGUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+        "id": "rel_24",
+        "startNodeId": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+        "toGUID": "23aa2270-7a09-48a2-8c35-c1a231b86a34"
+      },
+      "startNodeId": 14005,
+      "toGUID": "23aa2270-7a09-48a2-8c35-c1a231b86a34",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "165a36ad-5cda-480a-9ea4-580f1544e526",
+      "endNodeId": 7084,
+      "fromGUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+      "neo4jId": 15533,
+      "properties": {
+        "GUID": "165a36ad-5cda-480a-9ea4-580f1544e526",
+        "endNodeId": "84b3acb1-45c0-4c19-8052-75288cff470f",
+        "fromGUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+        "id": "rel_23",
+        "startNodeId": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+        "toGUID": "84b3acb1-45c0-4c19-8052-75288cff470f"
+      },
+      "startNodeId": 14005,
+      "toGUID": "84b3acb1-45c0-4c19-8052-75288cff470f",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-root-parent2",
+      "endNodeId": 7089,
+      "fromGUID": "test-modular-root",
+      "neo4jId": 15546,
+      "properties": {
+        "GUID": "contains-root-parent2",
+        "fromGUID": "test-modular-root",
+        "toGUID": "parent-2"
+      },
+      "startNodeId": 14011,
+      "toGUID": "parent-2",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-root-parent2",
+      "endNodeId": 14013,
+      "fromGUID": "test-modular-root",
+      "neo4jId": 15547,
+      "properties": {
+        "GUID": "contains-root-parent2",
+        "fromGUID": "test-modular-root",
+        "toGUID": "parent-2"
+      },
+      "startNodeId": 14011,
+      "toGUID": "parent-2",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-root-parent1",
+      "endNodeId": 7088,
+      "fromGUID": "test-modular-root",
+      "neo4jId": 15542,
+      "properties": {
+        "GUID": "contains-root-parent1",
+        "fromGUID": "test-modular-root",
+        "toGUID": "parent-1"
+      },
+      "startNodeId": 14011,
+      "toGUID": "parent-1",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-root-parent1",
+      "endNodeId": 14012,
+      "fromGUID": "test-modular-root",
+      "neo4jId": 15543,
+      "properties": {
+        "GUID": "contains-root-parent1",
+        "fromGUID": "test-modular-root",
+        "toGUID": "parent-1"
+      },
+      "startNodeId": 14011,
+      "toGUID": "parent-1",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-parent1-child1",
+      "endNodeId": 14014,
+      "fromGUID": "parent-1",
+      "neo4jId": 15551,
+      "properties": {
+        "GUID": "contains-parent1-child1",
+        "fromGUID": "parent-1",
+        "toGUID": "child-1"
+      },
+      "startNodeId": 14012,
+      "toGUID": "child-1",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-parent1-child1",
+      "endNodeId": 7090,
+      "fromGUID": "parent-1",
+      "neo4jId": 15550,
+      "properties": {
+        "GUID": "contains-parent1-child1",
+        "fromGUID": "parent-1",
+        "toGUID": "child-1"
+      },
+      "startNodeId": 14012,
+      "toGUID": "child-1",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-parent2-child3",
+      "endNodeId": 7094,
+      "fromGUID": "parent-2",
+      "neo4jId": 15570,
+      "properties": {
+        "GUID": "contains-parent2-child3",
+        "fromGUID": "parent-2",
+        "toGUID": "child-3"
+      },
+      "startNodeId": 14013,
+      "toGUID": "child-3",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-parent2-child3",
+      "endNodeId": 14018,
+      "fromGUID": "parent-2",
+      "neo4jId": 15571,
+      "properties": {
+        "GUID": "contains-parent2-child3",
+        "fromGUID": "parent-2",
+        "toGUID": "child-3"
+      },
+      "startNodeId": 14013,
+      "toGUID": "child-3",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-parent2-child2",
+      "endNodeId": 7091,
+      "fromGUID": "parent-2",
+      "neo4jId": 15554,
+      "properties": {
+        "GUID": "contains-parent2-child2",
+        "fromGUID": "parent-2",
+        "toGUID": "child-2"
+      },
+      "startNodeId": 14013,
+      "toGUID": "child-2",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-parent2-child2",
+      "endNodeId": 14015,
+      "fromGUID": "parent-2",
+      "neo4jId": 15555,
+      "properties": {
+        "GUID": "contains-parent2-child2",
+        "fromGUID": "parent-2",
+        "toGUID": "child-2"
+      },
+      "startNodeId": 14013,
+      "toGUID": "child-2",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-child1-grandchild1",
+      "endNodeId": 14016,
+      "fromGUID": "child-1",
+      "neo4jId": 15559,
+      "properties": {
+        "GUID": "contains-child1-grandchild1",
+        "fromGUID": "child-1",
+        "toGUID": "grandchild-1"
+      },
+      "startNodeId": 14014,
+      "toGUID": "grandchild-1",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-child1-grandchild1",
+      "endNodeId": 7092,
+      "fromGUID": "child-1",
+      "neo4jId": 15558,
+      "properties": {
+        "GUID": "contains-child1-grandchild1",
+        "fromGUID": "child-1",
+        "toGUID": "grandchild-1"
+      },
+      "startNodeId": 14014,
+      "toGUID": "grandchild-1",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-child2-grandchild2",
+      "endNodeId": 14017,
+      "fromGUID": "child-2",
+      "neo4jId": 15563,
+      "properties": {
+        "GUID": "contains-child2-grandchild2",
+        "fromGUID": "child-2",
+        "toGUID": "grandchild-2"
+      },
+      "startNodeId": 14015,
+      "toGUID": "grandchild-2",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "contains-child2-grandchild2",
+      "endNodeId": 7093,
+      "fromGUID": "child-2",
+      "neo4jId": 15562,
+      "properties": {
+        "GUID": "contains-child2-grandchild2",
+        "fromGUID": "child-2",
+        "toGUID": "grandchild-2"
+      },
+      "startNodeId": 14015,
+      "toGUID": "grandchild-2",
+      "type": "CONTAINS"
+    },
+    {
+      "GUID": "link-grandchild1-grandchild2",
+      "endNodeId": 7093,
+      "fromGUID": "grandchild-1",
+      "neo4jId": 15566,
+      "properties": {
+        "GUID": "link-grandchild1-grandchild2",
+        "fromGUID": "grandchild-1",
+        "label": "Link 11",
+        "toGUID": "grandchild-2",
+        "type": "LINK"
+      },
+      "startNodeId": 14016,
+      "toGUID": "grandchild-2",
+      "type": "LINK"
+    },
+    {
+      "GUID": "link-grandchild1-grandchild2",
+      "endNodeId": 14017,
+      "fromGUID": "grandchild-1",
+      "neo4jId": 15567,
+      "properties": {
+        "GUID": "link-grandchild1-grandchild2",
+        "fromGUID": "grandchild-1",
+        "label": "Link 11",
+        "toGUID": "grandchild-2",
+        "type": "LINK"
+      },
+      "startNodeId": 14016,
+      "toGUID": "grandchild-2",
+      "type": "LINK"
+    }
+  ]
+}
