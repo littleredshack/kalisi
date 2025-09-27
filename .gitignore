@@ -238,3 +238,4 @@ certs/*.csr
 *.key
 *.crt
 *.csr
+dump.rdb
