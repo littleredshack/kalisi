@@ -545,12 +545,22 @@ else
                     sudo chmod -R 755 /var/log/neo4j 2>/dev/null || true
                 fi
 
-                if command_exists systemctl && [ -f "/lib/systemd/system/neo4j.service" ]; then
+                # Try to start Neo4j (prefer direct command in containers)
+                if [ -f /.dockerenv ] || [ -n "$DOCKER_CONTAINER" ]; then
+                    # In container - use direct command
+                    if sudo -u neo4j neo4j start > /dev/null 2>&1; then
+                        NEO4J_STARTED=true
+                    fi
+                elif command_exists systemctl && [ -f "/lib/systemd/system/neo4j.service" ]; then
+                    # On host with systemd
                     if sudo systemctl start neo4j > /dev/null 2>&1; then
                         NEO4J_STARTED=true
                     fi
-                elif sudo neo4j start > /dev/null 2>&1; then
-                    NEO4J_STARTED=true
+                else
+                    # Fallback - use su to run as neo4j user
+                    if sudo -u neo4j neo4j start > /dev/null 2>&1; then
+                        NEO4J_STARTED=true
+                    fi
                 fi
             else
                 echo -e "${YELLOW}Permission issue detected${NC}"
@@ -724,6 +734,14 @@ trap cleanup_agents EXIT INT TERM
 # Run the API Gateway (foreground)
 "$RUST_BIN" || {
     EXIT_CODE=$?
+
+    # Exit code 130 means terminated by Ctrl-C (SIGINT) - this is normal, not an error
+    if [ $EXIT_CODE -eq 130 ]; then
+        echo -e "\n${GREEN}✅ Kalisi System stopped by user${NC}"
+        cleanup_agents
+        exit 0
+    fi
+
     echo -e "${RED}❌ API Gateway failed to start (exit code: $EXIT_CODE)${NC}"
 
     # Check common failure reasons
