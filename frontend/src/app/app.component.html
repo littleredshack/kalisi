@@ -1,0 +1,71 @@
+<!-- OPEN EDT Single Page Application - URL Never Changes -->
+<div class="app-container" *ngIf="appState$ | async as state">
+  
+  <!-- Loading Overlay -->
+  <div *ngIf="state.loading" class="loading-overlay">
+    <mat-spinner diameter="50"></mat-spinner>
+    <p>Loading...</p>
+  </div>
+
+  <!-- Login View -->
+  <app-login 
+    *ngIf="state.currentView === AppViewState.LOGIN"
+    class="view-transition"
+    (navigateToRegister)="onNavigateToRegister()"
+    (loginSuccess)="onNavigateToMfaVerify()"
+    (registrationRedirect)="onNavigateToMfaSetup()">
+  </app-login>
+
+  <!-- Registration View -->
+  <app-register
+    *ngIf="state.currentView === AppViewState.REGISTER"
+    class="view-transition"
+    (navigateToLogin)="onNavigateToLogin()"
+    (registrationSuccess)="onNavigateToMfaSetup()">
+  </app-register>
+
+  <!-- MFA Setup View -->
+  <app-mfa-setup
+    *ngIf="state.currentView === AppViewState.MFA_SETUP"
+    class="view-transition"
+    (setupComplete)="onNavigateToHome()"
+    (navigateToLogin)="onNavigateToLogin()">
+  </app-mfa-setup>
+
+  <!-- MFA Verify View -->
+  <app-mfa-verify
+    *ngIf="state.currentView === AppViewState.MFA_VERIFY"
+    class="view-transition"
+    (verifySuccess)="onNavigateToHome()"
+    (navigateToLogin)="onNavigateToLogin()"
+    (navigateToMfaSetup)="onNavigateToMfaSetup()">
+  </app-mfa-verify>
+
+  <!-- Landing Shell View -->
+  <app-landing-shell
+    *ngIf="state.currentView === AppViewState.HOME"
+    class="view-transition">
+  </app-landing-shell>
+
+  <!-- Views Engine -->
+  <app-views-shell
+    *ngIf="state.currentView === AppViewState.VIEWS"
+    class="view-transition"
+    (navigateToHome)="onNavigateToHome()"
+    (logout)="onLogout()">
+  </app-views-shell>
+
+  <!-- Settings Views -->
+  <app-settings
+    *ngIf="state.currentView === AppViewState.SETTINGS_PROFILE || 
+           state.currentView === AppViewState.SETTINGS_SECURITY || 
+           state.currentView === AppViewState.SETTINGS_ACCOUNT"
+    class="view-transition"
+    [activeTab]="state.currentView.replace('settings_', '')"
+    (navigateToHome)="onNavigateToHome()"
+    (navigateToSettings)="onNavigateToSettings($event)"
+    (logout)="onLogout()"
+    (accountDeleted)="onNavigateToLogin()">
+  </app-settings>
+
+</div>

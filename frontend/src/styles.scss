@@ -1,0 +1,233 @@
+@import "primeicons/primeicons.css";
+@import "primeflex/primeflex.css";
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap');
+
+html, body {
+  height: 100%;
+  margin: 0;
+  background: #0b0f14;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #e6edf3;
+}
+
+:root {
+  /* Font families */
+  --font-heading: 'Orbitron', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  
+  /* Color tokens for futuristic HUD look */
+  --surface-ground: #0b0f14;
+  --primary-color: #6ea8fe;
+  --text-color: #e6edf3;
+  --text-secondary: #8b949e;
+  --accent-blue: #6ea8fe;
+  --highlight-bg: rgba(110,168,254,.15);
+}
+
+/* Typography hierarchy */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-color);
+  margin: 0;
+}
+
+h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+h2 {
+  font-size: 2rem;
+  font-weight: 600;
+}
+
+h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--accent-blue);
+}
+
+body, p, div, span {
+  font-family: var(--font-body);
+  line-height: 1.45;
+  color: var(--text-color);
+}
+
+/* Brand/logo styling */
+.brand {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  font-size: 1.1rem;
+}
+
+/* Mission content specific styling */
+.mission-content {
+  font-family: var(--font-body);
+}
+
+.mission-content h3 {
+  color: var(--accent-blue);
+  margin: 1rem 0 0.5rem 0;
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.mission-content p {
+  font-weight: 400;
+  opacity: 0.92;
+  line-height: 1.5;
+  margin: 0.5rem 0;
+}
+
+/* PrimeNG Global Dark Theme Overrides - Fix all contrast issues */
+:root {
+  /* Override PrimeNG theme tokens for proper dark mode */
+  --p-primary-color: #6ea8fe;
+  --p-primary-contrast-color: #ffffff;
+  --p-surface-0: #0b0f14;
+  --p-surface-50: #161b22;
+  --p-surface-100: #21262d;
+  --p-surface-200: #30363d;
+  --p-surface-300: #484f58;
+  --p-surface-400: #6e7681;
+  --p-surface-500: #8b949e;
+  --p-surface-600: #b1bac4;
+  --p-surface-700: #c9d1d9;
+  --p-surface-800: #d0d7de;
+  --p-surface-900: #f0f6fc;
+  --p-surface-950: #ffffff;
+  --p-content-color: #e6edf3;
+  --p-text-color: #e6edf3;
+  --p-text-muted-color: #8b949e;
+  --p-border-color: #30363d;
+}
+
+/* Dialog/Panel backgrounds and text */
+.p-dialog,
+.p-overlaypanel,
+.p-menu,
+.p-toast-message {
+  background: #161b22 !important;
+  border: 1px solid #30363d !important;
+  color: #e6edf3 !important;
+}
+
+.p-dialog .p-dialog-header {
+  background: #161b22 !important;
+  border-bottom: 1px solid #30363d !important;
+  color: #e6edf3 !important;
+}
+
+.p-dialog .p-dialog-content {
+  background: #161b22 !important;
+  color: #e6edf3 !important;
+}
+
+/* Form inputs */
+.p-inputtext,
+.p-password input,
+.p-checkbox .p-checkbox-box {
+  background: #21262d !important;
+  border: 1px solid #30363d !important;
+  color: #e6edf3 !important;
+}
+
+.p-inputtext:focus,
+.p-password input:focus {
+  border-color: #6ea8fe !important;
+  box-shadow: 0 0 0 0.2rem rgba(110, 168, 254, 0.25) !important;
+}
+
+/* Buttons - ensure proper contrast for all variants */
+.p-button {
+  color: #ffffff !important;
+}
+
+.p-button.p-button-secondary {
+  background: rgba(110, 168, 254, 0.15) !important;
+  border: 1px solid rgba(110, 168, 254, 0.4) !important;
+  color: #e6edf3 !important;
+}
+
+.p-button.p-button-secondary:hover {
+  background: rgba(110, 168, 254, 0.25) !important;
+  border-color: rgba(110, 168, 254, 0.6) !important;
+}
+
+.p-button.p-button-contrast {
+  background: rgba(110, 168, 254, 0.15) !important;
+  border: 1px solid rgba(110, 168, 254, 0.4) !important;
+  color: #e6edf3 !important;
+}
+
+.p-button.p-button-contrast:hover {
+  background: rgba(110, 168, 254, 0.25) !important;
+  border-color: rgba(110, 168, 254, 0.6) !important;
+}
+
+/* Toast notifications */
+.p-toast-message-success {
+  background: #0d4f3c !important;
+  border: 1px solid #238636 !important;
+  color: #ffffff !important;
+}
+
+.p-toast-message-info {
+  background: #0c2d48 !important;
+  border: 1px solid #1f6feb !important;
+  color: #ffffff !important;
+}
+
+.p-toast-message-warn {
+  background: #4d2f00 !important;
+  border: 1px solid #bf8700 !important;
+  color: #ffffff !important;
+}
+
+.p-toast-message-error {
+  background: #4c1a1c !important;
+  border: 1px solid #da3633 !important;
+  color: #ffffff !important;
+}
+
+/* Checkbox styling */
+.p-checkbox .p-checkbox-box.p-highlight {
+  background: #6ea8fe !important;
+  border-color: #6ea8fe !important;
+}
+
+.p-checkbox .p-checkbox-box .p-checkbox-icon {
+  color: #ffffff !important;
+}
+
+/* Labels */
+label {
+  color: #e6edf3 !important;
+}
+
+/* Tooltip styling fixes */
+.p-tooltip .p-tooltip-text {
+  background: #0d1117 !important;
+  border: 1px solid #6ea8fe !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  padding: 4px 8px !important;
+  border-radius: 4px !important;
+  font-weight: 500 !important;
+}
+
+.p-tooltip .p-tooltip-arrow {
+  border-top-color: #6ea8fe !important;
+  border-bottom-color: #6ea8fe !important;
+  border-left-color: #6ea8fe !important;
+  border-right-color: #6ea8fe !important;
+}
+
+.p-tooltip {
+  z-index: 1000 !important;
+}

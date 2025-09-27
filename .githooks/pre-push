@@ -1,0 +1,26 @@
+#!/bin/bash
+# Pre-push hook - Runs comprehensive security check before allowing push
+
+echo "🔐 Running pre-push security check..."
+echo ""
+
+# Run the comprehensive security check
+if ./tests/security/comprehensive_security_check.sh; then
+    echo ""
+    echo "✅ Security check passed - Push allowed"
+    
+    # Send test results email in background (don't block push)
+    if [ -f ./scripts/send_test_results_email.sh ]; then
+        echo "📧 Sending test results email..."
+        ./scripts/send_test_results_email.sh &
+    fi
+    
+    exit 0
+else
+    echo ""
+    echo "❌ Security check failed - Push blocked!"
+    echo ""
+    echo "Fix the security issues above before pushing."
+    echo "Run './tests/security/comprehensive_security_check.sh' to test locally."
+    exit 1
+fi

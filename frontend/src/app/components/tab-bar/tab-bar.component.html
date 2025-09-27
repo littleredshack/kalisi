@@ -1,0 +1,70 @@
+<div class="tab-bar-container">
+  <mat-tab-group 
+    #tabGroup
+    [selectedIndex]="activeTabIndex"
+    (selectedIndexChange)="onTabChange($event)"
+    class="bottom-tabs"
+    headerPosition="below">
+    
+    <!-- Dynamic tabs -->
+    <mat-tab *ngFor="let tab of tabs; trackBy: trackByTabId">
+      <ng-template mat-tab-label>
+        <div class="tab-label"
+             [attr.title]="getTabTooltip(tab)"
+             (mousedown)="onTabMouseDown($event, tab)"
+             (mouseup)="onTabMouseUp()"
+             (mouseleave)="onTabMouseUp()"
+             (touchstart)="onTabTouchStart($event, tab)"
+             (touchend)="onTabTouchEnd()">
+          
+          <!-- Tab name display or edit mode -->
+          <ng-container *ngIf="editingTabId !== tab.id; else editMode">
+            <mat-icon class="tab-icon">dashboard</mat-icon>
+            <span class="tab-name">{{ tab.name }}</span>
+          </ng-container>
+          
+          <!-- Edit mode template -->
+          <ng-template #editMode>
+            <input 
+              class="tab-name-input"
+              type="text"
+              [(ngModel)]="editingTabName"
+              (blur)="saveTabName(tab)"
+              (keydown)="onTabNameKeyPress($event, tab)"
+              (click)="$event.stopPropagation()">
+          </ng-template>
+          
+          <!-- Close button -->
+          <button 
+            *ngIf="canCloseTab() && editingTabId !== tab.id"
+            mat-icon-button 
+            class="tab-close-button"
+            (click)="removeTab($event, tab)"
+            [attr.aria-label]="'Close ' + tab.name">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+      </ng-template>
+      
+      <!-- Tab content with WASM-WebGL canvas -->
+      <div class="tab-content-wrapper">
+        <app-wasm-tab-canvas 
+          [tabId]="tab.id"
+          class="full-canvas">
+        </app-wasm-tab-canvas>
+      </div>
+    </mat-tab>
+    
+    <!-- Add new tab button as a regular tab -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <div class="add-tab-button-wrapper" (click)="addNewTab(); $event.stopPropagation()">
+          <mat-icon>add</mat-icon>
+          <span class="add-tab-text">New Tab</span>
+        </div>
+      </ng-template>
+      <!-- Empty content for add tab -->
+      <div class="add-tab-content"></div>
+    </mat-tab>
+  </mat-tab-group>
+</div>

@@ -1,0 +1,4 @@
+# Exclude everything except Dockerfile
+*
+!msdf-generator.dockerfile
+!frontend/src/assets/fonts/charset.txt

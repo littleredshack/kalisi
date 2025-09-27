@@ -1,0 +1,36 @@
+.settings-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.settings-card {
+  mat-card-header {
+    margin-bottom: 24px;
+    
+    mat-card-title {
+      font-size: 28px;
+      font-weight: 500;
+    }
+    
+    mat-card-subtitle {
+      font-size: 16px;
+      opacity: 0.8;
+    }
+  }
+}
+
+.settings-tabs {
+  margin-bottom: 32px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+  
+  a {
+    mat-icon {
+      margin-right: 8px;
+    }
+  }
+}
+
+.settings-content {
+  min-height: 400px;
+}

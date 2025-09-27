@@ -1,0 +1,165 @@
+<div class="chat-rhs-panel" [class.visible]="isVisible" [style.width.px]="panelWidth">
+  <!-- Resize Handle -->
+  <div class="resize-handle" (mousedown)="onResizeStart($event)"></div>
+  
+  <!-- Panel Header -->
+  <div class="chat-header">
+    <div class="header-title">
+      <i class="pi pi-comments header-icon"></i>
+      <h3 class="title-text">Chat Assistant</h3>
+    </div>
+    <div class="header-controls">
+      <button 
+        class="control-btn"
+        (click)="clearConversation()"
+        pTooltip="Clear conversation"
+        tooltipPosition="left">
+        <i class="pi pi-trash"></i>
+      </button>
+      <button 
+        class="control-btn close-btn"
+        (click)="closePanel()"
+        pTooltip="Close chat"
+        tooltipPosition="left">
+        <i class="pi pi-times"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Status Line -->
+  <div class="status-line">
+    <div class="status-info">
+      <span class="model-name">GPT-4o</span>
+      <span class="safety-badge" [class]="cypherReadOnly ? 'read-only' : 'write-enabled'">
+        {{ cypherReadOnly ? 'Read-only mode' : 'Write enabled' }}
+      </span>
+    </div>
+  </div>
+
+  <!-- Messages Container -->
+  <div class="messages-container" #messagesContainer>
+    <div class="messages-list">
+      <div 
+        *ngFor="let message of messages" 
+        class="message"
+        [class.user-message]="message.type === 'user'"
+        [class.assistant-message]="message.type === 'assistant'">
+        
+        <!-- Message Avatar -->
+        <div class="message-avatar">
+          <i class="pi" [class]="message.type === 'user' ? 'pi-user' : 'pi-robot'"></i>
+        </div>
+
+        <!-- Message Content -->
+        <div class="message-content">
+          <div class="message-text">{{ message.content }}</div>
+          
+          <!-- Cypher Query Block (if present) -->
+          <div *ngIf="message.cypherQuery" class="cypher-block">
+            <div class="cypher-header">
+              <span class="cypher-label">Proposed Cypher Query</span>
+              <div class="header-badges">
+                <p-tag 
+                  *ngIf="message.queryClassification"
+                  [value]="message.queryClassification.riskLevel.toUpperCase()"
+                  [severity]="getSeverityFromRisk(message.queryClassification.riskLevel)"
+                  class="risk-badge">
+                </p-tag>
+                <span 
+                  *ngIf="message.queryClassification?.isReadOnly"
+                  class="read-only-indicator"
+                  pTooltip="Safe read-only operation">
+                  🔒 READ-ONLY
+                </span>
+              </div>
+            </div>
+            
+            <!-- Query Description -->
+            <div class="query-description" *ngIf="getQueryDescription(message)">
+              {{ getQueryDescription(message) }}
+            </div>
+            
+            <div class="cypher-content">
+              <pre class="cypher-query">{{ message.cypherQuery }}</pre>
+            </div>
+            
+            <div class="cypher-actions">
+              <button 
+                class="action-btn copy-btn"
+                (click)="copyCypherQuery(message.cypherQuery!)"
+                pTooltip="Copy query">
+                <i class="pi pi-copy"></i>
+                Copy
+              </button>
+              
+              <button 
+                class="action-btn run-btn"
+                [disabled]="!canExecuteQuery(message.queryClassification)"
+                [class.disabled]="!canExecuteQuery(message.queryClassification)"
+                (click)="executeCypherQuery(createProposal(message))"
+                [pTooltip]="getExecuteTooltip(message.queryClassification)">
+                <i class="pi pi-play"></i>
+                Run
+              </button>
+            </div>
+            
+            <!-- Safety Message -->
+            <div 
+              *ngIf="message.queryClassification"
+              class="safety-message"
+              [class]="getRiskLevelClass(message.queryClassification.riskLevel)">
+              {{ getSafetyMessage(message.queryClassification) }}
+            </div>
+          </div>
+          
+          <!-- Timestamp -->
+          <div class="message-timestamp">
+            {{ message.timestamp | date:'short' }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Typing Indicator -->
+      <div *ngIf="isTyping" class="message assistant-message typing-message">
+        <div class="message-avatar">
+          <i class="pi pi-robot"></i>
+        </div>
+        <div class="message-content">
+          <div class="typing-indicator">
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Input Area -->
+  <div class="input-area">
+    <div class="input-container">
+      <input
+        #messageInput
+        type="text"
+        [(ngModel)]="currentMessage"
+        (keypress)="onKeyPress($event)"
+        placeholder="Ask about Neo4j queries..."
+        class="message-input"
+        [disabled]="isTyping">
+      
+      <button 
+        class="send-button"
+        [disabled]="!currentMessage.trim() || isTyping"
+        (click)="onSendMessage()">
+        <i class="pi pi-send"></i>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Backdrop (when panel is open) -->
+<div 
+  *ngIf="isVisible" 
+  class="panel-backdrop"
+  (click)="closePanel()">
+</div>

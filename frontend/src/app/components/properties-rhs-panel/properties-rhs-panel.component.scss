@@ -1,0 +1,136 @@
+// Match exact styling of chat panel with identical positioning and animations
+.properties-rhs-panel {
+  position: fixed;
+  right: -340px; // Hidden by default
+  top: 0;
+  bottom: 0;
+  width: 340px; // Default width, will be overridden by resizing
+  min-width: 280px; // Minimum width
+  max-width: 600px; // Maximum width
+  background: rgba(9, 15, 22, 0.9); // Match exact background
+  border-left: 1px solid rgba(110, 168, 254, 0.2); // Match exact border
+  backdrop-filter: blur(10px);
+  transform: translateX(100%); // Match transform pattern (opposite direction)
+  transition: transform 600ms ease, right 400ms cubic-bezier(0.23, 1, 0.32, 1); // Match exact timing
+  z-index: 90; // Match z-index of other panels
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; // Prevent content overflow during resize
+
+  &.visible {
+    transform: translateX(0); // Match transform pattern
+    right: 0;
+  }
+
+  &.resizing {
+    user-select: none; // Prevent text selection during resize
+    pointer-events: auto; // Ensure drag works
+  }
+}
+
+// Resize Handle
+.resize-handle {
+  position: absolute;
+  left: -5px;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  background: transparent;
+  cursor: ew-resize;
+  z-index: 100;
+  
+  &:hover {
+    background: rgba(110, 168, 254, 0.2); // Highlight on hover
+  }
+  
+  // Add a visual indicator line
+  &::after {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 50%;
+    width: 2px;
+    height: 40px;
+    background: rgba(110, 168, 254, 0.3);
+    border-radius: 1px;
+    transform: translateY(-50%);
+    transition: background 0.2s ease;
+  }
+  
+  &:hover::after {
+    background: rgba(110, 168, 254, 0.6);
+  }
+}
+
+// Panel Header - match chat panel styling
+.properties-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(110, 168, 254, 0.2);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 60px;
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-icon {
+  color: #6ea8fe;
+  font-size: 1.2rem;
+}
+
+.title-text {
+  margin: 0;
+  font-family: var(--font-heading);
+  color: #6ea8fe;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.header-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.control-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(110, 168, 254, 0.2);
+  background: rgba(110, 168, 254, 0.1);
+  color: #e6edf3;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: rgba(110, 168, 254, 0.2);
+    border-color: rgba(110, 168, 254, 0.4);
+  }
+  
+  i {
+    font-size: 14px;
+  }
+}
+
+.close-btn {
+  &:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.4);
+    color: #f87171;
+  }
+}
+
+// Properties Content Area
+.properties-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}

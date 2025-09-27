@@ -1,0 +1,63 @@
+<div class="profile-container">
+  <h2>Profile Information</h2>
+  
+  <div *ngIf="loading" class="loading-container">
+    <mat-spinner></mat-spinner>
+    <p>Loading profile...</p>
+  </div>
+  
+  <div *ngIf="!loading && profile">
+    <form [formGroup]="profileForm" (ngSubmit)="onSubmit()">
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Email</mat-label>
+        <input matInput type="email" formControlName="email">
+        <mat-icon matSuffix>email</mat-icon>
+        <mat-hint>Email changes are not currently supported</mat-hint>
+      </mat-form-field>
+      
+      <mat-list class="profile-info">
+        <mat-list-item>
+          <mat-icon matListItemIcon>fingerprint</mat-icon>
+          <div matListItemTitle>User ID</div>
+          <div matListItemLine>{{ profile.id }}</div>
+        </mat-list-item>
+        
+        <mat-divider></mat-divider>
+        
+        <mat-list-item>
+          <mat-icon matListItemIcon>date_range</mat-icon>
+          <div matListItemTitle>Account Created</div>
+          <div matListItemLine>{{ formatDate(profile.created_at) }}</div>
+        </mat-list-item>
+        
+        <mat-divider></mat-divider>
+        
+        <mat-list-item>
+          <mat-icon matListItemIcon>login</mat-icon>
+          <div matListItemTitle>Last Login</div>
+          <div matListItemLine>{{ formatDate(profile.last_login) }}</div>
+        </mat-list-item>
+        
+        <mat-divider></mat-divider>
+        
+        <mat-list-item>
+          <mat-icon matListItemIcon>security</mat-icon>
+          <div matListItemTitle>Two-Factor Authentication</div>
+          <div matListItemLine>
+            <span class="status" [class.enabled]="profile.mfa_enabled">
+              {{ profile.mfa_enabled ? 'Enabled' : 'Disabled' }}
+            </span>
+          </div>
+        </mat-list-item>
+      </mat-list>
+      
+      <!-- Future: Enable when email change is supported
+      <button mat-raised-button color="primary" type="submit" 
+              [disabled]="!profileForm.valid || saving || profileForm.pristine">
+        <mat-spinner *ngIf="saving" diameter="20"></mat-spinner>
+        <span *ngIf="!saving">Save Changes</span>
+      </button>
+      -->
+    </form>
+  </div>
+</div>

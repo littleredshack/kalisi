@@ -1,0 +1,141 @@
+<div class="mfa-verify-container">
+  <mat-card class="mfa-verify-card">
+    <mat-card-header>
+      <mat-card-title>Two-Factor Authentication</mat-card-title>
+    </mat-card-header>
+    
+    <mat-card-content>
+      <p class="instruction">
+        Enter the 6-digit code from your authenticator app
+      </p>
+      
+      <form [formGroup]="mfaForm" (ngSubmit)="onSubmit()">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Verification Code</mat-label>
+          <input matInput 
+                 type="text" 
+                 formControlName="totpCode" 
+                 placeholder="000000"
+                 maxlength="6"
+                 autocomplete="one-time-code"
+                 class="code-input">
+          <mat-icon matSuffix>lock</mat-icon>
+          <mat-error *ngIf="mfaForm.get('totpCode')?.hasError('required')">
+            Verification code is required
+          </mat-error>
+          <mat-error *ngIf="mfaForm.get('totpCode')?.hasError('pattern')">
+            Please enter a 6-digit code
+          </mat-error>
+        </mat-form-field>
+
+        <div class="error-message" *ngIf="error">
+          {{ error }}
+        </div>
+
+        <button mat-raised-button color="primary" type="submit" 
+                [disabled]="mfaForm.invalid || loading" 
+                class="full-width verify-button">
+          <mat-spinner *ngIf="loading" diameter="20"></mat-spinner>
+          <span *ngIf="!loading">Verify</span>
+        </button>
+      </form>
+
+      <div class="help-section">
+        <button mat-button (click)="toggleHelp()" class="help-link">
+          <mat-icon>help_outline</mat-icon>
+          Having trouble?
+        </button>
+      </div>
+
+      <!-- Expanded Help Section -->
+      <div class="troubleshooting-panel" *ngIf="showHelp" @slideIn>
+        <mat-expansion-panel expanded>
+          <mat-expansion-panel-header>
+            <mat-panel-title>
+              <mat-icon>build</mat-icon>
+              Troubleshooting TOTP Issues
+            </mat-panel-title>
+          </mat-expansion-panel-header>
+          
+          <div class="help-content">
+            <!-- Common Issues -->
+            <h4>Common Issues & Solutions:</h4>
+            
+            <div class="issue-item">
+              <mat-icon color="warn">schedule</mat-icon>
+              <div>
+                <strong>Code is invalid or expired?</strong>
+                <p>TOTP codes refresh every 30 seconds. Try the next code that appears.</p>
+                <p class="server-time">Server time: {{ serverTime | date:'medium' }}</p>
+                <button mat-stroked-button (click)="checkTimeSync()" class="action-button">
+                  Check Time Sync
+                </button>
+              </div>
+            </div>
+
+            <div class="issue-item">
+              <mat-icon color="primary">sync_problem</mat-icon>
+              <div>
+                <strong>Time sync issues?</strong>
+                <p>Ensure your device clock is synchronized. On most devices:</p>
+                <ul>
+                  <li><strong>iPhone:</strong> Settings → General → Date & Time → Enable "Set Automatically"</li>
+                  <li><strong>Android:</strong> Settings → System → Date & Time → Enable "Automatic date & time"</li>
+                  <li><strong>Desktop:</strong> Sync with internet time server</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="issue-item">
+              <mat-icon color="accent">devices</mat-icon>
+              <div>
+                <strong>Lost your authenticator device?</strong>
+                <p>Use one of these recovery options:</p>
+                <div class="recovery-options">
+                  <button mat-raised-button color="primary" (click)="useBackupCode()" 
+                          *ngIf="hasBackupCodes" class="recovery-button">
+                    <mat-icon>vpn_key</mat-icon>
+                    Use Backup Code
+                  </button>
+                  <button mat-raised-button (click)="requestMfaReset()" class="recovery-button">
+                    <mat-icon>email</mat-icon>
+                    Reset via Email
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="issue-item">
+              <mat-icon>refresh</mat-icon>
+              <div>
+                <strong>Want to start fresh?</strong>
+                <p>You can reset your MFA setup:</p>
+                <ol>
+                  <li>Delete the EDT account from your authenticator app</li>
+                  <li>Click "Reset via Email" to receive a reset link</li>
+                  <li>Follow the email instructions to set up MFA again</li>
+                </ol>
+                <mat-card class="warning-card">
+                  <mat-icon color="warn">warning</mat-icon>
+                  <span>This will temporarily disable 2FA on your account until you set it up again.</span>
+                </mat-card>
+              </div>
+            </div>
+
+            <!-- Contact Support as Last Resort -->
+            <div class="support-section">
+              <mat-divider></mat-divider>
+              <h4>Still having issues?</h4>
+              <p>If none of the above solutions work, you can:</p>
+              <button mat-stroked-button (click)="contactSupport()" class="support-button">
+                <mat-icon>support_agent</mat-icon>
+                Contact Support
+              </button>
+              <p class="support-note">We'll help you regain access to your account within 24 hours.</p>
+            </div>
+          </div>
+        </mat-expansion-panel>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</div>

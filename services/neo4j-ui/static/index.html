@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neo4j Query Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            background: #2a2a2a;
+            padding: 1rem;
+            border-bottom: 1px solid #444;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 500;
+        }
+        
+        .status {
+            margin-left: auto;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+        
+        .status.connected {
+            background: #1f4e1f;
+            color: #4ade80;
+        }
+        
+        .status.error {
+            background: #4e1f1f;
+            color: #f87171;
+        }
+        
+        .main {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        .query-panel {
+            width: 40%;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #444;
+        }
+        
+        .query-editor {
+            flex: 1;
+            padding: 1rem;
+        }
+        
+        .query-input {
+            width: 100%;
+            height: 100%;
+            background: #2a2a2a;
+            border: 1px solid #444;
+            color: #e0e0e0;
+            padding: 1rem;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            border-radius: 4px;
+            resize: none;
+        }
+        
+        .query-input:focus {
+            outline: none;
+            border-color: #60a5fa;
+        }
+        
+        .query-controls {
+            padding: 1rem;
+            background: #2a2a2a;
+            border-top: 1px solid #444;
+            display: flex;
+            gap: 1rem;
+        }
+        
+        button {
+            padding: 0.5rem 1.5rem;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        
+        button:hover {
+            background: #2563eb;
+        }
+        
+        button:disabled {
+            background: #4a5568;
+            cursor: not-allowed;
+        }
+        
+        .results-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .results-header {
+            background: #2a2a2a;
+            padding: 1rem;
+            border-bottom: 1px solid #444;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .view-toggle {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .toggle-button {
+            padding: 0.5rem 1rem;
+            background: #333;
+            color: #999;
+            border: 1px solid #444;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        
+        .toggle-button:hover {
+            background: #444;
+            color: #e0e0e0;
+        }
+        
+        .toggle-button.active {
+            background: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+        }
+        
+        .results-content {
+            flex: 1;
+            overflow: auto;
+            padding: 1rem;
+        }
+        
+        .table-container {
+            overflow: auto;
+            background: #2a2a2a;
+            border-radius: 4px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #444;
+        }
+        
+        th {
+            background: #333;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        tr:hover {
+            background: #333;
+        }
+        
+        td {
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .complex-type {
+            color: #60a5fa;
+            font-style: italic;
+        }
+        
+        .error-message {
+            background: #4e1f1f;
+            color: #f87171;
+            padding: 1rem;
+            border-radius: 4px;
+            margin: 1rem 0;
+        }
+        
+        .success-message {
+            background: #1f4e1f;
+            color: #4ade80;
+            padding: 1rem;
+            border-radius: 4px;
+            margin: 1rem 0;
+        }
+        
+        .info-message {
+            background: #1f3a4e;
+            color: #60a5fa;
+            padding: 1rem;
+            border-radius: 4px;
+            margin: 1rem 0;
+            text-align: center;
+        }
+        
+        .predefined-queries {
+            padding: 0 1rem 1rem 1rem;
+        }
+        
+        .predefined-queries select {
+            width: 100%;
+            padding: 0.5rem;
+            background: #2a2a2a;
+            border: 1px solid #444;
+            color: #e0e0e0;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .shortcuts {
+            padding: 0 1rem;
+            font-size: 0.875rem;
+            color: #999;
+        }
+        
+        .json-value {
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+        }
+        
+        .array-value {
+            color: #a78bfa;
+        }
+        
+        .help-text {
+            padding: 1rem;
+            background: #2a2a2a;
+            border-radius: 4px;
+            margin-top: 1rem;
+        }
+        
+        .help-text h3 {
+            color: #60a5fa;
+            margin-bottom: 0.5rem;
+        }
+        
+        .help-text ul {
+            margin-left: 1.5rem;
+            line-height: 1.6;
+        }
+        
+        .graph-container {
+            width: 100%;
+            height: 100%;
+            background: #222;
+            border-radius: 4px;
+            position: relative;
+        }
+        
+        #graph {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .node {
+            fill: #60a5fa;
+            stroke: #3b82f6;
+            stroke-width: 2px;
+            cursor: pointer;
+        }
+        
+        .node:hover {
+            fill: #3b82f6;
+        }
+        
+        .link {
+            stroke: #666;
+            stroke-width: 2px;
+            marker-end: url(#arrow);
+        }
+        
+        .node-label {
+            fill: #e0e0e0;
+            font-size: 12px;
+            pointer-events: none;
+            text-anchor: middle;
+        }
+        
+        .link-label {
+            fill: #999;
+            font-size: 10px;
+            pointer-events: none;
+            text-anchor: middle;
+        }
+        
+        .graph-info {
+            padding: 1rem;
+            background: #1f3a4e;
+            color: #60a5fa;
+            border-radius: 4px;
+            margin: 1rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔷 Neo4j Query Interface</h1>
+        <div class="status" id="status">Connecting...</div>
+    </div>
+    
+    <div class="main">
+        <div class="query-panel">
+            <div class="predefined-queries">
+                <select id="queryTemplates" onchange="loadTemplate()">
+                    <option value="">-- Select a query template --</option>
+                    <option value="MATCH (n) RETURN n LIMIT 25">Show all nodes (limit 25)</option>
+                    <option value="MATCH (n)-[r]->(m) RETURN n, r, m LIMIT 50">Show relationships (limit 50)</option>
+                    <option value="MATCH (n) RETURN labels(n) as label, count(*) as count">Count nodes by label</option>
+                    <option value="MATCH ()-[r]->() RETURN type(r) as type, count(*) as count">Count relationships by type</option>
+                    <option value="CALL db.labels() YIELD label RETURN label">List all labels</option>
+                    <option value="CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType">List all relationship types</option>
+                    <option value="MATCH (n) WHERE n.name CONTAINS 'EDT' RETURN n">Find nodes with 'EDT' in name</option>
+                    <option value="MATCH (n) RETURN count(n) as nodeCount">Total node count</option>
+                    <option value="MATCH ()-[r]->() RETURN count(r) as relationshipCount">Total relationship count</option>
+                </select>
+            </div>
+            
+            <div class="query-editor">
+                <textarea 
+                    id="queryInput" 
+                    class="query-input" 
+                    placeholder="Enter your Cypher query here..."
+                    spellcheck="false"
+                >MATCH (n) RETURN n LIMIT 10</textarea>
+            </div>
+            
+            <div class="shortcuts">
+                Tip: Press Ctrl+Enter to run query
+            </div>
+            
+            <div class="query-controls">
+                <button onclick="executeQuery()" id="runButton">
+                    ▶ Run Query
+                </button>
+                <button onclick="clearQuery()">
+                    Clear
+                </button>
+            </div>
+        </div>
+        
+        <div class="results-panel">
+            <div class="results-header">
+                <div id="resultSummary">Ready to execute queries</div>
+                <div class="view-toggle">
+                    <button class="toggle-button active" id="textViewBtn" onclick="switchView('text')">
+                        📄 Text View
+                    </button>
+                    <button class="toggle-button" id="graphViewBtn" onclick="switchView('graph')">
+                        🔷 Graph View
+                    </button>
+                </div>
+            </div>
+            
+            <div class="results-content">
+                <div id="textView">
+                    <div id="resultsContainer">
+                        <div class="info-message">Run a query to see results</div>
+                        
+                        <div class="help-text">
+                            <h3>Quick Start:</h3>
+                            <ul>
+                                <li>Select a template query from the dropdown above</li>
+                                <li>Or write your own Cypher query</li>
+                                <li>Press "Run Query" or Ctrl+Enter to execute</li>
+                                <li>Results will appear in a table format</li>
+                            </ul>
+                            
+                            <h3 style="margin-top: 1rem;">Note:</h3>
+                            <ul>
+                                <li>Complex types (nodes, relationships) show as [Complex Type]</li>
+                                <li>Arrays and lists are displayed in purple</li>
+                                <li>Toggle between Text and Graph view using the buttons above</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="graphView" style="display: none;">
+                    <div class="graph-container">
+                        <svg id="graph"></svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        let currentView = 'text';
+        let lastQueryResult = null;
+        
+        // Check connection status
+        async function checkHealth() {
+            try {
+                const response = await fetch('/health');
+                if (response.ok) {
+                    document.getElementById('status').className = 'status connected';
+                    document.getElementById('status').textContent = '● Connected';
+                } else {
+                    throw new Error('Health check failed');
+                }
+            } catch (error) {
+                document.getElementById('status').className = 'status error';
+                document.getElementById('status').textContent = '● Connection Error';
+            }
+        }
+        
+        // Execute query
+        async function executeQuery() {
+            const query = document.getElementById('queryInput').value.trim();
+            if (!query) return;
+            
+            const button = document.getElementById('runButton');
+            button.disabled = true;
+            button.textContent = '⏳ Running...';
+            
+            const resultSummary = document.getElementById('resultSummary');
+            const resultsContainer = document.getElementById('resultsContainer');
+            
+            try {
+                const response = await fetch('/query', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ query }),
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    lastQueryResult = data;
+                    displayResults(data);
+                } else {
+                    showError(data.error || 'Query failed');
+                }
+            } catch (error) {
+                showError(`Network error: ${error.message}`);
+            } finally {
+                button.disabled = false;
+                button.textContent = '▶ Run Query';
+            }
+        }
+        
+        // Display results
+        function displayResults(result) {
+            const resultSummary = document.getElementById('resultSummary');
+            
+            resultSummary.textContent = result.summary;
+            
+            if (currentView === 'text') {
+                displayTextView(result);
+            } else {
+                displayGraphView(result);
+            }
+        }
+        
+        // Display text/table view
+        function displayTextView(result) {
+            const resultsContainer = document.getElementById('resultsContainer');
+            
+            if (result.data.length === 0) {
+                resultsContainer.innerHTML = '<div class="info-message">Query executed successfully but returned no results</div>';
+                return;
+            }
+            
+            // Build table
+            let html = '<div class="table-container"><table><thead><tr>';
+            
+            // Headers
+            result.columns.forEach(col => {
+                html += `<th>${escapeHtml(col)}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+            
+            // Data rows
+            result.data.forEach(row => {
+                html += '<tr>';
+                row.forEach(cell => {
+                    html += '<td>' + formatValue(cell) + '</td>';
+                });
+                html += '</tr>';
+            });
+            
+            html += '</tbody></table></div>';
+            resultsContainer.innerHTML = html;
+        }
+        
+        // Display graph view
+        function displayGraphView(result) {
+            const svg = d3.select('#graph');
+            svg.selectAll('*').remove();
+            
+            if (result.data.length === 0) {
+                svg.append('text')
+                    .attr('x', '50%')
+                    .attr('y', '50%')
+                    .attr('text-anchor', 'middle')
+                    .attr('fill', '#666')
+                    .text('No graph data to display');
+                return;
+            }
+            
+            // Extract nodes and relationships from data
+            const nodes = [];
+            const links = [];
+            const nodeMap = new Map();
+            let nodeId = 0;
+            
+            // Parse the result data to find nodes
+            result.data.forEach((row, rowIndex) => {
+                row.forEach((cell, colIndex) => {
+                    const colName = result.columns[colIndex];
+                    
+                    // Check if this looks like node data
+                    if (cell === '[Complex Type]' && colName && colName !== 'result') {
+                        // Create a node
+                        const node = {
+                            id: nodeId++,
+                            name: `${colName} (row ${rowIndex + 1})`,
+                            label: colName
+                        };
+                        nodes.push(node);
+                        nodeMap.set(`${rowIndex}-${colIndex}`, node);
+                    } else if (typeof cell === 'string' && cell !== '[Unknown Type]' && cell !== '[No Data]') {
+                        // Create a simple node for string values
+                        const node = {
+                            id: nodeId++,
+                            name: cell,
+                            label: colName || 'value'
+                        };
+                        nodes.push(node);
+                        nodeMap.set(`${rowIndex}-${colIndex}`, node);
+                    }
+                });
+            });
+            
+            // If no nodes found, show message
+            if (nodes.length === 0) {
+                svg.append('text')
+                    .attr('x', '50%')
+                    .attr('y', '50%')
+                    .attr('text-anchor', 'middle')
+                    .attr('fill', '#666')
+                    .text('No nodes found. Try a query that returns nodes like: MATCH (n) RETURN n');
+                return;
+            }
+            
+            renderGraph(nodes, links);
+        }
+        
+        // Render graph with D3
+        function renderGraph(nodes, links) {
+            const svg = d3.select('#graph');
+            const width = svg.node().getBoundingClientRect().width;
+            const height = svg.node().getBoundingClientRect().height;
+            
+            // Clear and setup
+            svg.selectAll('*').remove();
+            
+            // Add arrow markers
+            svg.append('defs').selectAll('marker')
+                .data(['arrow'])
+                .enter().append('marker')
+                .attr('id', d => d)
+                .attr('viewBox', '0 -5 10 10')
+                .attr('refX', 25)
+                .attr('refY', 0)
+                .attr('markerWidth', 6)
+                .attr('markerHeight', 6)
+                .attr('orient', 'auto')
+                .append('path')
+                .attr('d', 'M0,-5L10,0L0,5')
+                .attr('fill', '#666');
+            
+            const g = svg.append('g');
+            
+            // Add zoom behavior
+            svg.call(d3.zoom()
+                .extent([[0, 0], [width, height]])
+                .scaleExtent([0.1, 10])
+                .on('zoom', (event) => {
+                    g.attr('transform', event.transform);
+                }));
+            
+            // Force simulation
+            const simulation = d3.forceSimulation(nodes)
+                .force('link', d3.forceLink(links).id(d => d.id).distance(100))
+                .force('charge', d3.forceManyBody().strength(-300))
+                .force('center', d3.forceCenter(width / 2, height / 2));
+            
+            // Add links
+            const link = g.append('g')
+                .selectAll('line')
+                .data(links)
+                .enter().append('line')
+                .attr('class', 'link');
+            
+            // Add nodes
+            const node = g.append('g')
+                .selectAll('circle')
+                .data(nodes)
+                .enter().append('circle')
+                .attr('class', 'node')
+                .attr('r', 20)
+                .call(d3.drag()
+                    .on('start', dragstarted)
+                    .on('drag', dragged)
+                    .on('end', dragended));
+            
+            // Add labels
+            const label = g.append('g')
+                .selectAll('text')
+                .data(nodes)
+                .enter().append('text')
+                .attr('class', 'node-label')
+                .attr('dy', '.35em')
+                .text(d => d.name);
+            
+            // Add tooltips
+            node.append('title')
+                .text(d => `${d.label}: ${d.name}`);
+            
+            // Update positions on tick
+            simulation.on('tick', () => {
+                link
+                    .attr('x1', d => d.source.x)
+                    .attr('y1', d => d.source.y)
+                    .attr('x2', d => d.target.x)
+                    .attr('y2', d => d.target.y);
+                
+                node
+                    .attr('cx', d => d.x)
+                    .attr('cy', d => d.y);
+                
+                label
+                    .attr('x', d => d.x)
+                    .attr('y', d => d.y);
+            });
+            
+            function dragstarted(event, d) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                d.fx = d.x;
+                d.fy = d.y;
+            }
+            
+            function dragged(event, d) {
+                d.fx = event.x;
+                d.fy = event.y;
+            }
+            
+            function dragended(event, d) {
+                if (!event.active) simulation.alphaTarget(0);
+                d.fx = null;
+                d.fy = null;
+            }
+        }
+        
+        // Format cell value
+        function formatValue(value) {
+            if (value === null) {
+                return '<span style="color: #666;">null</span>';
+            } else if (typeof value === 'boolean') {
+                return `<span style="color: ${value ? '#4ade80' : '#f87171'}">${value}</span>`;
+            } else if (typeof value === 'number') {
+                return `<span style="color: #60a5fa">${value}</span>`;
+            } else if (Array.isArray(value)) {
+                return `<span class="array-value json-value">[${value.map(v => formatValue(v)).join(', ')}]</span>`;
+            } else if (typeof value === 'object') {
+                return `<span class="json-value">${JSON.stringify(value)}</span>`;
+            } else if (value === '[Complex Type]') {
+                return `<span class="complex-type">${value}</span>`;
+            } else {
+                return escapeHtml(String(value));
+            }
+        }
+        
+        // Escape HTML
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+        
+        // Show error
+        function showError(message) {
+            const resultSummary = document.getElementById('resultSummary');
+            const resultsContainer = document.getElementById('resultsContainer');
+            const svg = d3.select('#graph');
+            
+            resultSummary.textContent = 'Query failed';
+            resultsContainer.innerHTML = `<div class="error-message">Error: ${escapeHtml(message)}</div>`;
+            
+            // Clear graph view too
+            svg.selectAll('*').remove();
+            svg.append('text')
+                .attr('x', '50%')
+                .attr('y', '50%')
+                .attr('text-anchor', 'middle')
+                .attr('fill', '#f87171')
+                .text(`Error: ${message}`);
+        }
+        
+        // Switch between text and graph views
+        function switchView(view) {
+            currentView = view;
+            
+            // Update button states
+            document.getElementById('textViewBtn').classList.toggle('active', view === 'text');
+            document.getElementById('graphViewBtn').classList.toggle('active', view === 'graph');
+            
+            // Show/hide views
+            document.getElementById('textView').style.display = view === 'text' ? 'block' : 'none';
+            document.getElementById('graphView').style.display = view === 'graph' ? 'block' : 'none';
+            
+            // Re-render current results if any
+            if (lastQueryResult) {
+                displayResults(lastQueryResult);
+            }
+        }
+        
+        // Load template query
+        function loadTemplate() {
+            const select = document.getElementById('queryTemplates');
+            const query = select.value;
+            if (query) {
+                document.getElementById('queryInput').value = query;
+            }
+        }
+        
+        // Clear query
+        function clearQuery() {
+            document.getElementById('queryInput').value = '';
+            document.getElementById('queryTemplates').value = '';
+        }
+        
+        // Keyboard shortcuts
+        document.getElementById('queryInput').addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'Enter') {
+                executeQuery();
+            }
+        });
+        
+        // Check health on load
+        checkHealth();
+        setInterval(checkHealth, 30000); // Check every 30 seconds
+    </script>
+</body>
+</html>

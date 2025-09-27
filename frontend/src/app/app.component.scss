@@ -1,0 +1,142 @@
+// Steel Gaming App Container
+.app-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, 
+    var(--steel-bg-primary) 0%, 
+    var(--steel-bg-secondary) 50%, 
+    var(--steel-bg-surface) 100%
+  );
+  background-attachment: fixed;
+  position: relative;
+  color: var(--steel-text-primary);
+  font-family: 'Rajdhani', sans-serif;
+  
+  // Add subtle hexagon pattern overlay
+  &::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: 
+      repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 35px,
+        rgba(0, 212, 255, 0.02) 35px,
+        rgba(0, 212, 255, 0.02) 70px
+      ),
+      repeating-linear-gradient(
+        60deg,
+        transparent,
+        transparent 35px,
+        rgba(0, 212, 255, 0.02) 35px,
+        rgba(0, 212, 255, 0.02) 70px
+      ),
+      repeating-linear-gradient(
+        120deg,
+        transparent,
+        transparent 35px,
+        rgba(0, 212, 255, 0.02) 35px,
+        rgba(0, 212, 255, 0.02) 70px
+      );
+    pointer-events: none;
+    z-index: 0;
+  }
+  
+  // Ensure content is above the pattern
+  > * {
+    position: relative;
+    z-index: 1;
+  }
+}
+
+// Steel gaming loading overlay
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(15, 20, 25, 0.95);
+  backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  
+  mat-spinner {
+    ::ng-deep circle {
+      stroke: var(--gamer-cyan);
+      stroke-width: 3px;
+      filter: drop-shadow(0 0 5px var(--gamer-cyan));
+    }
+  }
+  
+  p {
+    margin-top: 24px;
+    color: var(--steel-text-primary);
+    font-size: 16px;
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 500;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+}
+
+// Enhanced snackbar styling
+:host ::ng-deep {
+  .error-snackbar {
+    background: linear-gradient(135deg, var(--gamer-red), var(--gamer-orange)) !important;
+    color: white !important;
+    border-radius: 8px !important;
+    border: 1px solid rgba(255, 23, 68, 0.3);
+    box-shadow: var(--steel-shadow-2), 0 0 10px rgba(255, 23, 68, 0.3);
+    
+    .mat-mdc-snack-bar-label {
+      font-family: 'Rajdhani', sans-serif !important;
+      font-weight: 500;
+    }
+  }
+  
+  .success-snackbar {
+    background: linear-gradient(135deg, var(--gamer-green), #00e676) !important;
+    color: white !important;
+    border-radius: 8px !important;
+    border: 1px solid rgba(0, 230, 118, 0.3);
+    box-shadow: var(--steel-shadow-2), 0 0 10px rgba(0, 230, 118, 0.3);
+    
+    .mat-mdc-snack-bar-label {
+      font-family: 'Rajdhani', sans-serif !important;
+      font-weight: 500;
+    }
+  }
+  
+  .info-snackbar {
+    background: linear-gradient(135deg, var(--gamer-blue), var(--gamer-cyan)) !important;
+    color: white !important;
+    border-radius: 8px !important;
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    box-shadow: var(--steel-shadow-2), var(--steel-shadow-glow);
+    
+    .mat-mdc-snack-bar-label {
+      font-family: 'Rajdhani', sans-serif !important;
+      font-weight: 500;
+    }
+  }
+}
+
+// Page transition animations
+.view-transition {
+  animation: fade-in-up 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+// Focus management for accessibility
+.app-container:focus-within {
+  .steel-focus:focus-visible {
+    outline: 2px solid var(--gamer-cyan);
+    outline-offset: 2px;
+    border-radius: 4px;
+    box-shadow: 0 0 0 4px rgba(0, 212, 255, 0.2);
+  }
+}

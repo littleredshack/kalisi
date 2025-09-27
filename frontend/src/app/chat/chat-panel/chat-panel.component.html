@@ -1,0 +1,61 @@
+<div class="chat-container">
+  <!-- Messages Container -->
+  <div class="messages-container" #messagesContainer>
+    <div class="messages-wrapper">
+      <!-- Welcome message if no messages -->
+      <div class="welcome-message" *ngIf="messages.length === 0">
+        <mat-icon class="welcome-icon">forum</mat-icon>
+        <p>Start a conversation</p>
+        <p>Ask questions, get assistance, or discuss ideas</p>
+      </div>
+
+      <!-- Messages -->
+      <ng-container *ngFor="let message of messages">
+        <div class="message" 
+             [class.user-message]="message.role === 'user'"
+             [class.assistant-message]="message.role === 'assistant'"
+             *ngIf="message.role !== 'log-output'">
+        <div class="message-header">
+          <mat-icon class="message-icon">
+            {{ message.role === 'user' ? 'person' : 'psychology' }}
+          </mat-icon>
+          <span class="message-author">{{ message.role === 'user' ? 'You' : 'Claude' }}</span>
+          <span class="message-time">{{ message.timestamp | date:'short' }}</span>
+        </div>
+        <div class="message-content">{{ message.content }}</div>
+        </div>
+      </ng-container>
+
+      <!-- Typing indicator -->
+      <div class="typing-indicator" *ngIf="isTyping">
+        <mat-icon class="message-icon">psychology</mat-icon>
+        <div class="typing-dots">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Input Area -->
+  <div class="input-area">
+    <mat-form-field class="message-input" appearance="outline">
+      <textarea 
+        matInput 
+        [(ngModel)]="userInput"
+        (keypress)="onKeyPress($event)"
+        placeholder="Type a message..."
+        rows="2">
+      </textarea>
+    </mat-form-field>
+    <button 
+      mat-icon-button
+      color="primary" 
+      (click)="sendMessage()"
+      [disabled]="isTyping"
+      class="send-button">
+      <mat-icon>send</mat-icon>
+    </button>
+  </div>
+</div>

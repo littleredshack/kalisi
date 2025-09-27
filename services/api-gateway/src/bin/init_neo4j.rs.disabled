@@ -1,0 +1,74 @@
+use edt_gateway::config::Config;
+use edt_gateway::graph::GraphDb;
+use anyhow::Result;
+use tracing::{info, error};
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    // Initialize tracing
+    tracing_subscriber::fmt::init();
+    
+    // Load environment variables
+    dotenv::dotenv().ok();
+    
+    info!("EDT Neo4j Initialization Tool");
+    info!("==============================");
+    
+    // Load configuration
+    let config = Config::from_env()?;
+    
+    // Connect to Neo4j
+    info!("Connecting to Neo4j at {}", config.neo4j_uri);
+    let graph = GraphDb::new(&config).await?;
+    
+    // Initialize system
+    info!("Initializing EDT system structure...");
+    graph.initialize_system().await?;
+    
+    // Register core components
+    info!("Registering core components...");
+    graph.register_component("api-gateway", "API Gateway", "service").await?;
+    graph.register_component("self-awareness", "Self-Awareness Module", "meta-modeling").await?;
+    graph.register_component("neo4j-db", "Neo4j Database", "graph-database").await?;
+    graph.register_component("postgres-db", "PostgreSQL", "relational-database").await?;
+    graph.register_component("redis-cache", "Redis Cache", "key-value-store").await?;
+    graph.register_component("auth-service", "Authentication Service", "security").await?;
+    
+    // Register initial agents
+    info!("Spawning initial agents...");
+    graph.register_agent("queen-kalisi", "Queen Kalisi", "coordinator", "strategic").await?;
+    graph.register_agent("architect-1", "System Architect", "architect", "design").await?;
+    graph.register_agent("developer-1", "Backend Developer", "developer", "implementation").await?;
+    graph.register_agent("developer-2", "Frontend Developer", "developer", "implementation").await?;
+    graph.register_agent("analyst-1", "Security Analyst", "analyst", "security").await?;
+    graph.register_agent("tester-1", "Test Engineer", "tester", "quality").await?;
+    graph.register_agent("monitor-1", "System Monitor", "monitor", "observability").await?;
+    graph.register_agent("documenter-1", "Technical Writer", "documenter", "documentation").await?;
+    
+    // Track initialization events
+    info!("Recording initialization events...");
+    graph.track_event(
+        "security_config",
+        "Gateway Security Configured",
+        "All services secured behind unified authentication",
+        "system"
+    ).await?;
+    
+    graph.track_event(
+        "module_created",
+        "Self-Awareness Module Created",
+        "Meta-modeling layer for tracking EDT development",
+        "system"
+    ).await?;
+    
+    info!("✅ Neo4j initialization complete!");
+    info!("");
+    info!("System overview:");
+    let overview = graph.get_system_overview().await?;
+    info!("  Projects: {}", overview.projects);
+    info!("  Agents: {}", overview.agents);
+    info!("  Components: {}", overview.components);
+    info!("  Events: {}", overview.events);
+    
+    Ok(())
+}

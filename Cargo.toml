@@ -1,0 +1,68 @@
+[workspace]
+resolver = "2"
+members = [ "codebase-analyzer",
+    "crates/*",
+    "services/*",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Kalisi Team"]
+license = "MIT"
+repository = "https://github.com/littleredshack/kalisi"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1.44", features = ["full"] }
+# Web framework
+axum = { version = "0.8", features = ["ws", "macros"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace", "compression-br", "compression-gzip", "fs"] }
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+# Database
+redis = { version = "0.28", features = ["tokio-comp", "connection-manager"] }
+# Authentication
+jsonwebtoken = "9.3"
+argon2 = "0.5"
+# Logging and tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"
+# Utils
+uuid = { version = "1.11", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+dotenv = "0.15"
+# Testing
+criterion = "0.6"
+proptest = "1.5"
+reqwest = { version = "0.11", features = ["json"] }
+# Additional dependencies
+neo4rs = "0.8"
+include_dir = "0.7"
+base64 = "0.22"
+http-body-util = "0.1"
+bytes = "1.9"
+
+[profile.dev]
+# Faster compilation for development
+opt-level = 0           # No optimizations for faster builds
+debug = 1               # Minimal debug info
+split-debuginfo = "unpacked"  # Faster linking
+incremental = true      # Enable incremental compilation
+
+[profile.dev.package."*"]
+# Dependencies can be optimized even in dev mode
+opt-level = 2
+
+[profile.release]
+opt-level = 0
+debug = true
+lto = false
+codegen-units = 256
+incremental = true
+

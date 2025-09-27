@@ -1,0 +1,6 @@
+{
+  "codex.profile": "default",
+  "codex.sandbox": "danger-full-access",
+  "codex.approvalPolicy": "on-failure",
+  "codex.networkAccess": "enabled"
+}

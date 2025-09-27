@@ -1,0 +1,204 @@
+<div class="logs-panel">
+  <!-- Mode Toggle Header -->
+  <div class="panel-header">
+    <div class="header-left">
+      <mat-icon>{{ isStreamingMode ? 'stream' : 'smart_toy' }}</mat-icon>
+      <h3>{{ isStreamingMode ? 'Live Log Stream' : 'Log Monitor Agent' }}</h3>
+      
+      <!-- Streaming status badge -->
+      <mat-icon *ngIf="isStreamingMode && streamStatus.active" 
+                class="status-indicator connected"
+                matTooltip="Streaming Active">
+        radio_button_checked
+      </mat-icon>
+      <mat-icon *ngIf="isStreamingMode && !streamStatus.active" 
+                class="status-indicator disconnected"
+                matTooltip="Stream Inactive">
+        radio_button_unchecked
+      </mat-icon>
+    </div>
+    
+    <div class="header-right">
+      <!-- Mode toggle -->
+      <mat-slide-toggle [(ngModel)]="isStreamingMode" 
+                        (change)="toggleStreamingMode()"
+                        color="primary">
+        <span class="toggle-label">{{ isStreamingMode ? 'Streaming' : 'Chat Mode' }}</span>
+      </mat-slide-toggle>
+      
+      <!-- Clear button -->
+      <button mat-icon-button 
+              (click)="isStreamingMode ? clearStreamLogs() : clearChat()" 
+              [matTooltip]="isStreamingMode ? 'Clear logs' : 'Clear chat'">
+        <mat-icon>clear</mat-icon>
+      </button>
+    </div>
+  </div>
+
+  <!-- Chat Mode (Default) -->
+  <div *ngIf="!isStreamingMode" class="chat-mode">
+    <!-- Left side: Chat interface -->
+    <div class="chat-section">
+      <!-- Quick queries -->
+      <div class="quick-queries">
+        <mat-chip-listbox>
+          <mat-chip-option *ngFor="let query of quickQueries.slice(0, 3)" 
+                           (click)="useQuickQuery(query)"
+                           [disabled]="isProcessing">
+            {{ query }}
+          </mat-chip-option>
+        </mat-chip-listbox>
+      </div>
+      
+      <!-- Chat messages -->
+      <div class="chat-container" #chatContainer>
+        <div *ngFor="let msg of messages" 
+             class="message"
+             [ngClass]="'message-' + msg.type">
+          <div class="message-header">
+            <mat-icon *ngIf="msg.type === 'agent'">smart_toy</mat-icon>
+            <mat-icon *ngIf="msg.type === 'user'">person</mat-icon>
+            <mat-icon *ngIf="msg.type === 'output'">terminal</mat-icon>
+            <span class="timestamp">{{ msg.timestamp | date:'HH:mm:ss' }}</span>
+          </div>
+          <div class="message-content">{{ msg.content }}</div>
+        </div>
+        
+        <div *ngIf="isProcessing" class="message message-agent">
+          <div class="message-header">
+            <mat-icon>smart_toy</mat-icon>
+          </div>
+          <div class="message-content">Processing query...</div>
+        </div>
+      </div>
+      
+      <!-- Input area -->
+      <div class="input-area">
+        <mat-form-field appearance="outline" class="query-input">
+          <input matInput
+                 [(ngModel)]="currentQuery"
+                 (keypress)="onKeyPress($event)"
+                 [disabled]="isProcessing"
+                 placeholder="Ask Log Analysis Agent (e.g., 'show streaming logs')"
+                 autocomplete="off">
+          <mat-icon matPrefix>search</mat-icon>
+        </mat-form-field>
+        <button mat-icon-button 
+                color="primary"
+                (click)="sendQuery()"
+                [disabled]="!currentQuery.trim() || isProcessing">
+          <mat-icon>send</mat-icon>
+        </button>
+      </div>
+    </div>
+    
+    <!-- Right side: Log output -->
+    <div class="output-section">
+      <div class="output-header">
+        <mat-icon>terminal</mat-icon>
+        <h3>Log Output</h3>
+      </div>
+      
+      <div class="output-container" #outputContainer>
+        <pre *ngIf="currentOutput">{{ currentOutput }}</pre>
+        <div *ngIf="!currentOutput" class="no-output">
+          <mat-icon>code</mat-icon>
+          <p>No output yet. Ask the agent to show logs or try "show streaming logs".</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Streaming Mode -->
+  <div *ngIf="isStreamingMode" class="streaming-mode">
+    <!-- Streaming Controls -->
+    <div class="streaming-controls">
+      <div class="controls-left">
+        <!-- Filter controls -->
+        <mat-form-field appearance="outline" class="filter-field">
+          <mat-label>Level</mat-label>
+          <mat-select [(ngModel)]="currentFilters.level" (selectionChange)="applyFilters()">
+            <mat-option *ngFor="let level of levelOptions" [value]="level">
+              {{ level | titlecase }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+        
+        <mat-form-field appearance="outline" class="filter-field">
+          <mat-label>Service</mat-label>
+          <mat-select [(ngModel)]="currentFilters.service" (selectionChange)="applyFilters()">
+            <mat-option *ngFor="let service of serviceOptions" [value]="service">
+              {{ service | titlecase }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+        
+        <mat-form-field appearance="outline" class="filter-field">
+          <mat-label>Keyword Filter</mat-label>
+          <input matInput 
+                 [(ngModel)]="currentFilters.keyword"
+                 (blur)="applyFilters()"
+                 placeholder="Filter by keyword">
+        </mat-form-field>
+        
+        <button mat-stroked-button (click)="clearFilters()">
+          <mat-icon>clear</mat-icon>
+          Clear Filters
+        </button>
+      </div>
+      
+      <div class="controls-right">
+        <!-- Stream controls -->
+        <button mat-raised-button 
+                color="primary"
+                (click)="stopStreaming()"
+                [disabled]="!streamStatus.active">
+          <mat-icon>stop</mat-icon>
+          Stop Stream
+        </button>
+        
+        <!-- Log count badge -->
+        <span class="log-count" matBadge="{{ streamLogs.length }}" matBadgeColor="accent">
+          <mat-icon>list</mat-icon>
+        </span>
+      </div>
+    </div>
+    
+    <!-- Streaming Logs Display -->
+    <div class="logs-container" #logsContainer>
+      <div *ngIf="!streamStatus.active" class="connection-status">
+        <mat-icon class="status-icon">{{ streamStatus.error ? 'error' : 'hourglass_empty' }}</mat-icon>
+        <p>{{ streamStatus.error || 'Log stream not active...' }}</p>
+        <button *ngIf="streamStatus.error" mat-button (click)="startStreaming()">
+          <mat-icon>refresh</mat-icon>
+          Retry Connection
+        </button>
+      </div>
+      
+      <div *ngIf="streamStatus.active && streamLogs.length === 0" class="no-logs">
+        <mat-icon>hourglass_empty</mat-icon>
+        <p>Waiting for log data from Log Analysis Agent...</p>
+      </div>
+      
+      <!-- Log entries -->
+      <div *ngFor="let log of streamLogs; trackBy: trackLogEntry" 
+           class="log-entry"
+           [ngClass]="getLogLevelClass(log.level)">
+        <div class="log-header">
+          <span class="log-timestamp">{{ formatLogTimestamp(log.timestamp) }}</span>
+          <span class="log-level">{{ log.level.toUpperCase() }}</span>
+          <span class="log-service">{{ log.service }}</span>
+          <span class="log-category">{{ log.category }}</span>
+          <span class="log-type-badge" 
+                [ngClass]="log.stream_type === 'realtime' ? 'badge-realtime' : 'badge-historical'">
+            {{ log.stream_type === 'realtime' ? 'LIVE' : 'HIST' }}
+          </span>
+        </div>
+        <div class="log-message">{{ log.message }}</div>
+        <div *ngIf="log.data" class="log-data">
+          <pre>{{ log.data | json }}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

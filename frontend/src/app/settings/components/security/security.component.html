@@ -1,0 +1,78 @@
+<div class="security-container">
+  <h2>Security Settings</h2>
+  
+  <div *ngIf="loading" class="loading-container">
+    <mat-spinner></mat-spinner>
+    <p>Loading security information...</p>
+  </div>
+  
+  <div *ngIf="!loading">
+    <mat-card class="security-card">
+      <mat-card-header>
+        <mat-card-title>Two-Factor Authentication</mat-card-title>
+        <mat-card-subtitle>Add an extra layer of security to your account</mat-card-subtitle>
+      </mat-card-header>
+      
+      <mat-card-content>
+        <div class="mfa-status">
+          <mat-icon [class.enabled]="securityInfo.mfa_enabled">
+            {{ securityInfo.mfa_enabled ? 'check_circle' : 'cancel' }}
+          </mat-icon>
+          <div class="status-text">
+            <strong>Status:</strong> 
+            <span [class.enabled]="securityInfo.mfa_enabled">
+              {{ securityInfo.mfa_enabled ? 'Enabled' : 'Disabled' }}
+            </span>
+          </div>
+        </div>
+        
+        <div class="mfa-info" *ngIf="securityInfo.mfa_enabled">
+          <p><strong>Method:</strong> {{ securityInfo.mfa_method }}</p>
+          <p class="info-text">You're using an authenticator app for two-factor authentication</p>
+        </div>
+        
+        <button mat-stroked-button color="primary" (click)="manageMfa()">
+          <mat-icon>settings</mat-icon>
+          Manage 2FA Settings
+        </button>
+      </mat-card-content>
+    </mat-card>
+    
+    <mat-card class="security-card">
+      <mat-card-header>
+        <mat-card-title>Active Sessions</mat-card-title>
+        <mat-card-subtitle>Manage your active login sessions</mat-card-subtitle>
+      </mat-card-header>
+      
+      <mat-card-content>
+        <p class="session-info">
+          You have <strong>{{ securityInfo.active_sessions }}</strong> active session(s)
+        </p>
+        
+        <button mat-stroked-button color="primary" (click)="viewSessions()">
+          <mat-icon>devices</mat-icon>
+          View All Sessions
+        </button>
+      </mat-card-content>
+    </mat-card>
+    
+    <mat-card class="security-card">
+      <mat-card-header>
+        <mat-card-title>Password</mat-card-title>
+        <mat-card-subtitle>Change your account password</mat-card-subtitle>
+      </mat-card-header>
+      
+      <mat-card-content>
+        <p class="info-text">
+          This system uses email-based authentication with two-factor authentication.
+          Password management is not applicable.
+        </p>
+        
+        <button mat-stroked-button disabled>
+          <mat-icon>lock</mat-icon>
+          Change Password
+        </button>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</div>

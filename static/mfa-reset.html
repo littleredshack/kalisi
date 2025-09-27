@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MFA Reset - EDT2</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            max-width: 450px;
+            width: 100%;
+            text-align: center;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        
+        .status-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+        }
+        
+        .status-icon.processing {
+            background: #f0f4ff;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-icon.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-icon.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .message {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        
+        .message.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .button {
+            display: inline-block;
+            padding: 12px 30px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 500;
+            margin-top: 20px;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        .button:hover {
+            background: #5567d8;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(102, 126, 234, 0.3);
+            border-radius: 50%;
+            border-top-color: #667eea;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Processing State -->
+        <div id="processing-state">
+            <div class="status-icon processing">
+                <div class="spinner"></div>
+            </div>
+            <h1>Resetting MFA</h1>
+            <p class="subtitle">Please wait while we process your request...</p>
+        </div>
+        
+        <!-- Success State -->
+        <div id="success-state" class="hidden">
+            <div class="status-icon success">✓</div>
+            <h1>MFA Reset Successful</h1>
+            <div class="message success">
+                Your two-factor authentication has been successfully reset. You will need to set up MFA again on your next login.
+            </div>
+            <a href="/login" class="button">Go to Login</a>
+        </div>
+        
+        <!-- Error State -->
+        <div id="error-state" class="hidden">
+            <div class="status-icon error">✕</div>
+            <h1>Reset Failed</h1>
+            <div class="message error" id="error-message">
+                The reset link is invalid or has expired. Please request a new reset link.
+            </div>
+            <a href="/login" class="button">Back to Login</a>
+        </div>
+    </div>
+    
+    <script>
+        // Get token from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        
+        async function processMfaReset() {
+            if (!token) {
+                showError('No reset token found in URL');
+                return;
+            }
+            
+            console.log('Processing MFA reset with token:', token);
+            
+            try {
+                console.log('Sending POST request to /v2/auth/mfa/reset/confirm');
+                const response = await fetch('/v2/auth/mfa/reset/confirm', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ token: token })
+                });
+                
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
+                
+                let data;
+                try {
+                    const responseText = await response.text();
+                    console.log('Response text:', responseText);
+                    data = JSON.parse(responseText);
+                } catch (parseError) {
+                    console.error('Failed to parse response:', parseError);
+                    showError('Invalid response from server');
+                    return;
+                }
+                
+                console.log('Response data:', data);
+                
+                if (response.ok && data.success) {
+                    console.log('MFA reset successful');
+                    showSuccess();
+                } else {
+                    console.log('MFA reset failed:', data.error || 'Unknown error');
+                    showError(data.error || 'Failed to reset MFA');
+                }
+            } catch (error) {
+                console.error('Error resetting MFA:', error);
+                console.error('Error details:', error.message, error.stack);
+                showError('Network error: ' + error.message);
+            }
+        }
+        
+        function showSuccess() {
+            document.getElementById('processing-state').classList.add('hidden');
+            document.getElementById('error-state').classList.add('hidden');
+            document.getElementById('success-state').classList.remove('hidden');
+        }
+        
+        function showError(message) {
+            document.getElementById('processing-state').classList.add('hidden');
+            document.getElementById('success-state').classList.add('hidden');
+            document.getElementById('error-message').textContent = message;
+            document.getElementById('error-state').classList.remove('hidden');
+        }
+        
+        // Process reset automatically on page load
+        if (token) {
+            // Add a small delay for better UX
+            setTimeout(() => {
+                processMfaReset();
+            }, 1000);
+        } else {
+            showError('No reset token found. Please use the link from your email.');
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+<div class="activity-bar" [class.expanded]="menuOpen">
+  
+  <!-- Hide Button -->
+  <div class="activity-items">
+    <button 
+      class="activity-item hide-btn"
+      (click)="onHideClick()"
+      pTooltip="Hide Activity Bar"
+      tooltipPosition="right"
+      aria-label="Hide Activity Bar">
+      <i class="pi pi-angle-double-left"></i>
+      <span class="item-label" *ngIf="menuOpen">Hide</span>
+    </button>
+  
+    <!-- Regular Activity Bar Items -->
+    <button 
+      *ngFor="let item of items"
+      class="activity-item"
+      [class.active]="item.isActive"
+      (click)="onItemClick(item)"
+      (mouseenter)="onItemHover(item)"
+      [pTooltip]="item.tooltip"
+      tooltipPosition="right"
+      [attr.aria-label]="item.label"
+      [attr.data-debug]="'button-' + item.id">
+      <i class="pi pi-{{ item.icon }}"></i>
+    </button>
+  </div>
+  
+  <!-- Spacer to push bottom items down -->
+  <div class="spacer"></div>
+  
+  <!-- Bottom Items (Admin/Settings) -->
+  <div class="bottom-items">
+    <button 
+      *ngFor="let item of bottomItems"
+      class="activity-item"
+      [class.active]="item.isActive"
+      (click)="onItemClick(item)"
+      [pTooltip]="item.tooltip"
+      tooltipPosition="right"
+      [attr.aria-label]="item.label">
+      <i class="pi pi-{{ item.icon }}"></i>
+    </button>
+  </div>
+</div>

@@ -1,0 +1,133 @@
+<div class="mfa-setup-container">
+  <mat-card class="mfa-setup-card">
+    <mat-card-header>
+      <mat-card-title>Set Up Two-Factor Authentication</mat-card-title>
+    </mat-card-header>
+    
+    <mat-card-content>
+      <div *ngIf="loading" class="loading-container">
+        <mat-spinner></mat-spinner>
+        <p>Loading MFA setup...</p>
+      </div>
+
+      <div *ngIf="!loading && mfaData" class="mfa-content">
+        <mat-stepper linear #stepper>
+          <!-- Step 1: Scan QR Code -->
+          <mat-step>
+            <ng-template matStepLabel>Scan QR Code</ng-template>
+            <div class="step-content">
+              <p class="instruction">
+                Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
+              </p>
+              
+              <div class="qr-code-container">
+                <canvas #qrCanvas></canvas>
+              </div>
+              
+              <div class="secret-section">
+                <p class="or-text">Or enter this secret manually:</p>
+                <div class="secret-display">
+                  <span class="secret-text">
+                    {{ showSecret ? mfaData.secret : '••••••••••••••••' }}
+                  </span>
+                  <button mat-icon-button (click)="toggleSecretVisibility()">
+                    <mat-icon>{{ showSecret ? 'visibility_off' : 'visibility' }}</mat-icon>
+                  </button>
+                  <button mat-icon-button (click)="copyToClipboard(mfaData.secret, 'Secret')">
+                    <mat-icon>content_copy</mat-icon>
+                  </button>
+                </div>
+              </div>
+              
+              <div class="button-group">
+                <button mat-raised-button color="primary" matStepperNext>Next</button>
+              </div>
+            </div>
+          </mat-step>
+
+          <!-- Step 2: Save Backup Codes -->
+          <mat-step>
+            <ng-template matStepLabel>Save Backup Codes</ng-template>
+            <div class="step-content">
+              <p class="instruction">
+                Save these backup codes in a secure location. You can use them to access your account if you lose your authenticator device.
+              </p>
+              
+              <mat-card class="backup-codes-card">
+                <mat-list>
+                  <mat-list-item *ngFor="let code of mfaData.backup_codes">
+                    <span class="backup-code">{{ code }}</span>
+                  </mat-list-item>
+                </mat-list>
+              </mat-card>
+              
+              <div class="button-group">
+                <button mat-raised-button (click)="copyBackupCodes()">
+                  <mat-icon>content_copy</mat-icon>
+                  Copy All Codes
+                </button>
+              </div>
+              
+              <div class="warning-message" *ngIf="!backupCodesCopied">
+                <mat-icon>warning</mat-icon>
+                <span>Please save these codes before continuing!</span>
+              </div>
+              
+              <div class="button-group">
+                <button mat-button matStepperPrevious>Back</button>
+                <button mat-raised-button color="primary" matStepperNext 
+                        [disabled]="!backupCodesCopied">Next</button>
+              </div>
+            </div>
+          </mat-step>
+
+          <!-- Step 3: Verify Setup -->
+          <mat-step>
+            <ng-template matStepLabel>Verify Setup</ng-template>
+            <div class="step-content">
+              <p class="instruction">
+                Enter the 6-digit code from your authenticator app to complete setup.
+              </p>
+              
+              <form [formGroup]="mfaForm" (ngSubmit)="onSubmit()">
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Verification Code</mat-label>
+                  <input matInput 
+                         type="text" 
+                         formControlName="totpCode" 
+                         placeholder="000000"
+                         maxlength="6"
+                         autocomplete="one-time-code">
+                  <mat-icon matSuffix>lock</mat-icon>
+                  <mat-error *ngIf="mfaForm.get('totpCode')?.hasError('required')">
+                    Verification code is required
+                  </mat-error>
+                  <mat-error *ngIf="mfaForm.get('totpCode')?.hasError('pattern')">
+                    Please enter a 6-digit code
+                  </mat-error>
+                </mat-form-field>
+
+                <div class="error-message" *ngIf="error">
+                  {{ error }}
+                </div>
+
+                <div class="button-group">
+                  <button mat-button matStepperPrevious type="button">Back</button>
+                  <button mat-raised-button color="primary" type="submit" 
+                          [disabled]="mfaForm.invalid || loading">
+                    <mat-spinner *ngIf="loading" diameter="20"></mat-spinner>
+                    <span *ngIf="!loading">Complete Setup</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </mat-step>
+        </mat-stepper>
+      </div>
+
+      <div class="error-message" *ngIf="error && !mfaData">
+        {{ error }}
+      </div>
+    </mat-card-content>
+  </mat-card>
+</div>

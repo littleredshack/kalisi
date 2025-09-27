@@ -1,0 +1,22 @@
+[package]
+name = "kalisi-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+jsonwebtoken = { workspace = true }
+tracing = { workspace = true }
+redis = { workspace = true, optional = true }
+rand = "0.8"
+argon2 = "0.5"
+tokio = { workspace = true }
+
+[features]
+default = []
+redis-integration = ["redis"]

@@ -1,0 +1,12 @@
+pub mod auth_tests;
+pub mod self_awareness_tests;
+pub mod graph_tests;
+pub mod middleware_tests;
+pub mod storage_tests;
+pub mod dashboard_tests;
+pub mod health_tests;
+pub mod config_tests;
+pub mod state_tests;
+pub mod static_files_tests;
+pub mod security_headers_tests;
+pub mod template_tests;

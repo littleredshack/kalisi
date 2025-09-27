@@ -1,0 +1,81 @@
+<div class="account-container">
+  <h2>Account Management</h2>
+  
+  <div *ngIf="loading" class="loading-container">
+    <mat-spinner></mat-spinner>
+    <p>Loading account information...</p>
+  </div>
+  
+  <div *ngIf="!loading && accountInfo">
+    <mat-card class="info-card">
+      <mat-card-header>
+        <mat-card-title>Account Overview</mat-card-title>
+      </mat-card-header>
+      
+      <mat-card-content>
+        <mat-list>
+          <mat-list-item>
+            <mat-icon matListItemIcon>email</mat-icon>
+            <div matListItemTitle>Email Address</div>
+            <div matListItemLine>{{ accountInfo.email }}</div>
+          </mat-list-item>
+          
+          <mat-divider></mat-divider>
+          
+          <mat-list-item>
+            <mat-icon matListItemIcon>calendar_today</mat-icon>
+            <div matListItemTitle>Member Since</div>
+            <div matListItemLine>{{ formatDate(accountInfo.created_at) }}</div>
+          </mat-list-item>
+          
+          <mat-divider></mat-divider>
+          
+          <mat-list-item>
+            <mat-icon matListItemIcon>devices</mat-icon>
+            <div matListItemTitle>Active Sessions</div>
+            <div matListItemLine>{{ accountInfo.total_sessions }} device(s)</div>
+          </mat-list-item>
+        </mat-list>
+      </mat-card-content>
+    </mat-card>
+    
+    <mat-card class="actions-card">
+      <mat-card-header>
+        <mat-card-title>Data & Privacy</mat-card-title>
+      </mat-card-header>
+      
+      <mat-card-content>
+        <button mat-stroked-button color="primary" (click)="exportData()" 
+                [disabled]="!accountInfo.data_export_available">
+          <mat-icon>download</mat-icon>
+          Export My Data
+        </button>
+        
+        <p class="info-text" *ngIf="!accountInfo.data_export_available">
+          Data export feature coming soon
+        </p>
+      </mat-card-content>
+    </mat-card>
+    
+    <mat-card class="danger-zone">
+      <mat-card-header>
+        <mat-card-title class="danger-title">Danger Zone</mat-card-title>
+      </mat-card-header>
+      
+      <mat-card-content>
+        <p class="warning-text">
+          Once you delete your account, there is no going back. Please be certain.
+        </p>
+        
+        <button mat-raised-button color="warn" (click)="deleteAccount()" 
+                [disabled]="deleting">
+          <mat-spinner *ngIf="deleting" diameter="20"></mat-spinner>
+          <span *ngIf="!deleting">
+            <mat-icon>delete_forever</mat-icon>
+            Delete Account
+          </span>
+        </button>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</div>
