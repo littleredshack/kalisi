@@ -4,6 +4,8 @@
 
 set -e
 
+
+
 # Container detection
 IS_CONTAINER=false
 if [ -f /.dockerenv ] || [ -n "$DOCKER_CONTAINER" ] || [ -f /run/.containerenv ]; then
@@ -11,30 +13,39 @@ if [ -f /.dockerenv ] || [ -n "$DOCKER_CONTAINER" ] || [ -f /run/.containerenv ]
     echo "Container environment detected - running in non-interactive mode"
 fi
 
-# Check for daemon mode flag
+# Check for run mode flags
 DAEMON_MODE=false
-if [ "$1" = "--daemon" ] || [ "$1" = "-d" ]; then
-    DAEMON_MODE=true
-    echo "Starting in daemon mode..."
+RUN_MODE="foreground"
+
+if [ $# -gt 0 ]; then
+    case "$1" in
+        --daemon|-d)
+            DAEMON_MODE=true
+            RUN_MODE="daemon"
+            echo "Starting in daemon mode..."
+            shift
+            ;;
+        --foreground|-f)
+            RUN_MODE="foreground"
+            shift
+            ;;
+        --help|-h)
+            echo "Usage: $0 [--daemon|--foreground]"
+            exit 0
+            ;;
+        *)
+            # Leave unrecognised options for future parsing
+            ;;
+    esac
 fi
 
 # Non-interactive mode for containers
 NON_INTERACTIVE=false
-if [ "$IS_CONTAINER" = true ] || [ "$CI" = true ] || [ -n "$NON_INTERACTIVE" ]; then
+if [ "$IS_CONTAINER" = true ] || [ "$CI" = true ] || [ "$NON_INTERACTIVE" = "true" ]; then
     NON_INTERACTIVE=true
 fi
 
-# Cleanup function for development mode
-cleanup() {
-    if [ -f "frontend-watch.pid" ]; then
-        echo -e "\n${YELLOW}Stopping frontend file watcher...${NC}"
-        kill $(cat frontend-watch.pid) 2>/dev/null || true
-        rm -f frontend-watch.pid
-    fi
-}
-
-# Set trap to cleanup on script exit
-trap cleanup EXIT INT TERM
+# Note: Main cleanup function is defined later before starting services
 
 # Colors
 GREEN='\033[0;32m'
@@ -56,12 +67,33 @@ check_version() {
     local cmd=$1
     local min_version=$2
     local current_version=$3
-    
+
     if [ -n "$current_version" ]; then
         echo -e "${GREEN}  $cmd: $current_version${NC}"
     else
         echo -e "${YELLOW}  $cmd: installed (version unknown)${NC}"
     fi
+}
+
+# Portable helper to read path owner (works on GNU/BSD stat)
+get_owner() {
+    local path="$1"
+
+    if [ ! -e "$path" ]; then
+        return 1
+    fi
+
+    if stat -c '%U' "$path" >/dev/null 2>&1; then
+        stat -c '%U' "$path" 2>/dev/null
+        return 0
+    fi
+
+    if stat -f '%Su' "$path" >/dev/null 2>&1; then
+        stat -f '%Su' "$path" 2>/dev/null
+        return 0
+    fi
+
+    ls -ld "$path" 2>/dev/null | awk '{print $3}'
 }
 
 # Check and install dependencies
@@ -572,43 +604,65 @@ fi
 
 # Start Neo4j if available
 echo -n "Neo4j: "
-if curl -s http://localhost:${NEO4J_HTTP_PORT} > /dev/null 2>&1; then
+# Add timeout to prevent hanging
+NEO4J_CHECK=$(timeout 10 curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 --max-time 10 http://localhost:${NEO4J_HTTP_PORT} 2>&1 || echo "TIMEOUT")
+if [ "$NEO4J_CHECK" = "200" ] || [ "$NEO4J_CHECK" = "401" ]; then
     echo -e "${GREEN}Already running${NC}"
 else
     if command_exists neo4j; then
         echo -n "Starting... "
         NEO4J_STARTED=false
 
+        # CRITICAL: Fix /data/neo4j ownership FIRST (this was causing the crash!)
+        if [ -d "/data/neo4j" ]; then
+            DATA_OWNER=""
+            if OWNER=$(get_owner "/data/neo4j" 2>/dev/null); then
+                DATA_OWNER=$OWNER
+            fi
+
+            if [ -n "$DATA_OWNER" ] && [ "$DATA_OWNER" != "neo4j" ]; then
+                echo -e "\n  ${YELLOW}Fixing /data/neo4j ownership (was owned by $DATA_OWNER)...${NC}"
+                sudo chown -R neo4j:neo4j /data/neo4j 2>/dev/null || {
+                    echo -e "${RED}  Failed to fix /data/neo4j ownership${NC}"
+                }
+            fi
+        fi
+
         # Fix Neo4j permissions if needed
         if [ -d "/var/lib/neo4j" ]; then
             # Check current ownership
-            NEO4J_OWNER=$(stat -c %U /var/lib/neo4j 2>/dev/null)
-            if [ "$NEO4J_OWNER" = "neo4j" ]; then
-                # Proper ownership, try to start with service
-                if [ -d "/var/log/neo4j" ]; then
-                    sudo chown -R neo4j:neo4j /var/log/neo4j 2>/dev/null || true
-                    sudo chmod -R 755 /var/log/neo4j 2>/dev/null || true
-                fi
+            NEO4J_OWNER=""
+            if OWNER=$(get_owner "/var/lib/neo4j" 2>/dev/null); then
+                NEO4J_OWNER=$OWNER
+            fi
 
-                # Try to start Neo4j (prefer direct command in containers)
-                if [ -f /.dockerenv ] || [ -n "$DOCKER_CONTAINER" ]; then
-                    # In container - use direct command
-                    if sudo -u neo4j neo4j start > /dev/null 2>&1; then
-                        NEO4J_STARTED=true
-                    fi
-                elif command_exists systemctl && [ -f "/lib/systemd/system/neo4j.service" ]; then
-                    # On host with systemd
-                    if sudo systemctl start neo4j > /dev/null 2>&1; then
-                        NEO4J_STARTED=true
-                    fi
-                else
-                    # Fallback - use su to run as neo4j user
-                    if sudo -u neo4j neo4j start > /dev/null 2>&1; then
-                        NEO4J_STARTED=true
-                    fi
-                fi
-            else
-                echo -e "${YELLOW}Permission issue detected${NC}"
+            if [ -n "$NEO4J_OWNER" ] && [ "$NEO4J_OWNER" != "neo4j" ]; then
+                echo -e "\n  ${YELLOW}Fixing /var/lib/neo4j ownership...${NC}"
+                sudo chown -R neo4j:neo4j /var/lib/neo4j 2>/dev/null || true
+            fi
+        fi
+
+        # Fix log directory permissions
+        if [ -d "/var/log/neo4j" ]; then
+            sudo chown -R neo4j:neo4j /var/log/neo4j 2>/dev/null || true
+            sudo chmod -R 755 /var/log/neo4j 2>/dev/null || true
+        fi
+
+        # Try to start Neo4j (prefer direct command in containers)
+        if [ -f /.dockerenv ] || [ -n "$DOCKER_CONTAINER" ]; then
+            # In container - use direct command
+            if sudo -u neo4j neo4j start > /dev/null 2>&1; then
+                NEO4J_STARTED=true
+            fi
+        elif command_exists systemctl && [ -f "/lib/systemd/system/neo4j.service" ]; then
+            # On host with systemd
+            if sudo systemctl start neo4j > /dev/null 2>&1; then
+                NEO4J_STARTED=true
+            fi
+        else
+            # Fallback - use su to run as neo4j user
+            if sudo -u neo4j neo4j start > /dev/null 2>&1; then
+                NEO4J_STARTED=true
             fi
         fi
 
@@ -676,37 +730,41 @@ if [ "$ENABLE_HTTPS" = "true" ] && [ "$HTTPS_PORT" -lt "1024" ]; then
     fi
 fi
 
-# Kill any existing EDT Gateway process
-echo -e "\n${BLUE}Checking for existing EDT Gateway process...${NC}"
-EXISTING_PID=$(ps aux | grep -E "[e]dt-gateway|[t]arget/release/edt-gateway" | awk '{print $2}' | head -1)
-if [ -n "$EXISTING_PID" ]; then
-    echo -e "${YELLOW}Stopping existing EDT Gateway (PID: $EXISTING_PID)...${NC}"
-    kill -TERM $EXISTING_PID 2>/dev/null || true
+# Check if gateway is already running and stop ONLY the gateway binary
+echo -e "\n${BLUE}Checking for existing API Gateway...${NC}"
+
+# Use pgrep -x to match ONLY the exact process name, not the full command line
+EXISTING_GATEWAY_PID=$(pgrep -x "kalisi-gateway" 2>/dev/null || true)
+
+if [ -z "$EXISTING_GATEWAY_PID" ]; then
+    # If exact match fails, try finding by the binary path but exclude this script's PID
+    FOUND_PIDS=$(ps aux | grep "target/release/kalisi-gateway" | grep -v grep | grep -v "$$" | awk '{print $2}')
+
+    for pid in $FOUND_PIDS; do
+        # Double check it's really the binary and not a parent shell
+        if [ -e /proc/$pid/exe ]; then
+            EXE_PATH=$(readlink /proc/$pid/exe 2>/dev/null || true)
+            if [[ "$EXE_PATH" == *"kalisi-gateway"* ]]; then
+                EXISTING_GATEWAY_PID=$pid
+                break
+            fi
+        fi
+    done
+fi
+
+if [ -n "$EXISTING_GATEWAY_PID" ]; then
+    echo -e "${YELLOW}Stopping existing gateway (PID: $EXISTING_GATEWAY_PID)...${NC}"
+
+    # Send SIGTERM to just the gateway process
+    kill -TERM "$EXISTING_GATEWAY_PID" 2>/dev/null || true
     sleep 2
+
     # Force kill if still running
-    if ps -p $EXISTING_PID > /dev/null 2>&1; then
-        kill -9 $EXISTING_PID 2>/dev/null || true
-        sleep 1
+    if ps -p "$EXISTING_GATEWAY_PID" > /dev/null 2>&1; then
+        kill -9 "$EXISTING_GATEWAY_PID" 2>/dev/null || true
     fi
-    echo -e "${GREEN}✅ Previous EDT Gateway stopped${NC}"
+    echo -e "${GREEN}✅ Previous gateway stopped${NC}"
 fi
-
-# Also kill any processes on the ports
-if command_exists lsof && lsof -i :$PORT > /dev/null 2>&1; then
-    echo -e "${YELLOW}Clearing port $PORT...${NC}"
-    kill $(lsof -t -i:$PORT) 2>/dev/null || true
-    sleep 1
-fi
-
-# Kill any existing process on HTTPS port if enabled
-if [ "$ENABLE_HTTPS" = "true" ] && command_exists lsof && lsof -i :$HTTPS_PORT > /dev/null 2>&1; then
-    echo -e "${YELLOW}Clearing port $HTTPS_PORT...${NC}"
-    kill $(lsof -t -i:$HTTPS_PORT) 2>/dev/null || true
-    sleep 1
-fi
-
-# Start API Gateway with release binary
-echo -e "\n${BLUE}Starting API Gateway...${NC}"
 
 # Export all environment variables from .env
 export BIND_ADDRESS
@@ -737,51 +795,29 @@ else
 fi
 echo -e "${YELLOW}Press Ctrl+C to stop${NC}\n"
 
-# Kill any existing Agent Runtime processes
-echo -e "\n${BLUE}Checking for existing Agent Runtime processes...${NC}"
-EXISTING_AGENT_PIDS=$(ps aux | grep -E "[a]gent-runtime-service|[t]arget/release/agent-runtime-service" | awk '{print $2}')
-if [ -n "$EXISTING_AGENT_PIDS" ]; then
-    echo -e "${YELLOW}Stopping existing Agent Runtime processes...${NC}"
-    for pid in $EXISTING_AGENT_PIDS; do
-        echo -e "${YELLOW}  Stopping Agent Runtime (PID: $pid)...${NC}"
-        kill -TERM $pid 2>/dev/null || true
-    done
-    sleep 3
-    
-    # Force kill any remaining agent processes
-    REMAINING_AGENT_PIDS=$(ps aux | grep -E "[a]gent-runtime-service|[t]arget/release/agent-runtime-service" | awk '{print $2}')
-    if [ -n "$REMAINING_AGENT_PIDS" ]; then
-        echo -e "${YELLOW}Force stopping remaining Agent Runtime processes...${NC}"
-        for pid in $REMAINING_AGENT_PIDS; do
-            kill -9 $pid 2>/dev/null || true
-        done
+# Setup cleanup function FIRST before starting anything
+cleanup_on_exit() {
+    echo -e "\n${YELLOW}Cleaning up...${NC}"
+
+    # Clean up frontend watcher
+    if [ -f "frontend-watch.pid" ]; then
+        echo -e "${YELLOW}Stopping frontend file watcher...${NC}"
+        kill $(cat frontend-watch.pid) 2>/dev/null || true
+        rm -f frontend-watch.pid
     fi
-    echo -e "${GREEN}✅ All previous Agent Runtime processes stopped${NC}"
-fi
 
-# Start Agent Runtime Service in background
-AGENT_RUNTIME_BIN="$AGENT_RUNTIME_BIN"
-if [ -f "$AGENT_RUNTIME_BIN" ]; then
-    echo -e "${BLUE}Starting Agent Runtime Service...${NC}"
-    "$AGENT_RUNTIME_BIN" &
-    AGENT_PID=$!
-    echo -e "${GREEN}✅ Agent Runtime Service started (PID: $AGENT_PID)${NC}"
-    
-    # Wait a moment for agent service to initialize
-    sleep 2
-else
-    echo -e "${YELLOW}⚠️  Agent Runtime Service binary not found at $AGENT_RUNTIME_BIN${NC}"
-fi
-
-# Setup cleanup for agent service
-cleanup_agents() {
+    # Clean up agent service
     if [ -n "$AGENT_PID" ] && ps -p $AGENT_PID > /dev/null 2>&1; then
-        echo -e "\n${YELLOW}Stopping Agent Runtime Service...${NC}"
-        kill $AGENT_PID 2>/dev/null || true
+        echo -e "${YELLOW}Stopping Agent Runtime Service...${NC}"
+        kill -TERM $AGENT_PID 2>/dev/null || true
         sleep 1
     fi
 }
-trap cleanup_agents EXIT INT TERM
+trap cleanup_on_exit EXIT INT TERM
+
+# Skip agent runtime for now - it's optional and causing issues
+echo -e "${YELLOW}⚠️  Skipping Agent Runtime Service (optional)${NC}"
+AGENT_PID=""
 
 # Run the API Gateway
 if [ "$DAEMON_MODE" = true ]; then
@@ -826,33 +862,32 @@ if [ "$DAEMON_MODE" = true ]; then
     fi
 else
     # Run in foreground (normal mode)
-    "$RUST_BIN" || {
-    EXIT_CODE=$?
-
-    # Exit code 130 means terminated by Ctrl-C (SIGINT) - this is normal, not an error
-    if [ $EXIT_CODE -eq 130 ]; then
-        echo -e "\n${GREEN}✅ Kalisi System stopped by user${NC}"
-        cleanup_agents
-        exit 0
-    fi
-
-    echo -e "${RED}❌ API Gateway failed to start (exit code: $EXIT_CODE)${NC}"
-
-    # Check common failure reasons
-    if ! redis-cli ping > /dev/null 2>&1; then
-        echo -e "${RED}  - Redis is not running. Try: redis-server --daemonize yes${NC}"
-    fi
-
+    # Check if binary exists before running
     if [ ! -f "$RUST_BIN" ]; then
-        echo -e "${RED}  - API Gateway binary not found at: $RUST_BIN${NC}"
+        echo -e "${RED}❌ API Gateway binary not found at: $RUST_BIN${NC}"
+        echo -e "${YELLOW}Please build the project first with: cargo build --release${NC}"
+        exit 1
     fi
 
-    if [ "$ENABLE_HTTPS" = "true" ] && [ ! -f "certs/fullchain.pem" ]; then
-        echo -e "${RED}  - SSL certificates not found in certs/ directory${NC}"
-    fi
+    # Run the gateway
+    echo -e "${BLUE}Starting API Gateway...${NC}"
 
-    # Clean up agent service before exiting
-        cleanup_agents
+    # In container mode, use exec for proper signal handling
+    if [ "$IS_CONTAINER" = true ]; then
+        # Cleanup trap won't run with exec, but that's OK in containers
+        # The container will be destroyed anyway
+        exec "$RUST_BIN"
+    else
+        # On host systems, run normally so cleanup happens
+        "$RUST_BIN"
+        EXIT_CODE=$?
+
+        # Check if it was a clean exit
+        if [ $EXIT_CODE -eq 130 ] || [ $EXIT_CODE -eq 0 ]; then
+            echo -e "\n${GREEN}✅ Kalisi System stopped${NC}"
+        else
+            echo -e "${RED}❌ API Gateway exited with code: $EXIT_CODE${NC}"
+        fi
         exit $EXIT_CODE
-    }
+    fi
 fi
