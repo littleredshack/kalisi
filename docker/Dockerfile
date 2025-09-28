@@ -129,7 +129,8 @@ RUN useradd --create-home --shell /bin/bash kalisi \
     && mkdir -p /home/kalisi/.ssh \
     && chmod 700 /home/kalisi/.ssh \
     && echo "kalisi ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/kalisi \
-    && chmod 440 /etc/sudoers.d/kalisi
+    && chmod 440 /etc/sudoers.d/kalisi \
+    && echo "cd /workspace/source 2>/dev/null || true" >> /home/kalisi/.bashrc
 
 ENV RUSTUP_HOME=/home/kalisi/.rustup \
     CARGO_HOME=/home/kalisi/.cargo \
