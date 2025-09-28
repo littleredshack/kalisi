@@ -123,6 +123,8 @@ RUN apt-get update \
 RUN rm -rf /opt/neo4j \
     && ln -s /usr/share/neo4j /opt/neo4j
 
+COPY config/neo4j/neo4j.conf /etc/neo4j/neo4j.conf
+
 RUN useradd --create-home --shell /bin/bash kalisi \
     && mkdir -p /home/kalisi/.ssh \
     && chmod 700 /home/kalisi/.ssh \

@@ -24,7 +24,6 @@ services:
       - kalisi-neo4j:/data/neo4j
       - kalisi-redis:/data/redis
       - kalisi-home:/home/kalisi
-      - ./config/neo4j/neo4j.conf:/etc/neo4j/neo4j.conf:ro
       - ./source/.env:/workspace/runtime/.env:ro
     restart: unless-stopped
 
