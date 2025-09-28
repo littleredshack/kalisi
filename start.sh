@@ -367,22 +367,8 @@ if [ -f .env ]; then
     source .env
     echo -e "${GREEN}✅ Configuration loaded from .env${NC}"
 else
-    if [ -f .env.example ]; then
-        echo -e "${YELLOW}⚠️  .env file not found! Creating from .env.example...${NC}"
-        cp .env.example .env
-        echo -e "${YELLOW}⚠️  Please edit .env with your configuration:${NC}"
-        echo "  - Generate JWT_SECRET: openssl rand -base64 64"
-        echo "  - Generate ENCRYPTION_KEY: openssl rand -hex 32"
-        echo "  - Set NEO4J_PASSWORD to match your Neo4j installation"
-        echo "  - Update BASE_URL with your domain/IP"
-        echo "  - Add your email to APPROVED_EMAILS"
-        echo ""
-        echo -e "${RED}After editing .env, run this script again.${NC}"
-        exit 1
-    else
-        echo -e "${RED}❌ Neither .env nor .env.example found!${NC}"
-        exit 1
-    fi
+    echo -e "${RED}❌ .env not found! Please provide source/.env before starting.${NC}"
+    exit 1
 fi
 
 # Configuration loaded from .env
@@ -455,6 +441,15 @@ FRONTEND_BUILD_DIR="frontend/dist"
 FRONTEND_BUILD_INDEX="$FRONTEND_BUILD_DIR/index.html"
 FRONTEND_SRC_CHANGED=false
 
+# For containers, always check if node_modules exists first
+if [ "$IS_CONTAINER" = true ] && [ -d "frontend" ] && [ ! -d "frontend/node_modules" ]; then
+    echo -e "${YELLOW}⚠️  Frontend node_modules missing in container - installing dependencies...${NC}"
+    cd frontend
+    npm install
+    cd ..
+    echo -e "${GREEN}✅ Frontend dependencies installed${NC}"
+fi
+
 if [ ! -f "$FRONTEND_BUILD_INDEX" ]; then
     echo -e "${YELLOW}⚠️  No frontend build found at $FRONTEND_BUILD_INDEX${NC}"
     # Check if there's a frontend directory to build from
@@ -486,9 +481,10 @@ if [ "$DEV_MODE" = "true" ] && [ "$IS_CONTAINER" = false ]; then
     echo -e "${BLUE}Development mode enabled - enabling file watching${NC}"
     cd frontend
     if [ ! -d "node_modules" ]; then
+        echo -e "${YELLOW}Installing frontend dependencies...${NC}"
         npm install
     fi
-    
+
     # Build initially
     npm run build
     
@@ -509,17 +505,18 @@ if [ "$DEV_MODE" = "true" ] && [ "$IS_CONTAINER" = false ]; then
     fi
     
     cd ..
-elif [ "$FRONTEND_SRC_CHANGED" = true ] && [ "$IS_CONTAINER" = false ]; then
+elif [ "$FRONTEND_SRC_CHANGED" = true ]; then
     echo -e "${BLUE}Building WASM assets for FR-003...${NC}"
     if [ -f "./scripts/build-wasm.sh" ]; then
         ./scripts/build-wasm.sh
     else
         echo -e "${YELLOW}⚠️  WASM build script not found, skipping...${NC}"
     fi
-    
+
     echo -e "${BLUE}Building frontend for production...${NC}"
     cd frontend
     if [ ! -d "node_modules" ]; then
+        echo -e "${YELLOW}Installing frontend dependencies...${NC}"
         npm install
     fi
     # Use timeout to prevent ESBuild deadlock and process isolation
