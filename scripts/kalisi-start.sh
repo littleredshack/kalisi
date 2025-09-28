@@ -92,7 +92,32 @@ fi
 echo "[kalisi-start] Starting Kalisi container..."
 "${COMPOSE_CMD[@]}" up -d kalisi
 
-echo "\nKalisi container is running. Next steps:"
-echo "  SSH:    ssh -p 2222 kalisi@localhost"
-echo "  Start:  ssh -p 2222 kalisi@localhost 'cd /workspace && ./start.sh --build'"
-echo "  HTTPS:  https://localhost:8443"
+CONTAINER_ID=$("${COMPOSE_CMD[@]}" ps -q kalisi)
+
+echo "\nKalisi container is running." 
+echo "Next steps:"
+echo "  SSH:   ssh -p 2222 kalisi@localhost"
+echo "  Build: ssh -p 2222 kalisi@localhost 'cd /workspace && ./start.sh --build'"
+
+if [[ -n "$CONTAINER_ID" ]]; then
+  if PORT_LINES=$(docker port "$CONTAINER_ID" 2>/dev/null); then
+    if [[ -n "$PORT_LINES" ]]; then
+      echo "Published ports:"
+      while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        proto=${line%% -> *}
+        target=${line##* -> }
+        host_ip=${target%:*}
+        scope="public"
+        if [[ "$host_ip" == "127.0.0.1" || "$host_ip" == "localhost" ]]; then
+          scope="localhost-only"
+        fi
+        printf '  %s -> %s (%s)\n' "$target" "$proto" "$scope"
+      done <<< "$PORT_LINES"
+    else
+      echo "  No ports are published."
+    fi
+  else
+    echo "  Unable to determine published ports."
+  fi
+fi
