@@ -656,8 +656,8 @@ else
 
         # Try to start Neo4j (prefer direct command in containers)
         if [ -f /.dockerenv ] || [ -n "$DOCKER_CONTAINER" ]; then
-            # In container - use direct command
-            if sudo -u neo4j neo4j start > /dev/null 2>&1; then
+            # In container - use direct command with explicit config
+            if sudo -u neo4j NEO4J_CONF=/etc/neo4j neo4j start > /dev/null 2>&1; then
                 NEO4J_STARTED=true
             fi
         elif command_exists systemctl && [ -f "/lib/systemd/system/neo4j.service" ]; then
@@ -666,8 +666,8 @@ else
                 NEO4J_STARTED=true
             fi
         else
-            # Fallback - use su to run as neo4j user
-            if sudo -u neo4j neo4j start > /dev/null 2>&1; then
+            # Fallback - use su to run as neo4j user with explicit config
+            if sudo -u neo4j NEO4J_CONF=/etc/neo4j neo4j start > /dev/null 2>&1; then
                 NEO4J_STARTED=true
             fi
         fi

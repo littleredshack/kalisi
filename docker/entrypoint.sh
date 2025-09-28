@@ -87,18 +87,29 @@ configure_password_login() {
 }
 
 prepare_data_dirs() {
-  mkdir -p "$NEO4J_DATA_ROOT"/data "$NEO4J_DATA_ROOT"/logs \
-           "$NEO4J_DATA_ROOT"/plugins "$NEO4J_DATA_ROOT"/licenses \
-           "$NEO4J_DATA_ROOT"/import "$NEO4J_DATA_ROOT"/run
+  mkdir -p \
+    "$NEO4J_DATA_ROOT"/data \
+    "$NEO4J_DATA_ROOT"/logs \
+    "$NEO4J_DATA_ROOT"/plugins \
+    "$NEO4J_DATA_ROOT"/licenses \
+    "$NEO4J_DATA_ROOT"/import \
+    "$NEO4J_DATA_ROOT"/run
+
   if [ ! -d "$NEO4J_HOME" ]; then
     mkdir -p "$NEO4J_HOME" 2>/dev/null || true
   fi
+
   mkdir -p "$REDIS_DATA_ROOT"
+
   if id -u neo4j >/dev/null 2>&1; then
-    chown -R neo4j:neo4j "$NEO4J_DATA_ROOT"
+    log "Ensuring Neo4j directories are owned by neo4j"
+    chown -R neo4j:neo4j "$NEO4J_DATA_ROOT" 2>/dev/null || true
+    chown -R neo4j:neo4j /var/lib/neo4j 2>/dev/null || true
+    chown -R neo4j:neo4j /var/log/neo4j 2>/dev/null || true
   else
     log "Warning: neo4j user not found; skipping ownership fix"
   fi
+
   chown -R "$SSH_USER:$SSH_USER" "$REDIS_DATA_ROOT"
 
   if [ -d "$NEO4J_HOME" ]; then
@@ -115,6 +126,20 @@ prepare_data_dirs() {
   fi
 }
 
+initialize_neo4j_password() {
+  local auth_file="$NEO4J_DATA_ROOT/data/dbms/auth"
+  if id -u neo4j >/dev/null 2>&1 && [ -n "${NEO4J_PASSWORD:-}" ]; then
+    if [ ! -s "$auth_file" ]; then
+      log "Setting initial Neo4j password"
+      if su -s /bin/sh neo4j -c "neo4j-admin dbms set-initial-password '$NEO4J_PASSWORD'"; then
+        log "Initial Neo4j password applied"
+      else
+        log "Warning: unable to set initial Neo4j password"
+      fi
+    fi
+  fi
+}
+
 set_https_capability() {
   local gateway_bin="$WORKSPACE/bin/kalisi-gateway"
   if command -v setcap >/dev/null 2>&1 && [ -f "$gateway_bin" ]; then
@@ -122,6 +147,15 @@ set_https_capability() {
       log "Applied cap_net_bind_service to kalisi-gateway"
     else
       log "Warning: unable to set HTTPS capability on kalisi-gateway"
+    fi
+  fi
+}
+
+start_ttyd() {
+  if command -v ttyd >/dev/null 2>&1; then
+    if ! pgrep -x ttyd >/dev/null 2>&1; then
+      log "Starting ttyd web terminal on port 7681"
+      ttyd -W -p 7681 bash >/dev/null 2>&1 &
     fi
   fi
 }
@@ -142,6 +176,8 @@ prepare_data_dirs
 set_https_capability
 prepare_ssh
 configure_password_login
+initialize_neo4j_password
+start_ttyd
 
 if [[ "${KALISI_AUTO_START:-false}" == "true" ]]; then
   log "Auto-start enabled; launching start.sh in daemon mode"
