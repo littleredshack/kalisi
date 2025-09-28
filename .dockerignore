@@ -1,4 +1,9 @@
-# Exclude everything except Dockerfile
-*
-!msdf-generator.dockerfile
-!frontend/src/assets/fonts/charset.txt
+source/target
+source/.git
+source/.github
+source/frontend/node_modules
+source/frontend/dist
+source/frontend/dist-new
+source/backups
+source/logs
+**/.DS_Store
