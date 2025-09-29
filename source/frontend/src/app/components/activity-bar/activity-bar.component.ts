@@ -82,7 +82,22 @@ export class ActivityBarComponent implements OnInit, OnChanges {
   ];
   
   // Bottom items (settings/admin)
-  bottomItems: ActivityBarItem[] = [];
+  bottomItems: ActivityBarItem[] = [
+    {
+      id: 'terminal',
+      icon: 'desktop',
+      label: 'Code',
+      tooltip: 'Code',
+      isActive: false
+    },
+    {
+      id: 'neo4j',
+      icon: 'database',
+      label: 'Neo4J',
+      tooltip: 'Neo4J',
+      isActive: false
+    }
+  ];
   
   ngOnInit(): void {
     this.updateActiveStates();
@@ -125,7 +140,18 @@ export class ActivityBarComponent implements OnInit, OnChanges {
   }
 
   onItemClick(item: ActivityBarItem): void {
-    
+
+    // Handle special bottom items that open URLs
+    if (item.id === 'terminal') {
+      window.open('http://localhost:7681', '_blank');
+      return;
+    }
+
+    if (item.id === 'neo4j') {
+      window.open('http://localhost:7474/browser/?connectURL=bolt://neo4j:kalisi-neo4j@localhost:7687', '_blank');
+      return;
+    }
+
     // Update active state based on the item
     if (item.id === 'home') {
       // Home deactivates all panels
@@ -140,7 +166,7 @@ export class ActivityBarComponent implements OnInit, OnChanges {
         }
       });
     }
-    
+
     // Emit the clicked item's id
     this.itemClicked.emit(item.id);
   }

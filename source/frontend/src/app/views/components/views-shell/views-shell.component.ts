@@ -62,7 +62,7 @@ import { ViewToolbarComponent } from '../view-toolbar/view-toolbar.component';
         </mat-menu>
       </mat-toolbar>
 
-      <!-- Left Navigation - Matches existing EDT pattern -->
+      <!-- Left Navigation - Matches existing Kalisi pattern -->
       <mat-sidenav-container class="views-sidenav-container">
         <mat-sidenav #sidenav mode="side" opened class="views-sidenav">
           <app-view-navigator 
@@ -113,7 +113,7 @@ import { ViewToolbarComponent } from '../view-toolbar/view-toolbar.component';
     </div>
   `,
   styles: [`
-    /* Use existing EDT spacing and layout patterns */
+    /* Use existing Kalisi spacing and layout patterns */
     .views-container {
       height: 100vh;
       display: flex;

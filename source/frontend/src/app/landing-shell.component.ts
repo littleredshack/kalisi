@@ -197,7 +197,7 @@ const LIBRARY_ITEMS: LibraryItem[] = [
            [style.top.vh]="panelPosition.y"
            (mousedown)="startDrag($event)">
         <div class="brand drag-handle" style="cursor: move;">
-          <img src="assets/edt_logo_header_blue.png" alt="EDT Logo" class="brand-logo">
+          <img src="assets/kalisi_logo_header_blue.png" alt="Kalisi Logo" class="brand-logo">
           <span>Agentic Digital Twin</span>
           <i class="pi pi-arrows-alt drag-icon"></i>
         </div>

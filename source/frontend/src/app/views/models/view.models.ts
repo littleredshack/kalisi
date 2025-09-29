@@ -1,4 +1,4 @@
-// View Models for EDT Views Engine
+// View Models for Kalisi Views Engine
 
 export interface View {
   id: string;

@@ -241,3 +241,13 @@ label {
 .p-tooltip {
   z-index: 1000 !important;
 }
+
+/* Fix color picker visibility - global rule */
+.p-colorpicker-preview {
+  border: 2px solid var(--app-border) !important;
+}
+
+/* Border color picker uses dynamic border color */
+.border-swatch .p-colorpicker-preview {
+  border: 2px solid var(--swatch-border, var(--app-border)) !important;
+}

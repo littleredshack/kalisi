@@ -35,7 +35,7 @@ export class WebSocketLoggerService {
     this.setupErrorHandlers();
     this.isInitialized = true;
     
-    this.originalConsole.log('[EDT] WebSocket Console Logger initialized');
+    this.originalConsole.log('[Kalisi] WebSocket Console Logger initialized');
   }
 
   private setupWebSocket(): void {
@@ -53,7 +53,7 @@ export class WebSocketLoggerService {
       
       this.websocket.onopen = () => {
         // Use original console to avoid intercepting our own logs
-        this.originalConsole.log('[EDT] WebSocket connected for console logging');
+        this.originalConsole.log('[Kalisi] WebSocket connected for console logging');
         this.sendLog('info', 'Angular WebSocket console logger initialized');
       };
       
@@ -68,15 +68,15 @@ export class WebSocketLoggerService {
       };
       
       this.websocket.onclose = () => {
-        this.originalConsole.log('[EDT] WebSocket connection closed, attempting to reconnect in 5s');
+        this.originalConsole.log('[Kalisi] WebSocket connection closed, attempting to reconnect in 5s');
         setTimeout(() => this.setupWebSocket(), 5000);
       };
       
       this.websocket.onerror = (error) => {
-        this.originalConsole.error('[EDT] WebSocket error:', error);
+        this.originalConsole.error('[Kalisi] WebSocket error:', error);
       };
     } catch (error) {
-      this.originalConsole.error('[EDT] Failed to setup WebSocket:', error);
+        this.originalConsole.error('[Kalisi] Failed to setup WebSocket:', error);
     }
   }
 
@@ -171,7 +171,7 @@ export class WebSocketLoggerService {
       try {
         this.websocket.send(JSON.stringify(logData));
       } catch (error) {
-        this.originalConsole.error('[EDT] Failed to send log to WebSocket:', error);
+        this.originalConsole.error('[Kalisi] Failed to send log to WebSocket:', error);
       }
     }
   }

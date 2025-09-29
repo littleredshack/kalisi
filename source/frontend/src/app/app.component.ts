@@ -45,7 +45,7 @@ export class AppComponent implements OnInit {
     private webSocketLogger: WebSocketLoggerService
   ) {
     // WebSocket logger service will initialize automatically in constructor
-    console.log('[OPEN EDT Angular] Application starting with WebSocket logging enabled');
+    console.log('[Kalisi Angular] Application starting with WebSocket logging enabled');
   }
   
   ngOnInit() {
