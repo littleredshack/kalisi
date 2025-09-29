@@ -21,7 +21,63 @@
 
   <!-- Properties Content -->
   <div class="properties-content">
-    <app-properties-panel 
+    <!-- Canvas Controls Section -->
+    <div class="canvas-controls-section" *ngIf="hasActiveCanvas$ | async">
+      <h4 class="section-title">Canvas Controls</h4>
+
+      <div class="control-buttons">
+        <button
+          pButton
+          type="button"
+          label="Reset"
+          icon="pi pi-refresh"
+          (click)="onReset()"
+          class="p-button-sm control-button"
+          pTooltip="Reset canvas to initial state">
+        </button>
+
+        <button
+          pButton
+          type="button"
+          label="Save Layout"
+          icon="pi pi-save"
+          (click)="onSave()"
+          class="p-button-sm control-button p-button-success"
+          pTooltip="Save current layout to database">
+        </button>
+
+        <button
+          pButton
+          type="button"
+          [label]="(autoLayoutState$ | async) || 'Auto Layout: OFF'"
+          icon="pi pi-sitemap"
+          (click)="onToggleAutoLayout()"
+          class="p-button-sm control-button"
+          [ngClass]="(autoLayoutState$ | async) === 'Auto Layout: ON' ? 'p-button-warning' : 'p-button-secondary'"
+          pTooltip="Toggle automatic layout when nodes collapse">
+        </button>
+      </div>
+
+      <div class="collapse-level-control" *ngIf="(availableLevels$ | async) && (availableLevels$ | async)!.length > 0">
+        <label class="control-label">Collapse to Level:</label>
+        <select class="level-selector" (change)="onCollapseLevel($any($event.target).value)">
+          <option value="">Select level</option>
+          <option *ngFor="let option of levelOptions$ | async" [value]="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+      </div>
+
+      <div class="camera-info">
+        <span class="info-label">Camera:</span>
+        <span class="info-value">
+          ({{ (cameraInfo$ | async)?.x }}, {{ (cameraInfo$ | async)?.y }})
+          Zoom: {{ (cameraInfo$ | async)?.zoom }}x
+        </span>
+      </div>
+    </div>
+
+    <app-properties-panel
       [selectedLibraryItem]="selectedLibraryItem"
       [selectedViewNodeDetails]="selectedViewNodeDetails">
     </app-properties-panel>

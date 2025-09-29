@@ -50,29 +50,26 @@ export class UiStateService {
 
   setLibraryPanel(open: boolean) {
     this._libraryPanelOpen.set(open);
-    // Close other panels when opening library
+    // Close other LEFT panels when opening library
+    // Do NOT close right-side panels (properties, etc)
     if (open) {
       this._settingsPanelOpen.set(false);
-      this._propertiesPanelOpen.set(false);
     }
   }
 
   setSettingsPanel(open: boolean) {
     this._settingsPanelOpen.set(open);
-    // Close other panels when opening settings
+    // Close other LEFT panels when opening settings
+    // Do NOT close right-side panels (properties, etc)
     if (open) {
       this._libraryPanelOpen.set(false);
-      this._propertiesPanelOpen.set(false);
     }
   }
 
   setPropertiesPanel(open: boolean) {
     this._propertiesPanelOpen.set(open);
-    // Close other panels when opening properties
-    if (open) {
-      this._libraryPanelOpen.set(false);
-      this._settingsPanelOpen.set(false);
-    }
+    // Properties panel is right-side and independent
+    // Do NOT close any left-side panels
   }
 
   setExploreMode(enabled: boolean) {
