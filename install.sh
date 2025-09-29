@@ -24,8 +24,8 @@ echo "✅ Docker found and running"
 echo "📦 Pulling Kalisi image..."
 docker pull littleredshack/kalisi:latest
 
-# Create installation directory
-INSTALL_DIR="$HOME/.kalisi"
+# Create installation directory in current location
+INSTALL_DIR="./kalisi"
 echo "📁 Setting up in $INSTALL_DIR"
 mkdir -p "$INSTALL_DIR"
 cd "$INSTALL_DIR"
