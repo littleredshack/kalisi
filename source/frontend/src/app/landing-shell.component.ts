@@ -19,12 +19,14 @@ import { ItemsStoreService } from './core/services/items-store.service';
 import { ViewRegistryService } from './core/services/view-registry.service';
 import { ViewSpecificStateService } from './core/services/view-specific-state.service';
 import { ViewNodeStateService, LibraryItem as ViewLibraryItem } from './core/services/view-node-state.service';
+import { ThemeService } from './core/services/theme.service';
 import { ActivityBarComponent } from './components/activity-bar/activity-bar.component';
 import { ModularCanvasComponent } from './components/modular-canvas/modular-canvas.component';
 import { ChatRhsPanelComponent } from './components/chat-rhs-panel/chat-rhs-panel.component';
 import { PropertiesRhsPanelComponent } from './components/properties-rhs-panel/properties-rhs-panel.component';
 import { DebugPanelComponent } from './components/debug-panel/debug-panel.component';
 import { ViewType } from './core/models/view.models';
+import { SettingsComponent } from './settings/settings.component';
 
 // Library Item Configuration
 interface LibraryItem {
@@ -71,7 +73,8 @@ const LIBRARY_ITEMS: LibraryItem[] = [
     ModularCanvasComponent,
     ChatRhsPanelComponent,
     PropertiesRhsPanelComponent,
-    DebugPanelComponent
+    DebugPanelComponent,
+    SettingsComponent
   ],
   providers: [MessageService],
   template: `
@@ -101,7 +104,7 @@ const LIBRARY_ITEMS: LibraryItem[] = [
       </app-activity-bar>
 
       <!-- Library Panel -->
-      <div class="library-panel" [class.visible]="panelsEnabled && !activityBarHidden" [class.open]="libraryPanelOpen">
+      <div class="library-panel" [class.visible]="panelsEnabled && !activityBarHidden && libraryPanelOpen" [class.open]="libraryPanelOpen">
         <div class="panel-header">
           <h3 pTooltip="Global Library of Edges and Nodes" tooltipPosition="top">Global Library</h3>
           <input type="text" placeholder="Search..." class="search-input" />
@@ -131,56 +134,12 @@ const LIBRARY_ITEMS: LibraryItem[] = [
       </div>
 
       <!-- Settings Panel -->
-      <div class="settings-panel" [class.visible]="panelsEnabled && !activityBarHidden" [class.open]="settingsPanelOpen">
-        <div class="panel-header">
-          <h3>Settings</h3>
-        </div>
-        <div class="settings-content">
-          <div class="setting-item">
-            <label>Theme</label>
-            <select class="setting-select">
-              <option>Dark</option>
-              <option>Light</option>
-            </select>
-          </div>
-          <div class="setting-item">
-            <label>Density</label>
-            <select class="setting-select">
-              <option>Comfortable</option>
-              <option>Compact</option>
-            </select>
-          </div>
-          
-          <!-- Panel Settings Section -->
-          <div class="panel-settings-section">
-            <h4>Panel Settings</h4>
-            <div class="panel-mode-toggle">
-              <span class="mode-label">Overlay</span>
-              <label class="toggle-switch" pTooltip="Switch between overlay and push panel modes" tooltipPosition="top">
-                <input type="checkbox"
-                       [checked]="uiState.panelPushMode()"
-                       (change)="uiState.togglePanelPushMode()">
-                <span class="toggle-slider"></span>
-              </label>
-              <span class="mode-label">Push</span>
-            </div>
-          </div>
-
-          <!-- Welcome Screen Settings -->
-          <div class="panel-settings-section">
-            <h4>Welcome Screen</h4>
-            <div class="panel-mode-toggle">
-              <span class="mode-label">Skip</span>
-              <label class="toggle-switch" pTooltip="Show welcome screen on startup" tooltipPosition="top">
-                <input type="checkbox"
-                       [checked]="uiState.showIntro()"
-                       (change)="uiState.toggleShowIntro()">
-                <span class="toggle-slider"></span>
-              </label>
-              <span class="mode-label">Show</span>
-            </div>
-          </div>
-        </div>
+      <div class="settings-panel" [class.visible]="panelsEnabled && !activityBarHidden && settingsPanelOpen" [class.open]="settingsPanelOpen">
+        <app-settings
+          [activeTab]="'appearance'"
+          (navigateToHome)="goHome()"
+          (logout)="onLogout()">
+        </app-settings>
       </div>
 
       <!-- Chat Panel (Right Side) -->
@@ -299,10 +258,7 @@ const LIBRARY_ITEMS: LibraryItem[] = [
       height: 100dvh;
       width: 100%;
       overflow: hidden;
-      background:
-        radial-gradient(1200px 800px at 20% 20%, rgba(36,56,99,.25), transparent),
-        radial-gradient(1000px 600px at 80% 80%, rgba(24,96,128,.18), transparent),
-        #0b0f14;
+      background: #0b0f14; /* Fixed canvas background - not affected by theme */
     }
     
     .bg-canvas {
@@ -317,7 +273,7 @@ const LIBRARY_ITEMS: LibraryItem[] = [
     .glass {
       position: absolute;
       width: clamp(320px, 34vw, 600px);
-      background: rgba(9, 15, 22, .55);
+      background: var(--app-background);
       border: 1px solid rgba(110,168,254,.2);
       box-shadow: 0 10px 40px rgba(0,0,0,.5);
       backdrop-filter: blur(10px);
@@ -463,7 +419,7 @@ const LIBRARY_ITEMS: LibraryItem[] = [
       top: 0;
       bottom: 0;
       width: 340px;
-      background: rgba(9, 15, 22, 0.9);
+      background: var(--app-background);
       border-right: 1px solid rgba(110, 168, 254, 0.2);
       backdrop-filter: blur(10px);
       transform: translateX(-100%);
@@ -491,15 +447,20 @@ const LIBRARY_ITEMS: LibraryItem[] = [
       left: 60px;
       top: 0;
       bottom: 0;
+      height: 100vh;
       width: 340px;
-      background: rgba(9, 15, 22, 0.9);
+      background: var(--app-background);
       border-right: 1px solid rgba(110, 168, 254, 0.2);
       backdrop-filter: blur(10px);
       transform: translateX(-100%);
       transition: transform 600ms ease, left 400ms cubic-bezier(0.23, 1, 0.32, 1), opacity 600ms ease;
-      z-index: 90;
+      z-index: 999;
       opacity: 0;
       pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      isolation: isolate;
     }
 
     .settings-panel.visible {
@@ -513,6 +474,14 @@ const LIBRARY_ITEMS: LibraryItem[] = [
 
     .settings-panel.open {
       transform: translateX(0);
+    }
+
+    .settings-panel app-settings {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
     }
     
     
@@ -825,11 +794,12 @@ export class LandingShellComponent implements OnInit, OnDestroy {
   panelsEnabled = false;
   missionCardFading = false;
   missionCardFadingIn = true;
-  libraryPanelOpen = false;
-  settingsPanelOpen = false;
-  propertiesPanelOpen = false;
-  chatPanelOpen = false;
-  debugPanelOpen = false;
+  // UI state computed from service
+  get libraryPanelOpen() { return this.uiState.libraryPanelOpen(); }
+  get settingsPanelOpen() { return this.uiState.settingsPanelOpen(); }
+  get propertiesPanelOpen() { return this.uiState.propertiesPanelOpen(); }
+  get chatPanelOpen() { return this.uiState.chatPanelOpen(); }
+  get debugPanelOpen() { return this.uiState.debugPanelOpen(); }
   currentViewJsonData = '';
   activityBarHover = false;
   activityBarHidden = false;
@@ -905,10 +875,14 @@ export class LandingShellComponent implements OnInit, OnDestroy {
     private itemsStore: ItemsStoreService,
     private viewRegistry: ViewRegistryService,
     private viewStateService: ViewSpecificStateService,
-    private viewNodeState: ViewNodeStateService
+    private viewNodeState: ViewNodeStateService,
+    private themeService: ThemeService
   ) {}
 
   ngOnInit(): void {
+    // Initialize theme service (will load persisted theme and set CSS variables)
+    // The service constructor handles initialization automatically
+
     // Initialize state management services
     this.viewRegistry.initializeDefaultViews();
     this.treeState.initializeMockData();
@@ -925,6 +899,7 @@ export class LandingShellComponent implements OnInit, OnDestroy {
 
     // Check user preference for intro
     const showIntro = this.uiState.showIntro();
+    const autoOpenLibrary = this.uiState.autoOpenLibraryPanel();
 
     if (showIntro) {
       // Show mission card intro
@@ -932,8 +907,8 @@ export class LandingShellComponent implements OnInit, OnDestroy {
       this.activityBarVisible = false;
       this.panelsEnabled = false;
       this.missionCardFadingIn = true;
-      this.libraryPanelOpen = false;
-      this.settingsPanelOpen = false;
+      this.uiState.setLibraryPanel(false);
+      this.uiState.setSettingsPanel(false);
       this.activityBarHover = false;
       this.activityBarHidden = false;
 
@@ -947,8 +922,9 @@ export class LandingShellComponent implements OnInit, OnDestroy {
       this.activityBarVisible = true;
       this.panelsEnabled = true;
       this.missionCardFadingIn = false;
-      this.libraryPanelOpen = true;
-      this.settingsPanelOpen = false;
+      // Use user preference for auto-opening library panel
+      this.uiState.setLibraryPanel(autoOpenLibrary);
+      this.uiState.setSettingsPanel(false);
       this.activityBarHover = false;
       this.activityBarHidden = false;
       this.exploreMode = true; // For backward compatibility
@@ -1082,9 +1058,10 @@ export class LandingShellComponent implements OnInit, OnDestroy {
         detail: 'Navigation enabled'
       });
 
-      // Step 4: After activity bar is shown, open library panel
+      // Step 4: After activity bar is shown, conditionally open library panel
       setTimeout(() => {
-        if (!this.libraryPanelOpen) {
+        const autoOpenLibrary = this.uiState.autoOpenLibraryPanel();
+        if (autoOpenLibrary && !this.libraryPanelOpen) {
           this.toggleLibrary();
         }
 
@@ -1104,48 +1081,51 @@ export class LandingShellComponent implements OnInit, OnDestroy {
   toggleLibrary() {
     // Ensure activity bar is visible when opening panels
     this.activityBarHidden = false;
-    // Close other LEFT-side panels when opening library (not right-side panels)
-    if (this.settingsPanelOpen) this.settingsPanelOpen = false;
-    // DO NOT close properties panel - it's a right-side panel
-    this.libraryPanelOpen = !this.libraryPanelOpen;
+    this.uiState.toggleLibraryPanel();
   }
 
   toggleSettings() {
     // Ensure activity bar is visible when opening panels
     this.activityBarHidden = false;
-    // Close other LEFT-side panels when opening settings (not right-side panels)
-    if (this.libraryPanelOpen) this.libraryPanelOpen = false;
-    // DO NOT close properties panel - it's a right-side panel
-    this.settingsPanelOpen = !this.settingsPanelOpen;
+    this.uiState.toggleSettingsPanel();
+  }
+
+  onLogout() {
+    // Handle logout - for now just show a message
+    this.messageService.add({
+      severity: 'info',
+      summary: 'Logout',
+      detail: 'Logout functionality not implemented yet'
+    });
   }
 
   toggleProperties() {
     // Properties panel is right-side and independent of left panels
     // DO NOT show activity bar or affect left panels
     // Close chat panel when opening properties (mutual exclusion for right-side panels only)
-    if (this.chatPanelOpen) this.chatPanelOpen = false;
-    this.propertiesPanelOpen = !this.propertiesPanelOpen;
+    if (this.uiState.chatPanelOpen()) this.uiState.setChatPanel(false);
+    this.uiState.togglePropertiesPanel();
   }
 
   toggleChat() {
     // Close properties panel when opening chat (mutual exclusion)
-    if (this.propertiesPanelOpen) this.propertiesPanelOpen = false;
-    this.chatPanelOpen = !this.chatPanelOpen;
+    if (this.uiState.propertiesPanelOpen()) this.uiState.setPropertiesPanel(false);
+    this.uiState.toggleChatPanel();
   }
 
   toggleDebugPanel() {
-    this.debugPanelOpen = !this.debugPanelOpen;
-    if (this.debugPanelOpen) {
+    this.uiState.toggleDebugPanel();
+    if (this.uiState.debugPanelOpen()) {
       this.updateDebugPanelData();
     }
   }
 
   onDebugPanelClosed() {
-    this.debugPanelOpen = false;
+    this.uiState.setDebugPanel(false);
   }
 
   updateDebugPanelData() {
-    if (!this.debugPanelOpen) return;
+    if (!this.uiState.debugPanelOpen()) return;
     
     // Get JSON data from current active view engine
     // ModularCanvas now manages its own state via service
@@ -1160,15 +1140,15 @@ export class LandingShellComponent implements OnInit, OnDestroy {
     } else {
       // Store state to restore when shown again
       this.stateBeforeHide = {
-        libraryPanelOpen: this.libraryPanelOpen,
-        settingsPanelOpen: this.settingsPanelOpen,
-        propertiesPanelOpen: this.propertiesPanelOpen
+        libraryPanelOpen: this.uiState.libraryPanelOpen(),
+        settingsPanelOpen: this.uiState.settingsPanelOpen(),
+        propertiesPanelOpen: this.uiState.propertiesPanelOpen()
       };
 
       // Close panels and hide activity bar immediately for smooth animation
-      this.libraryPanelOpen = false;
-      this.settingsPanelOpen = false;
-      this.propertiesPanelOpen = false;
+      this.uiState.setLibraryPanel(false);
+      this.uiState.setSettingsPanel(false);
+      this.uiState.setPropertiesPanel(false);
       this.activityBarHidden = true;
       this.activityBarHover = false;
       // Keep activityBarVisible true so the hover trigger can work
@@ -1181,9 +1161,9 @@ export class LandingShellComponent implements OnInit, OnDestroy {
       // Show activity bar and restore panels
       this.activityBarHidden = false;
       this.activityBarVisible = true;
-      this.libraryPanelOpen = this.stateBeforeHide.libraryPanelOpen;
-      this.settingsPanelOpen = this.stateBeforeHide.settingsPanelOpen;
-      this.propertiesPanelOpen = this.stateBeforeHide.propertiesPanelOpen;
+      this.uiState.setLibraryPanel(this.stateBeforeHide.libraryPanelOpen);
+      this.uiState.setSettingsPanel(this.stateBeforeHide.settingsPanelOpen);
+      this.uiState.setPropertiesPanel(this.stateBeforeHide.propertiesPanelOpen);
     }
   }
 
@@ -1219,8 +1199,8 @@ export class LandingShellComponent implements OnInit, OnDestroy {
 
   goHome() {
     // Close LEFT-side panels only, keep activity bar open
-    this.libraryPanelOpen = false;
-    this.settingsPanelOpen = false;
+    this.uiState.setLibraryPanel(false);
+    this.uiState.setSettingsPanel(false);
     // Keep right-side panels (properties, chat) as they are
   }
 
@@ -1374,11 +1354,11 @@ export class LandingShellComponent implements OnInit, OnDestroy {
 
 
   onChatPanelToggled(isVisible: boolean) {
-    this.chatPanelOpen = isVisible;
+    this.uiState.setChatPanel(isVisible);
   }
 
   onPropertiesPanelToggled(isVisible: boolean) {
-    this.propertiesPanelOpen = isVisible;
+    this.uiState.setPropertiesPanel(isVisible);
   }
 
   // Library data now loaded via ViewNodeStateService

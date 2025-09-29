@@ -5,7 +5,7 @@
 html, body {
   height: 100%;
   margin: 0;
-  background: #0b0f14;
+  background: var(--app-background);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   color: #e6edf3;
 }
@@ -14,9 +14,19 @@ html, body {
   /* Font families */
   --font-heading: 'Orbitron', sans-serif;
   --font-body: 'Inter', sans-serif;
-  
+
+  /* Dynamic App Theme Colors - Set by ThemeService */
+  --app-background: #0b0f14;
+  --app-border: #30363d;
+  --app-border-light: rgba(48, 54, 61, 0.5);
+  --app-border-hover: rgba(48, 54, 61, 0.8);
+  --app-background-overlay: rgba(11, 15, 20, 0.95);
+  --app-background-light: #161b22;
+  --app-background-dark: #060809;
+  --app-border-strong: #484f58;
+
   /* Color tokens for futuristic HUD look */
-  --surface-ground: #0b0f14;
+  --surface-ground: var(--app-background);
   --primary-color: #6ea8fe;
   --text-color: #e6edf3;
   --text-secondary: #8b949e;
@@ -89,11 +99,11 @@ body, p, div, span {
   /* Override PrimeNG theme tokens for proper dark mode */
   --p-primary-color: #6ea8fe;
   --p-primary-contrast-color: #ffffff;
-  --p-surface-0: #0b0f14;
-  --p-surface-50: #161b22;
-  --p-surface-100: #21262d;
-  --p-surface-200: #30363d;
-  --p-surface-300: #484f58;
+  --p-surface-0: var(--app-background);
+  --p-surface-50: var(--app-background-light);
+  --p-surface-100: var(--app-border);
+  --p-surface-200: var(--app-border);
+  --p-surface-300: var(--app-border-strong);
   --p-surface-400: #6e7681;
   --p-surface-500: #8b949e;
   --p-surface-600: #b1bac4;
@@ -104,7 +114,7 @@ body, p, div, span {
   --p-content-color: #e6edf3;
   --p-text-color: #e6edf3;
   --p-text-muted-color: #8b949e;
-  --p-border-color: #30363d;
+  --p-border-color: var(--app-border);
 }
 
 /* Dialog/Panel backgrounds and text */
@@ -112,19 +122,19 @@ body, p, div, span {
 .p-overlaypanel,
 .p-menu,
 .p-toast-message {
-  background: #161b22 !important;
-  border: 1px solid #30363d !important;
+  background: var(--app-background-light) !important;
+  border: 1px solid var(--app-border) !important;
   color: #e6edf3 !important;
 }
 
 .p-dialog .p-dialog-header {
-  background: #161b22 !important;
-  border-bottom: 1px solid #30363d !important;
+  background: var(--app-background-light) !important;
+  border-bottom: 1px solid var(--app-border) !important;
   color: #e6edf3 !important;
 }
 
 .p-dialog .p-dialog-content {
-  background: #161b22 !important;
+  background: var(--app-background-light) !important;
   color: #e6edf3 !important;
 }
 
@@ -132,8 +142,8 @@ body, p, div, span {
 .p-inputtext,
 .p-password input,
 .p-checkbox .p-checkbox-box {
-  background: #21262d !important;
-  border: 1px solid #30363d !important;
+  background: var(--app-border) !important;
+  border: 1px solid var(--app-border) !important;
   color: #e6edf3 !important;
 }
 
@@ -212,7 +222,7 @@ label {
 
 /* Tooltip styling fixes */
 .p-tooltip .p-tooltip-text {
-  background: #0d1117 !important;
+  background: var(--app-background-dark) !important;
   border: 1px solid #6ea8fe !important;
   color: #ffffff !important;
   font-size: 12px !important;
