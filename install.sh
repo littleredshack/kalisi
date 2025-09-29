@@ -20,20 +20,8 @@ fi
 
 echo "✅ Docker found and running"
 
-# Pull latest image
-echo "📦 Pulling Kalisi image..."
-docker pull littleredshack/kalisi:latest
-
-# Create installation directory in current location
-INSTALL_DIR="./kalisi"
-echo "📁 Setting up in $INSTALL_DIR"
-mkdir -p "$INSTALL_DIR"
-cd "$INSTALL_DIR"
-
-# Download docker-compose.yml and .env template
-echo "⬇️  Downloading configuration..."
-curl -fsSL https://raw.githubusercontent.com/littleredshack/kalisi/main/docker-compose.yml -o docker-compose.yml
-curl -fsSL https://raw.githubusercontent.com/littleredshack/kalisi/main/source/.env.example -o .env
+# Pull and run Kalisi directly
+echo "📦 Pulling and starting Kalisi..."
 
 # Detect SSH key
 AUTHORIZED_KEYS=""
@@ -50,11 +38,29 @@ if [[ -z "$AUTHORIZED_KEYS" ]]; then
   echo "   Generate one with: ssh-keygen -t ed25519"
 fi
 
-# Start Kalisi
-echo "🚀 Starting Kalisi..."
-export AUTHORIZED_KEYS="$AUTHORIZED_KEYS"
-export KALISI_AUTO_START=true
-docker compose up -d
+# Run Kalisi container directly
+CONTAINER_NAME="kalisi-$(date +%s)"
+docker run -d \
+  --name "$CONTAINER_NAME" \
+  -p 127.0.0.1:8443:8443 \
+  -p 127.0.0.1:2222:22 \
+  -p 127.0.0.1:7474:7474 \
+  -p 127.0.0.1:7687:7687 \
+  -p 127.0.0.1:7681:7681 \
+  --cap-add CAP_SETFCAP \
+  --cap-add CAP_NET_BIND_SERVICE \
+  -e KALISI_AUTO_START=true \
+  -e "AUTHORIZED_KEYS=$AUTHORIZED_KEYS" \
+  -e NEO4J_PASSWORD=kalisi-neo4j \
+  -e JWT_SECRET=change-me \
+  -e APPROVED_EMAILS=demo@example.com \
+  -e DOCKER_CONTAINER=true \
+  -v "${CONTAINER_NAME}-workspace:/workspace" \
+  -v "${CONTAINER_NAME}-neo4j:/data/neo4j" \
+  -v "${CONTAINER_NAME}-redis:/data/redis" \
+  -v "${CONTAINER_NAME}-home:/home/kalisi" \
+  --restart unless-stopped \
+  littleredshack/kalisi:latest
 
 echo ""
 echo "✅ Kalisi is running!"
@@ -68,8 +74,8 @@ echo "  🗄️  Neo4j:      http://localhost:7474 (neo4j/kalisi-neo4j)"
 echo "  💻 Terminal:   http://localhost:7681"
 echo ""
 echo "Manage:"
-echo "  Stop:          cd $INSTALL_DIR && docker compose down"
-echo "  Restart:       cd $INSTALL_DIR && docker compose restart"
-echo "  Logs:          cd $INSTALL_DIR && docker compose logs -f"
+echo "  Stop:          docker stop $CONTAINER_NAME"
+echo "  Remove:        docker rm -f $CONTAINER_NAME"
+echo "  Logs:          docker logs -f $CONTAINER_NAME"
 echo ""
 echo "Documentation: https://github.com/littleredshack/kalisi"
