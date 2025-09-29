@@ -7,7 +7,7 @@
   width: 340px; // Default width, will be overridden by resizing
   min-width: 280px; // Minimum width
   max-width: 600px; // Maximum width
-  background: rgba(9, 15, 22, 0.9); // Match exact background
+  background: var(--app-background); // Use theme variable
   border-left: 1px solid rgba(110, 168, 254, 0.2); // Match exact border
   backdrop-filter: blur(10px);
   transform: translateX(100%); // Match transform pattern (opposite direction)
@@ -129,7 +129,7 @@
 // Status Line - Match panel content styling
 .status-line {
   padding: 8px 20px; // Match panel content padding
-  background: rgba(9, 15, 22, 0.95); // Match library view switcher background
+  background: var(--app-background); // Use theme variable
   border-bottom: 1px solid rgba(110, 168, 254, 0.2); // Match exact border
   
   .status-info {
@@ -251,7 +251,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 8px 12px;
-    background: rgba(9, 15, 22, 0.95); // Match status line background
+    background: var(--app-background); // Use theme variable
     border-bottom: 1px solid rgba(110, 168, 254, 0.2);
     
     .cypher-label {
@@ -406,7 +406,7 @@
 .input-area {
   padding: 16px 20px; // Match panel padding
   border-top: 1px solid rgba(110, 168, 254, 0.2); // Match border
-  background: rgba(9, 15, 22, 0.95); // Match view switcher background
+  background: var(--app-background); // Use theme variable
   
   .input-container {
     display: flex;

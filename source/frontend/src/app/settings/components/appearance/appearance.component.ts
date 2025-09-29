@@ -50,37 +50,46 @@ import { takeUntil } from 'rxjs/operators';
 
           <div class="color-group">
             <label>Background Color</label>
-            <div class="color-picker-container">
+            <div class="color-picker-row">
               <p-colorPicker
                 [(ngModel)]="backgroundColor"
                 [inline]="false"
                 [format]="'hex'"
                 (onChange)="onBackgroundColorChange($event)"
                 [appendTo]="'body'"
-                [style]="{'width': '100%'}"
-                placeholder="#0b0f14">
+                class="color-swatch background-swatch"
+                [style]="{'--swatch-border': borderColor}">
               </p-colorPicker>
-              <div class="color-preview" [style.background]="backgroundColor">
-                <span>{{ backgroundColor }}</span>
-              </div>
+              <input
+                type="text"
+                [(ngModel)]="backgroundColor"
+                (ngModelChange)="onBackgroundColorChange($event)"
+                placeholder="#0b0f14"
+                maxlength="7"
+                class="hex-input"
+                pattern="^#[0-9A-Fa-f]{6}$">
             </div>
           </div>
 
           <div class="color-group">
             <label>Border Color</label>
-            <div class="color-picker-container">
+            <div class="color-picker-row">
               <p-colorPicker
                 [(ngModel)]="borderColor"
                 [inline]="false"
                 [format]="'hex'"
                 (onChange)="onBorderColorChange($event)"
                 [appendTo]="'body'"
-                [style]="{'width': '100%'}"
-                placeholder="#30363d">
+                class="color-swatch border-swatch">
               </p-colorPicker>
-              <div class="color-preview" [style.background]="borderColor">
-                <span>{{ borderColor }}</span>
-              </div>
+              <input
+                type="text"
+                [(ngModel)]="borderColor"
+                (ngModelChange)="onBorderColorChange($event)"
+                placeholder="#30363d"
+                maxlength="7"
+                class="hex-input"
+                pattern="^#[0-9A-Fa-f]{6}$">
             </div>
           </div>
         </div>
@@ -127,34 +136,33 @@ import { takeUntil } from 'rxjs/operators';
       color: var(--text-color);
     }
 
-    .color-picker-container {
+    .color-picker-row {
       display: flex;
-      gap: 1rem;
-      align-items: stretch;
+      gap: 0.75rem;
+      align-items: center;
     }
 
-    .color-picker-container :deep(.p-colorpicker) {
+    .color-swatch {
+      flex-shrink: 0;
+    }
+
+    .hex-input {
       flex: 1;
-    }
-
-    .color-picker-container :deep(.p-inputtext) {
-      width: 100%;
+      padding: 0.5rem;
       background: var(--app-background-light);
       border: 1px solid var(--app-border);
+      border-radius: 4px;
+      color: var(--text-color);
+      font-family: monospace;
+      font-size: 0.9rem;
     }
 
-    .color-preview {
-      width: 100px;
-      border-radius: 4px;
-      border: 1px solid var(--app-border);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-family: monospace;
-      font-size: 0.8rem;
-      text-shadow: 0 0 4px rgba(0,0,0,0.8);
+    .hex-input:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
     }
+
 
 
     .preset-option {
@@ -187,8 +195,47 @@ import { takeUntil } from 'rxjs/operators';
       border: 1px solid var(--app-border);
     }
 
-    :deep(.p-colorpicker-preview) {
-      border: 1px solid var(--app-border);
+    /* Style the color picker swatch/button with dynamic borders */
+    .color-swatch :deep(.p-colorpicker-preview) {
+      border-radius: 4px !important;
+      width: 40px !important;
+      height: 40px !important;
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1) !important;
+    }
+
+    .color-swatch :deep(.p-colorpicker-input) {
+      border-radius: 4px !important;
+      width: 40px !important;
+      height: 40px !important;
+    }
+
+    /* Target the actual button element in PrimeNG ColorPicker */
+    .color-swatch :deep(button) {
+      border-radius: 4px !important;
+      width: 40px !important;
+      height: 40px !important;
+    }
+
+    .color-swatch :deep(.p-button) {
+      border-radius: 4px !important;
+      width: 40px !important;
+      height: 40px !important;
+    }
+
+    /* Background color swatch uses the current border color */
+    .background-swatch :deep(.p-colorpicker-preview),
+    .background-swatch :deep(.p-colorpicker-input),
+    .background-swatch :deep(button),
+    .background-swatch :deep(.p-button) {
+      border: 2px solid var(--swatch-border, var(--app-border)) !important;
+    }
+
+    /* Border color swatch uses text color for visibility */
+    .border-swatch :deep(.p-colorpicker-preview),
+    .border-swatch :deep(.p-colorpicker-input),
+    .border-swatch :deep(button),
+    .border-swatch :deep(.p-button) {
+      border: 2px solid var(--text-color) !important;
     }
 
     @media (max-width: 768px) {

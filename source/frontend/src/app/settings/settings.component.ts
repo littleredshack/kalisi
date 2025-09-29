@@ -234,14 +234,14 @@ import { InterfaceComponent } from './components/interface/interface.component';
   `]
 })
 export class SettingsComponent implements OnInit {
-  @Input() activeTab: string = 'appearance';
+  @Input() activeTab: string = '';
   @Output() navigateToHome = new EventEmitter<void>();
   @Output() navigateToSettings = new EventEmitter<'profile' | 'security' | 'account' | 'appearance' | 'interface'>();
   @Output() logout = new EventEmitter<void>();
   @Output() accountDeleted = new EventEmitter<void>();
 
   // Array of active accordion indexes (multiple can be open)
-  activeIndexes: string[] = ['0', '1', '2']; // Start with Appearance, Interface, and Profile sections open
+  activeIndexes: string[] = []; // Start with all accordion sections closed
 
   constructor() {
     // Initialize active indexes based on activeTab
@@ -253,22 +253,9 @@ export class SettingsComponent implements OnInit {
   }
 
   private updateActiveIndexes(): void {
-    // Map tab names to accordion indexes
-    const tabIndexMap: { [key: string]: string } = {
-      'appearance': '0',
-      'interface': '1',
-      'profile': '2',
-      'security': '3',
-      'account': '4'
-    };
-
-    // If a specific tab is set, ensure it's open
-    if (this.activeTab && tabIndexMap[this.activeTab] !== undefined) {
-      const index = tabIndexMap[this.activeTab];
-      if (!this.activeIndexes.includes(index)) {
-        this.activeIndexes.push(index);
-      }
-    }
+    // Keep all accordions closed on startup
+    // Users can manually expand sections they need
+    this.activeIndexes = [];
   }
 
   onBackToHome(): void {

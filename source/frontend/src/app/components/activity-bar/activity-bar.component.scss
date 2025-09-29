@@ -19,7 +19,7 @@
 .activity-bar {
   height: 100%;
   width: 100%;
-  background: rgba(9, 15, 22, 0.8);
+  background: var(--app-background);
   border-right: 1px solid rgba(110, 168, 254, 0.2);
   backdrop-filter: blur(10px);
   display: flex;
