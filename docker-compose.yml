@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    image: ${KALISI_IMAGE:-kalisi/all-in-one:latest}
+    image: ${KALISI_IMAGE:-kalisi:latest}
     environment:
       - KALISI_AUTO_START=${KALISI_AUTO_START:-false}
       - AUTHORIZED_KEYS=${AUTHORIZED_KEYS:-}
