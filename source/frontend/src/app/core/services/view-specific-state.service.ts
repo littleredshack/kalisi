@@ -390,7 +390,7 @@ export class ViewSpecificStateService {
         wasmState: viewState.wasmState
       });
       
-      localStorage.setItem(`edt2_view_state_${viewId}`, serializedState);
+      localStorage.setItem(`kalisi_view_state_${viewId}`, serializedState);
       return true;
     } catch (error) {
       console.error('Failed to save view state:', error);
@@ -403,7 +403,7 @@ export class ViewSpecificStateService {
    */
   loadViewState(viewId: string): boolean {
     try {
-      const serializedState = localStorage.getItem(`edt2_view_state_${viewId}`);
+      const serializedState = localStorage.getItem(`kalisi_view_state_${viewId}`);
       if (!serializedState) return false;
 
       const savedState = JSON.parse(serializedState);

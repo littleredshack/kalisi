@@ -574,7 +574,7 @@ export class UnifiedRendererStateService {
       };
       
       localStorage.setItem(
-        `edt2_renderer_state_${instanceId}`, 
+        `kalisi_renderer_state_${instanceId}`,
         JSON.stringify(serializedState)
       );
       
@@ -588,7 +588,7 @@ export class UnifiedRendererStateService {
 
   loadState(instanceId: string): boolean {
     try {
-      const serialized = localStorage.getItem(`edt2_renderer_state_${instanceId}`);
+      const serialized = localStorage.getItem(`kalisi_renderer_state_${instanceId}`);
       if (!serialized) return false;
 
       const savedState = JSON.parse(serialized);

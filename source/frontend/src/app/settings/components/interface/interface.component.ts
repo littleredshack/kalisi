@@ -5,6 +5,7 @@ import { CheckboxModule } from 'primeng/checkbox';
 import { RadioButtonModule } from 'primeng/radiobutton';
 import { ButtonModule } from 'primeng/button';
 import { CardModule } from 'primeng/card';
+import { UiStateService } from '../../../core/services/ui-state.service';
 
 @Component({
   selector: 'app-interface',
@@ -27,19 +28,19 @@ import { CardModule } from 'primeng/card';
               [(ngModel)]="showIntroCard"
               [binary]="true"
               inputId="showIntro"
-              (onChange)="saveSettings()">
+              (onChange)="onShowIntroChange()">
             </p-checkbox>
             <label for="showIntro" class="setting-label">Show introduction card on startup</label>
           </div>
 
           <div class="setting-item">
             <p-checkbox
-              [(ngModel)]="autoShowActivityBar"
+              [(ngModel)]="autoOpenLibraryPanel"
               [binary]="true"
-              inputId="autoActivity"
-              (onChange)="saveSettings()">
+              inputId="autoLibrary"
+              (onChange)="onAutoOpenLibraryChange()">
             </p-checkbox>
-            <label for="autoActivity" class="setting-label">Automatically show activity bar after intro</label>
+            <label for="autoLibrary" class="setting-label">Automatically open Library Panel on startup</label>
           </div>
         </div>
 
@@ -50,54 +51,13 @@ import { CardModule } from 'primeng/card';
               [(ngModel)]="panelPushMode"
               [binary]="true"
               inputId="pushMode"
-              (onChange)="saveSettings()">
+              (onChange)="onPanelPushModeChange()">
             </p-checkbox>
             <label for="pushMode" class="setting-label">Push canvas when opening left panels (vs overlay)</label>
           </div>
 
-          <div class="setting-item">
-            <p-checkbox
-              [(ngModel)]="autoHideActivityBar"
-              [binary]="true"
-              inputId="autoHide"
-              (onChange)="saveSettings()">
-            </p-checkbox>
-            <label for="autoHide" class="setting-label">Auto-hide activity bar when not in use</label>
-          </div>
-
-          <div class="setting-item">
-            <p-checkbox
-              [(ngModel)]="rememberPanelStates"
-              [binary]="true"
-              inputId="rememberPanels"
-              (onChange)="saveSettings()">
-            </p-checkbox>
-            <label for="rememberPanels" class="setting-label">Remember panel open/closed states</label>
-          </div>
         </div>
 
-        <div class="settings-section">
-          <h4>Animation Settings</h4>
-          <div class="setting-item">
-            <p-checkbox
-              [(ngModel)]="enableBackgroundAnimation"
-              [binary]="true"
-              inputId="bgAnimation"
-              (onChange)="saveSettings()">
-            </p-checkbox>
-            <label for="bgAnimation" class="setting-label">Enable background canvas animation</label>
-          </div>
-
-          <div class="setting-item">
-            <p-checkbox
-              [(ngModel)]="enablePanelAnimations"
-              [binary]="true"
-              inputId="panelAnimation"
-              (onChange)="saveSettings()">
-            </p-checkbox>
-            <label for="panelAnimation" class="setting-label">Enable panel transition animations</label>
-          </div>
-        </div>
 
         <div class="settings-section">
           <h4>Default View</h4>
@@ -244,26 +204,29 @@ import { CardModule } from 'primeng/card';
   `]
 })
 export class InterfaceComponent {
-  // UI Settings with defaults
+  // UI Settings - these will be synced with UiStateService
   showIntroCard = true;
-  autoShowActivityBar = true;
+  autoOpenLibraryPanel = true;
   panelPushMode = true;
-  autoHideActivityBar = false;
-  rememberPanelStates = true;
-  enableBackgroundAnimation = true;
-  enablePanelAnimations = true;
   defaultView = 'graph';
 
-  constructor() {
+  constructor(private uiState: UiStateService) {
     this.loadSettings();
   }
 
   loadSettings() {
+    // Load startup settings from UiStateService
+    this.showIntroCard = this.uiState.showIntro();
+    this.autoOpenLibraryPanel = this.uiState.autoOpenLibraryPanel();
+    this.panelPushMode = this.uiState.panelPushMode();
+
+    // Load other settings from localStorage (fallback for non-startup settings)
     const stored = localStorage.getItem('interface_settings');
     if (stored) {
       try {
         const settings = JSON.parse(stored);
-        Object.assign(this, settings);
+        // Only load non-UiStateService settings
+        this.defaultView = settings.defaultView ?? 'graph';
       } catch (e) {
         console.warn('Failed to load interface settings:', e);
       }
@@ -271,27 +234,35 @@ export class InterfaceComponent {
   }
 
   saveSettings() {
+    // Save non-startup settings to localStorage
     const settings = {
-      showIntroCard: this.showIntroCard,
-      autoShowActivityBar: this.autoShowActivityBar,
-      panelPushMode: this.panelPushMode,
-      autoHideActivityBar: this.autoHideActivityBar,
-      rememberPanelStates: this.rememberPanelStates,
-      enableBackgroundAnimation: this.enableBackgroundAnimation,
-      enablePanelAnimations: this.enablePanelAnimations,
       defaultView: this.defaultView
     };
     localStorage.setItem('interface_settings', JSON.stringify(settings));
   }
 
+  onShowIntroChange() {
+    this.uiState.setShowIntro(this.showIntroCard);
+  }
+
+  onAutoOpenLibraryChange() {
+    this.uiState.setAutoOpenLibraryPanel(this.autoOpenLibraryPanel);
+  }
+
+  onPanelPushModeChange() {
+    this.uiState.setPanelPushMode(this.panelPushMode);
+  }
+
   resetToDefaults() {
+    // Reset UiStateService settings
     this.showIntroCard = true;
-    this.autoShowActivityBar = true;
+    this.autoOpenLibraryPanel = true;
     this.panelPushMode = true;
-    this.autoHideActivityBar = false;
-    this.rememberPanelStates = true;
-    this.enableBackgroundAnimation = true;
-    this.enablePanelAnimations = true;
+    this.uiState.setShowIntro(this.showIntroCard);
+    this.uiState.setAutoOpenLibraryPanel(this.autoOpenLibraryPanel);
+    this.uiState.setPanelPushMode(this.panelPushMode);
+
+    // Reset other settings
     this.defaultView = 'graph';
     this.saveSettings();
   }
