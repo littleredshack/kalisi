@@ -2,7 +2,10 @@ import { Component, EventEmitter, Output, Input, OnInit, OnDestroy, OnChanges } 
 import { CommonModule } from '@angular/common';
 import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
+import { FormsModule } from '@angular/forms';
 import { PropertiesPanelComponent } from '../properties-panel/properties-panel.component';
+import { CanvasControlService, CameraInfo } from '../../core/services/canvas-control.service';
+import { Observable, map } from 'rxjs';
 
 @Component({
   selector: 'app-properties-rhs-panel',
@@ -11,6 +14,7 @@ import { PropertiesPanelComponent } from '../properties-panel/properties-panel.c
     CommonModule,
     ButtonModule,
     TooltipModule,
+    FormsModule,
     PropertiesPanelComponent
   ],
   templateUrl: './properties-rhs-panel.component.html',
@@ -30,7 +34,29 @@ export class PropertiesRhsPanelComponent implements OnInit, OnDestroy, OnChanges
   private resizeStartWidth = 0;
   private readonly STORAGE_KEY = 'properties-panel-width';
 
-  constructor() {}
+  // Canvas control observables
+  hasActiveCanvas$: Observable<boolean>;
+  cameraInfo$: Observable<CameraInfo>;
+  availableLevels$: Observable<number[]>;
+  autoLayoutState$: Observable<string>;
+  levelOptions$: Observable<any[]>;
+  selectedLevel: number | null = null;
+
+  constructor(private canvasControlService: CanvasControlService) {
+    // Initialize observables from service
+    this.hasActiveCanvas$ = this.canvasControlService.hasActiveCanvas$;
+    this.cameraInfo$ = this.canvasControlService.cameraInfo$;
+    this.availableLevels$ = this.canvasControlService.availableLevels$;
+    this.autoLayoutState$ = this.canvasControlService.autoLayoutState$;
+
+    // Transform levels array into dropdown options
+    this.levelOptions$ = this.availableLevels$.pipe(
+      map(levels => levels.map(level => ({
+        label: `Level ${level}`,
+        value: level
+      })))
+    );
+  }
 
   ngOnInit(): void {
     // Load saved width from localStorage
@@ -97,5 +123,26 @@ export class PropertiesRhsPanelComponent implements OnInit, OnDestroy, OnChanges
 
   private savePanelWidth(): void {
     localStorage.setItem(this.STORAGE_KEY, this.panelWidth.toString());
+  }
+
+  // Canvas control methods
+  onReset(): void {
+    this.canvasControlService.resetCanvas();
+  }
+
+  async onSave(): Promise<void> {
+    await this.canvasControlService.saveLayout();
+  }
+
+  onToggleAutoLayout(): void {
+    this.canvasControlService.toggleAutoLayout();
+  }
+
+  onCollapseLevel(level: number): void {
+    if (level !== null && level !== undefined) {
+      this.canvasControlService.collapseToLevel(level);
+      // Reset dropdown after selection
+      this.selectedLevel = null;
+    }
   }
 }

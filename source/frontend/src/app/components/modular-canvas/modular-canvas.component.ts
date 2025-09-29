@@ -10,6 +10,7 @@ import { ComposableHierarchicalCanvasEngine } from '../../shared/canvas/composab
 import { HierarchicalNode, Edge, CanvasData, Camera } from '../../shared/canvas/types';
 import { GridLayoutEngine } from '../../shared/layouts/grid-layout';
 import { ComponentFactory } from '../../shared/canvas/component-factory';
+import { CanvasControlService, CanvasController, CameraInfo } from '../../core/services/canvas-control.service';
 
 @Component({
   selector: 'app-modular-canvas',
@@ -17,26 +18,6 @@ import { ComponentFactory } from '../../shared/canvas/component-factory';
   imports: [CommonModule],
   template: `
     <div class="canvas-interface">
-      <div class="canvas-header">
-        <div class="left-controls">
-          <button class="reset-button" (click)="onResetClick()">Reset</button>
-          <button class="save-button" (click)="onSaveClick()">Save Layout</button>
-          <button class="collapse-toggle" (click)="onToggleCollapseBehavior()"
-                  [title]="getCollapseBehaviorTooltip()">
-            {{ getCollapseBehaviorLabel() }}
-          </button>
-          <select class="level-selector" (change)="onLevelSelect($event)"
-                  [title]="'Collapse all nodes to selected depth level'">
-            <option value="">Collapse Level</option>
-            <option *ngFor="let level of availableLevels" [value]="level">
-              Level {{ level }}
-            </option>
-          </select>
-        </div>
-        <div class="right-controls">
-          <span class="camera-info">Camera: ({{cameraInfo.x}}, {{cameraInfo.y}}) zoom: {{cameraInfo.zoom}}x</span>
-        </div>
-      </div>
       <canvas #canvas class="full-canvas"
               (mousedown)="onMouseDown($event)"
               (mousemove)="onMouseMove($event)"
@@ -48,96 +29,29 @@ import { ComponentFactory } from '../../shared/canvas/component-factory';
     .canvas-interface {
       display: flex;
       flex-direction: column;
-      height: 100vh;
+      height: 100%;
+      width: 100%;
       background: #0b0f14;
-    }
-    
-    .canvas-header {
-      padding: 20px 20px 10px 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid #4b5563;
-    }
-    
-    .left-controls {
-      display: flex;
-      align-items: center;
-      gap: 15px;
-    }
-    
-    .right-controls {
-      display: flex;
-      align-items: center;
-    }
-    
-    
-    .camera-info {
-      font-size: 12px;
-      color: #a0a9b8;
-      font-family: 'Monaco', monospace;
-      min-width: 180px;
-      text-align: right;
-    }
-    
-    h3 {
-      color: #e6edf3;
-      margin: 0;
-      font-family: 'Roboto', sans-serif;
-    }
-    
-    .reset-button, .save-button, .collapse-toggle {
-      background: #6ea8fe;
-      color: #0b0f14;
-      border: none;
-      border-radius: 4px;
-      padding: 6px 12px;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.2s;
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
     }
 
-    .level-selector {
-      background: #22c55e;
-      color: #0b0f14;
-      border: none;
-      border-radius: 4px;
-      padding: 6px 12px;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      min-width: 120px;
-    }
-
-    .collapse-toggle {
-      background: #8b5cf6;
-    }
-
-    .reset-button:hover, .save-button:hover {
-      background: #58a6ff;
-    }
-
-    .collapse-toggle:hover {
-      background: #7c3aed;
-    }
-
-    .level-selector:hover {
-      background: #16a34a;
-    }
-    
     .full-canvas {
       width: 100%;
-      height: calc(100vh - 70px);
+      height: 100%;
       border: 1px solid #4b5563;
       background: #0b0f14;
       display: block;
       margin: 0;
       padding: 0;
+      box-sizing: border-box;
     }
   `]
 })
-export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy {
+export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy, CanvasController {
   @ViewChild('canvas', { static: true }) canvasRef!: ElementRef<HTMLCanvasElement>;
   @Output() engineDataChanged = new EventEmitter<void>();
   
@@ -155,7 +69,8 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy 
     private viewNodeState: ViewNodeStateService,
     private dynamicLayoutService: DynamicLayoutService,
     private messageService: MessageService,
-    private http: HttpClient
+    private http: HttpClient,
+    private canvasControlService: CanvasControlService
   ) {
     // Engine-only mode - no reactive effects
   }
@@ -169,10 +84,14 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy 
   ngAfterViewInit(): void {
     // Canvas is ready - but wait for data to be loaded before creating engine
     this.resizeCanvas();
+    // Register this canvas with the control service
+    this.canvasControlService.registerCanvas(this);
   }
 
   ngOnDestroy(): void {
     // No automatic saving - layout persistence handled by explicit Save button
+    // Unregister from control service
+    this.canvasControlService.unregisterCanvas();
   }
 
   async ngOnInit(): Promise<void> {
@@ -600,6 +519,8 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy 
         y: Math.round(camera.y),
         zoom: Math.round(camera.zoom * 100) / 100 // Round to 2 decimal places
       };
+      // Notify the control service of camera changes
+      this.canvasControlService.updateCameraInfo(this.cameraInfo);
     }
   }
 
@@ -736,6 +657,8 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy 
     if (this.engine) {
       this.availableLevels = this.engine.getAvailableDepthLevels();
       console.log('📊 Available hierarchy levels:', this.availableLevels);
+      // Notify the control service of available levels
+      this.canvasControlService.updateAvailableLevels(this.availableLevels);
     }
   }
 
@@ -1005,6 +928,15 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy 
 
       return canvasData;
     }
+  }
+
+  // Public methods for CanvasController interface
+  getAvailableLevels(): number[] {
+    return this.availableLevels;
+  }
+
+  getCameraInfo(): CameraInfo {
+    return this.cameraInfo;
   }
 
   // FR-030: ViewNode is now set via ViewNodeStateService subscription

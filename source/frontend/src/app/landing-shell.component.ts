@@ -772,6 +772,7 @@ const LIBRARY_ITEMS: LibraryItem[] = [
       width: 100%;
       height: 100%;
       overflow: hidden;
+      position: relative; /* Ensure child absolute positioning works */
     }
     
     .description-view,
@@ -867,6 +868,12 @@ export class LandingShellComponent implements OnInit, OnDestroy {
   private dragOffset = { x: 0, y: 0 };
   panelPosition = { x: 11, y: 11 }; // vw/vh units
 
+  // Computed property for any LEFT panel open state (for push mode)
+  get anyLeftPanelOpen(): boolean {
+    // Only left-side panels affect push mode
+    return this.libraryPanelOpen || this.settingsPanelOpen;
+  }
+
   // Computed property for any panel open state
   get anyPanelOpen(): boolean {
     return this.libraryPanelOpen || this.settingsPanelOpen || this.propertiesPanelOpen;
@@ -881,8 +888,9 @@ export class LandingShellComponent implements OnInit, OnDestroy {
       offset += 60; // Activity bar width (permanent design setting)
     }
 
-    // ADDITIONALLY add panel width if push mode is enabled and a panel is open
-    if (this.uiState.panelPushMode() && this.anyPanelOpen) {
+    // ADDITIONALLY add panel width if push mode is enabled and a LEFT panel is open
+    // Right-side panels (properties, chat) are always in overlay mode
+    if (this.uiState.panelPushMode() && this.anyLeftPanelOpen) {
       offset += 340; // Panel width - configurable per panel
     }
 
@@ -1096,24 +1104,24 @@ export class LandingShellComponent implements OnInit, OnDestroy {
   toggleLibrary() {
     // Ensure activity bar is visible when opening panels
     this.activityBarHidden = false;
-    // Close other panels when opening library
+    // Close other LEFT-side panels when opening library (not right-side panels)
     if (this.settingsPanelOpen) this.settingsPanelOpen = false;
-    if (this.propertiesPanelOpen) this.propertiesPanelOpen = false;
+    // DO NOT close properties panel - it's a right-side panel
     this.libraryPanelOpen = !this.libraryPanelOpen;
   }
 
   toggleSettings() {
     // Ensure activity bar is visible when opening panels
     this.activityBarHidden = false;
-    // Close other panels when opening settings
+    // Close other LEFT-side panels when opening settings (not right-side panels)
     if (this.libraryPanelOpen) this.libraryPanelOpen = false;
-    if (this.propertiesPanelOpen) this.propertiesPanelOpen = false;
+    // DO NOT close properties panel - it's a right-side panel
     this.settingsPanelOpen = !this.settingsPanelOpen;
   }
 
   toggleProperties() {
-    // Ensure activity bar is visible when opening panels
-    this.activityBarHidden = false;
+    // Properties panel is right-side and independent of left panels
+    // DO NOT show activity bar or affect left panels
     // Close chat panel when opening properties (mutual exclusion for right-side panels only)
     if (this.chatPanelOpen) this.chatPanelOpen = false;
     this.propertiesPanelOpen = !this.propertiesPanelOpen;
@@ -1210,10 +1218,10 @@ export class LandingShellComponent implements OnInit, OnDestroy {
   }
 
   goHome() {
-    // Just close panels, keep activity bar open
+    // Close LEFT-side panels only, keep activity bar open
     this.libraryPanelOpen = false;
     this.settingsPanelOpen = false;
-    this.propertiesPanelOpen = false;
+    // Keep right-side panels (properties, chat) as they are
   }
 
   onViewChange(viewType: string) {
