@@ -2,9 +2,6 @@ import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Accordion, AccordionPanel, AccordionHeader, AccordionContent } from 'primeng/accordion';
 import { ButtonModule } from 'primeng/button';
-import { ProfileComponent } from './components/profile/profile-stub.component';
-import { SecurityComponent } from './components/security/security-stub.component';
-import { AccountComponent } from './components/account/account-stub.component';
 import { AppearanceComponent } from './components/appearance/appearance.component';
 import { InterfaceComponent } from './components/interface/interface.component';
 
@@ -18,9 +15,6 @@ import { InterfaceComponent } from './components/interface/interface.component';
     AccordionHeader,
     AccordionContent,
     ButtonModule,
-    ProfileComponent,
-    SecurityComponent,
-    AccountComponent,
     AppearanceComponent,
     InterfaceComponent
   ],
@@ -63,41 +57,6 @@ import { InterfaceComponent } from './components/interface/interface.component';
             </p-accordion-content>
           </p-accordion-panel>
 
-          <p-accordion-panel value="2">
-            <p-accordion-header>
-              <span class="accordion-header">
-                <i class="pi pi-user"></i>
-                <span>Profile</span>
-              </span>
-            </p-accordion-header>
-            <p-accordion-content>
-              <app-profile></app-profile>
-            </p-accordion-content>
-          </p-accordion-panel>
-
-          <p-accordion-panel value="3">
-            <p-accordion-header>
-              <span class="accordion-header">
-                <i class="pi pi-lock"></i>
-                <span>Security</span>
-              </span>
-            </p-accordion-header>
-            <p-accordion-content>
-              <app-security></app-security>
-            </p-accordion-content>
-          </p-accordion-panel>
-
-          <p-accordion-panel value="4">
-            <p-accordion-header>
-              <span class="accordion-header">
-                <i class="pi pi-id-card"></i>
-                <span>Account</span>
-              </span>
-            </p-accordion-header>
-            <p-accordion-content>
-              <app-account (accountDeleted)="onAccountDeleted()"></app-account>
-            </p-accordion-content>
-          </p-accordion-panel>
         </p-accordion>
       </div>
     </div>
@@ -134,12 +93,12 @@ import { InterfaceComponent } from './components/interface/interface.component';
     .settings-content {
       flex: 1;
       min-height: 0;
-      overflow-y: scroll;
+      overflow-y: auto;
       overflow-x: hidden;
       padding: 0.5rem;
     }
 
-    /* Force scrollbar to always be visible */
+    /* Scrollbar styling - only visible when needed */
     .settings-content::-webkit-scrollbar {
       width: 12px;
       -webkit-appearance: none;
@@ -236,9 +195,8 @@ import { InterfaceComponent } from './components/interface/interface.component';
 export class SettingsComponent implements OnInit {
   @Input() activeTab: string = '';
   @Output() navigateToHome = new EventEmitter<void>();
-  @Output() navigateToSettings = new EventEmitter<'profile' | 'security' | 'account' | 'appearance' | 'interface'>();
+  @Output() navigateToSettings = new EventEmitter<'appearance' | 'interface'>();
   @Output() logout = new EventEmitter<void>();
-  @Output() accountDeleted = new EventEmitter<void>();
 
   // Array of active accordion indexes (multiple can be open)
   activeIndexes: string[] = []; // Start with all accordion sections closed
@@ -260,10 +218,6 @@ export class SettingsComponent implements OnInit {
 
   onBackToHome(): void {
     this.navigateToHome.emit();
-  }
-
-  onAccountDeleted(): void {
-    this.accountDeleted.emit();
   }
 
   onWheel(event: WheelEvent): void {
