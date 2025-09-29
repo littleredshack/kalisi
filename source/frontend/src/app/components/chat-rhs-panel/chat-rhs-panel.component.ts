@@ -312,10 +312,10 @@ export class ChatRhsPanelComponent implements OnInit, OnDestroy, OnChanges, Afte
     return this.safetyGuard.getRiskLevelClass(riskLevel as any);
   }
 
-  getSeverityFromRisk(riskLevel: string): string {
+  getSeverityFromRisk(riskLevel: string): 'success' | 'info' | 'warn' | 'danger' {
     switch (riskLevel) {
       case 'critical': return 'danger';
-      case 'high': return 'warning';
+      case 'high': return 'warn';
       case 'moderate': return 'info';
       default: return 'success';
     }

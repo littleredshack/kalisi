@@ -19,12 +19,14 @@ import { ItemsStoreService } from './core/services/items-store.service';
 import { ViewRegistryService } from './core/services/view-registry.service';
 import { ViewSpecificStateService } from './core/services/view-specific-state.service';
 import { ViewNodeStateService, LibraryItem as ViewLibraryItem } from './core/services/view-node-state.service';
+import { ThemeService } from './core/services/theme.service';
 import { ActivityBarComponent } from './components/activity-bar/activity-bar.component';
 import { ModularCanvasComponent } from './components/modular-canvas/modular-canvas.component';
 import { ChatRhsPanelComponent } from './components/chat-rhs-panel/chat-rhs-panel.component';
 import { PropertiesRhsPanelComponent } from './components/properties-rhs-panel/properties-rhs-panel.component';
 import { DebugPanelComponent } from './components/debug-panel/debug-panel.component';
 import { ViewType } from './core/models/view.models';
+import { SettingsComponent } from './settings/settings.component';
 
 // Library Item Configuration
 interface LibraryItem {
@@ -71,7 +73,8 @@ const LIBRARY_ITEMS: LibraryItem[] = [
     ModularCanvasComponent,
     ChatRhsPanelComponent,
     PropertiesRhsPanelComponent,
-    DebugPanelComponent
+    DebugPanelComponent,
+    SettingsComponent
   ],
   providers: [MessageService],
   template: `
@@ -101,7 +104,7 @@ const LIBRARY_ITEMS: LibraryItem[] = [
       </app-activity-bar>
 
       <!-- Library Panel -->
-      <div class="library-panel" [class.visible]="panelsEnabled && !activityBarHidden" [class.open]="libraryPanelOpen">
+      <div class="library-panel" [class.visible]="panelsEnabled && !activityBarHidden && libraryPanelOpen" [class.open]="libraryPanelOpen">
         <div class="panel-header">
           <h3 pTooltip="Global Library of Edges and Nodes" tooltipPosition="top">Global Library</h3>
           <input type="text" placeholder="Search..." class="search-input" />
@@ -131,56 +134,12 @@ const LIBRARY_ITEMS: LibraryItem[] = [
       </div>
 
       <!-- Settings Panel -->
-      <div class="settings-panel" [class.visible]="panelsEnabled && !activityBarHidden" [class.open]="settingsPanelOpen">
-        <div class="panel-header">
-          <h3>Settings</h3>
-        </div>
-        <div class="settings-content">
-          <div class="setting-item">
-            <label>Theme</label>
-            <select class="setting-select">
-              <option>Dark</option>
-              <option>Light</option>
-            </select>
-          </div>
-          <div class="setting-item">
-            <label>Density</label>
-            <select class="setting-select">
-              <option>Comfortable</option>
-              <option>Compact</option>
-            </select>
-          </div>
-          
-          <!-- Panel Settings Section -->
-          <div class="panel-settings-section">
-            <h4>Panel Settings</h4>
-            <div class="panel-mode-toggle">
-              <span class="mode-label">Overlay</span>
-              <label class="toggle-switch" pTooltip="Switch between overlay and push panel modes" tooltipPosition="top">
-                <input type="checkbox"
-                       [checked]="uiState.panelPushMode()"
-                       (change)="uiState.togglePanelPushMode()">
-                <span class="toggle-slider"></span>
-              </label>
-              <span class="mode-label">Push</span>
-            </div>
-          </div>
-
-          <!-- Welcome Screen Settings -->
-          <div class="panel-settings-section">
-            <h4>Welcome Screen</h4>
-            <div class="panel-mode-toggle">
-              <span class="mode-label">Skip</span>
-              <label class="toggle-switch" pTooltip="Show welcome screen on startup" tooltipPosition="top">
-                <input type="checkbox"
-                       [checked]="uiState.showIntro()"
-                       (change)="uiState.toggleShowIntro()">
-                <span class="toggle-slider"></span>
-              </label>
-              <span class="mode-label">Show</span>
-            </div>
-          </div>
-        </div>
+      <div class="settings-panel" [class.visible]="panelsEnabled && !activityBarHidden && settingsPanelOpen" [class.open]="settingsPanelOpen">
+        <app-settings
+          [activeTab]="'appearance'"
+          (navigateToHome)="goHome()"
+          (logout)="onLogout()">
+        </app-settings>
       </div>
 
       <!-- Chat Panel (Right Side) -->
@@ -299,10 +258,7 @@ const LIBRARY_ITEMS: LibraryItem[] = [
       height: 100dvh;
       width: 100%;
       overflow: hidden;
-      background:
-        radial-gradient(1200px 800px at 20% 20%, rgba(36,56,99,.25), transparent),
-        radial-gradient(1000px 600px at 80% 80%, rgba(24,96,128,.18), transparent),
-        #0b0f14;
+      background: #0b0f14; /* Fixed canvas background - not affected by theme */
     }
     
     .bg-canvas {
@@ -317,7 +273,7 @@ const LIBRARY_ITEMS: LibraryItem[] = [
     .glass {
       position: absolute;
       width: clamp(320px, 34vw, 600px);
-      background: rgba(9, 15, 22, .55);
+      background: var(--app-background);
       border: 1px solid rgba(110,168,254,.2);
       box-shadow: 0 10px 40px rgba(0,0,0,.5);
       backdrop-filter: blur(10px);
@@ -463,7 +419,7 @@ const LIBRARY_ITEMS: LibraryItem[] = [
       top: 0;
       bottom: 0;
       width: 340px;
-      background: rgba(9, 15, 22, 0.9);
+      background: var(--app-background);
       border-right: 1px solid rgba(110, 168, 254, 0.2);
       backdrop-filter: blur(10px);
       transform: translateX(-100%);
@@ -491,15 +447,20 @@ const LIBRARY_ITEMS: LibraryItem[] = [
       left: 60px;
       top: 0;
       bottom: 0;
+      height: 100vh;
       width: 340px;
-      background: rgba(9, 15, 22, 0.9);
+      background: var(--app-background);
       border-right: 1px solid rgba(110, 168, 254, 0.2);
       backdrop-filter: blur(10px);
       transform: translateX(-100%);
       transition: transform 600ms ease, left 400ms cubic-bezier(0.23, 1, 0.32, 1), opacity 600ms ease;
-      z-index: 90;
+      z-index: 999;
       opacity: 0;
       pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      isolation: isolate;
     }
 
     .settings-panel.visible {
@@ -513,6 +474,14 @@ const LIBRARY_ITEMS: LibraryItem[] = [
 
     .settings-panel.open {
       transform: translateX(0);
+    }
+
+    .settings-panel app-settings {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
     }
     
     
@@ -905,10 +874,14 @@ export class LandingShellComponent implements OnInit, OnDestroy {
     private itemsStore: ItemsStoreService,
     private viewRegistry: ViewRegistryService,
     private viewStateService: ViewSpecificStateService,
-    private viewNodeState: ViewNodeStateService
+    private viewNodeState: ViewNodeStateService,
+    private themeService: ThemeService
   ) {}
 
   ngOnInit(): void {
+    // Initialize theme service (will load persisted theme and set CSS variables)
+    // The service constructor handles initialization automatically
+
     // Initialize state management services
     this.viewRegistry.initializeDefaultViews();
     this.treeState.initializeMockData();
@@ -1117,6 +1090,15 @@ export class LandingShellComponent implements OnInit, OnDestroy {
     if (this.libraryPanelOpen) this.libraryPanelOpen = false;
     // DO NOT close properties panel - it's a right-side panel
     this.settingsPanelOpen = !this.settingsPanelOpen;
+  }
+
+  onLogout() {
+    // Handle logout - for now just show a message
+    this.messageService.add({
+      severity: 'info',
+      summary: 'Logout',
+      detail: 'Logout functionality not implemented yet'
+    });
   }
 
   toggleProperties() {
