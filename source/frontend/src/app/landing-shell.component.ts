@@ -77,22 +77,22 @@ const LIBRARY_ITEMS: LibraryItem[] = [
   template: `
     <p-toast></p-toast>
     
-    <div class="frame" [class.activity-bar-open]="exploreMode && !activityBarHidden">
+    <div class="frame" [class.activity-bar-open]="activityBarVisible && !activityBarHidden">
       <!-- animated background canvas -->
       <canvas #bgCanvas class="bg-canvas" (mousemove)="onCanvasMove($event)"></canvas>
 
       <!-- Activity Bar hover trigger -->
-      <div class="activity-trigger" 
-           *ngIf="exploreMode && activityBarHidden"
+      <div class="activity-trigger"
+           *ngIf="activityBarVisible && activityBarHidden"
            (mouseenter)="onHoverTrigger()"
            (mouseleave)="onTriggerLeave()"></div>
 
       <!-- Activity Bar Component -->
-      <app-activity-bar 
-        *ngIf="exploreMode"
+      <app-activity-bar
+        [class.visible]="activityBarVisible && !activityBarHidden"
         [isOpen]="!activityBarHidden"
         [libraryPanelOpen]="libraryPanelOpen"
-        [settingsPanelOpen]="settingsPanelOpen" 
+        [settingsPanelOpen]="settingsPanelOpen"
         [propertiesPanelOpen]="propertiesPanelOpen"
         [chatPanelOpen]="chatPanelOpen"
         [debugPanelOpen]="debugPanelOpen"
@@ -101,7 +101,7 @@ const LIBRARY_ITEMS: LibraryItem[] = [
       </app-activity-bar>
 
       <!-- Library Panel -->
-      <div class="library-panel" *ngIf="exploreMode && !activityBarHidden" [class.open]="libraryPanelOpen">
+      <div class="library-panel" [class.visible]="panelsEnabled && !activityBarHidden" [class.open]="libraryPanelOpen">
         <div class="panel-header">
           <h3 pTooltip="Global Library of Edges and Nodes" tooltipPosition="top">Global Library</h3>
           <input type="text" placeholder="Search..." class="search-input" />
@@ -131,7 +131,7 @@ const LIBRARY_ITEMS: LibraryItem[] = [
       </div>
 
       <!-- Settings Panel -->
-      <div class="settings-panel" *ngIf="exploreMode && !activityBarHidden" [class.open]="settingsPanelOpen">
+      <div class="settings-panel" [class.visible]="panelsEnabled && !activityBarHidden" [class.open]="settingsPanelOpen">
         <div class="panel-header">
           <h3>Settings</h3>
         </div>
@@ -157,12 +157,27 @@ const LIBRARY_ITEMS: LibraryItem[] = [
             <div class="panel-mode-toggle">
               <span class="mode-label">Overlay</span>
               <label class="toggle-switch" pTooltip="Switch between overlay and push panel modes" tooltipPosition="top">
-                <input type="checkbox" 
+                <input type="checkbox"
                        [checked]="uiState.panelPushMode()"
                        (change)="uiState.togglePanelPushMode()">
                 <span class="toggle-slider"></span>
               </label>
               <span class="mode-label">Push</span>
+            </div>
+          </div>
+
+          <!-- Welcome Screen Settings -->
+          <div class="panel-settings-section">
+            <h4>Welcome Screen</h4>
+            <div class="panel-mode-toggle">
+              <span class="mode-label">Skip</span>
+              <label class="toggle-switch" pTooltip="Show welcome screen on startup" tooltipPosition="top">
+                <input type="checkbox"
+                       [checked]="uiState.showIntro()"
+                       (change)="uiState.toggleShowIntro()">
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="mode-label">Show</span>
             </div>
           </div>
         </div>
@@ -183,9 +198,9 @@ const LIBRARY_ITEMS: LibraryItem[] = [
       </app-properties-rhs-panel>
 
       <!-- Main Workspace Area -->
-      <div class="main-workspace" 
+      <div class="main-workspace"
            [style.left.px]="workspacePushOffset"
-           *ngIf="exploreMode && selectedEntityId">
+           [class.visible]="panelsEnabled && selectedEntityId">
         <div class="workspace-content">
           <div *ngIf="selectedView === 'graph'" class="view-container">
             <app-graph-view [nodes]="graphNodes" [edges]="graphEdges"></app-graph-view>
@@ -215,8 +230,8 @@ const LIBRARY_ITEMS: LibraryItem[] = [
       </div>
 
       <!-- mission glass card -->
-      <div class="glass mission" 
-           [class.hidden]="!showMissionCard"
+      <div class="glass mission"
+           [class.hidden]="!missionCardVisible"
            [class.fading]="missionCardFading"
            [class.fading-in]="missionCardFadingIn"
            [style.left.vw]="panelPosition.x"
@@ -428,7 +443,19 @@ const LIBRARY_ITEMS: LibraryItem[] = [
     }
     
     /* Activity Bar Component will handle its own styling */
-    
+    app-activity-bar {
+      opacity: 0;
+      transform: translateX(-100%);
+      transition: opacity 600ms ease, transform 600ms cubic-bezier(0.23, 1, 0.32, 1);
+      pointer-events: none;
+    }
+
+    app-activity-bar.visible {
+      opacity: 1;
+      transform: translateX(0);
+      pointer-events: auto;
+    }
+
     /* Library Panel */
     .library-panel {
       position: fixed;
@@ -440,14 +467,21 @@ const LIBRARY_ITEMS: LibraryItem[] = [
       border-right: 1px solid rgba(110, 168, 254, 0.2);
       backdrop-filter: blur(10px);
       transform: translateX(-100%);
-      transition: transform 600ms ease, left 400ms cubic-bezier(0.23, 1, 0.32, 1);
+      transition: transform 600ms ease, left 400ms cubic-bezier(0.23, 1, 0.32, 1), opacity 600ms ease;
       z-index: 90;
+      opacity: 0;
+      pointer-events: none;
     }
-    
+
+    .library-panel.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
     .frame.activity-bar-open .library-panel {
       left: 60px;
     }
-    
+
     .library-panel.open {
       transform: translateX(0);
     }
@@ -462,14 +496,21 @@ const LIBRARY_ITEMS: LibraryItem[] = [
       border-right: 1px solid rgba(110, 168, 254, 0.2);
       backdrop-filter: blur(10px);
       transform: translateX(-100%);
-      transition: transform 600ms ease, left 400ms cubic-bezier(0.23, 1, 0.32, 1);
+      transition: transform 600ms ease, left 400ms cubic-bezier(0.23, 1, 0.32, 1), opacity 600ms ease;
       z-index: 90;
+      opacity: 0;
+      pointer-events: none;
     }
-    
+
+    .settings-panel.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
     .frame.activity-bar-open .settings-panel {
       left: 60px;
     }
-    
+
     .settings-panel.open {
       transform: translateX(0);
     }
@@ -710,7 +751,14 @@ const LIBRARY_ITEMS: LibraryItem[] = [
       right: 0;
       background: transparent; /* Let background canvas show through */
       z-index: 50;
-      transition: left 200ms cubic-bezier(0.23, 1, 0.32, 1);
+      transition: left 200ms cubic-bezier(0.23, 1, 0.32, 1), opacity 600ms ease;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .main-workspace.visible {
+      opacity: 1;
+      pointer-events: auto;
     }
     
     .workspace-content {
@@ -770,9 +818,10 @@ export class LandingShellComponent implements OnInit, OnDestroy {
   private canvas!: HTMLCanvasElement;
   private nodes: Array<{x: number, y: number, vx: number, vy: number}> = [];
   
-  // Explore mode state - always start in landing mode
-  exploreMode = false;
-  showMissionCard = true;
+  // Unified mode state - visibility controls
+  missionCardVisible = true;
+  activityBarVisible = false;
+  panelsEnabled = false;
   missionCardFading = false;
   missionCardFadingIn = true;
   libraryPanelOpen = false;
@@ -785,6 +834,9 @@ export class LandingShellComponent implements OnInit, OnDestroy {
   activityBarHidden = false;
   selectedView = 'data';
   currentViewColor = 'rgba(110, 168, 254, 0.6)';
+
+  // Deprecated - keeping for backward compatibility
+  exploreMode = false;
   
   // Graph workspace state
   selectedEntityId: string | null = null;
@@ -823,9 +875,9 @@ export class LandingShellComponent implements OnInit, OnDestroy {
   // Calculate total workspace offset (activity bar + optional push mode)
   get workspacePushOffset(): number {
     let offset = 0;
-    
-    // ALWAYS add activity bar width when in explore mode and not hidden
-    if (this.exploreMode && !this.activityBarHidden) {
+
+    // ALWAYS add activity bar width when activity bar is visible and not hidden
+    if (this.activityBarVisible && !this.activityBarHidden) {
       offset += 60; // Activity bar width (permanent design setting)
     }
 
@@ -863,19 +915,36 @@ export class LandingShellComponent implements OnInit, OnDestroy {
       this.expandedSetNodes = expanded;
     });
 
-    // Ensure we start in landing mode on page load/refresh
-    this.exploreMode = false;
-    this.showMissionCard = true;
-    this.missionCardFadingIn = true;
-    this.libraryPanelOpen = false;
-    this.settingsPanelOpen = false;
-    this.activityBarHover = false;
-    this.activityBarHidden = false;
-    
-    // Trigger fade-in after a short delay
-    setTimeout(() => {
+    // Check user preference for intro
+    const showIntro = this.uiState.showIntro();
+
+    if (showIntro) {
+      // Show mission card intro
+      this.missionCardVisible = true;
+      this.activityBarVisible = false;
+      this.panelsEnabled = false;
+      this.missionCardFadingIn = true;
+      this.libraryPanelOpen = false;
+      this.settingsPanelOpen = false;
+      this.activityBarHover = false;
+      this.activityBarHidden = false;
+
+      // Trigger fade-in after a short delay
+      setTimeout(() => {
+        this.missionCardFadingIn = false;
+      }, 100);
+    } else {
+      // Skip intro - go straight to explore mode
+      this.missionCardVisible = false;
+      this.activityBarVisible = true;
+      this.panelsEnabled = true;
       this.missionCardFadingIn = false;
-    }, 100);
+      this.libraryPanelOpen = true;
+      this.settingsPanelOpen = false;
+      this.activityBarHover = false;
+      this.activityBarHidden = false;
+      this.exploreMode = true; // For backward compatibility
+    }
     
     // Add global mouse event listeners for dragging
     document.addEventListener('mousemove', this.onGlobalMouseMove);
@@ -987,28 +1056,30 @@ export class LandingShellComponent implements OnInit, OnDestroy {
   enterExploreMode() {
     // Step 1: Start 3-second fade out
     this.missionCardFading = true;
-    
+
     // Step 2: After 3 seconds, hide card completely
     setTimeout(() => {
-      this.showMissionCard = false;
+      this.missionCardVisible = false;
     }, 3000);
-    
+
     // Step 3: After fade + pause (3.5s total), show activity bar
     setTimeout(() => {
-      this.exploreMode = true;
+      this.activityBarVisible = true;
+      this.panelsEnabled = true;
+      this.exploreMode = true; // For backward compatibility
       this.activityBarHidden = false; // Ensure activity bar is visible
       this.messageService.add({
         severity: 'success',
         summary: 'Explore Mode',
         detail: 'Navigation enabled'
       });
-      
+
       // Step 4: After activity bar is shown, open library panel
       setTimeout(() => {
         if (!this.libraryPanelOpen) {
           this.toggleLibrary();
         }
-        
+
         // Force Angular change detection to ensure button remains clickable
         setTimeout(() => {
           // Trigger change detection cycle
@@ -1077,6 +1148,7 @@ export class LandingShellComponent implements OnInit, OnDestroy {
     if (this.activityBarHidden) {
       // Show activity bar with smooth transition
       this.activityBarHidden = false;
+      this.activityBarVisible = true;
     } else {
       // Store state to restore when shown again
       this.stateBeforeHide = {
@@ -1084,26 +1156,32 @@ export class LandingShellComponent implements OnInit, OnDestroy {
         settingsPanelOpen: this.settingsPanelOpen,
         propertiesPanelOpen: this.propertiesPanelOpen
       };
-      
+
       // Close panels and hide activity bar immediately for smooth animation
       this.libraryPanelOpen = false;
       this.settingsPanelOpen = false;
       this.propertiesPanelOpen = false;
       this.activityBarHidden = true;
       this.activityBarHover = false;
+      // Keep activityBarVisible true so the hover trigger can work
     }
   }
 
   onHoverTrigger() {
-    // Show activity bar and restore panels
-    this.activityBarHidden = false;
-    this.libraryPanelOpen = this.stateBeforeHide.libraryPanelOpen;
-    this.settingsPanelOpen = this.stateBeforeHide.settingsPanelOpen;
-    this.propertiesPanelOpen = this.stateBeforeHide.propertiesPanelOpen;
+    // Only respond to hover if activity bar is currently hidden
+    if (this.activityBarHidden) {
+      // Show activity bar and restore panels
+      this.activityBarHidden = false;
+      this.activityBarVisible = true;
+      this.libraryPanelOpen = this.stateBeforeHide.libraryPanelOpen;
+      this.settingsPanelOpen = this.stateBeforeHide.settingsPanelOpen;
+      this.propertiesPanelOpen = this.stateBeforeHide.propertiesPanelOpen;
+    }
   }
 
   onTriggerLeave() {
     // Do nothing - let the activity bar stay visible until hamburger click
+    // This ensures the user can interact with the activity bar after hovering
   }
 
   onActivityBarItemClick(itemId: string) {

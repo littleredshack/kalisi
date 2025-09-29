@@ -16,6 +16,7 @@ export class UiStateService {
   private _propertiesPanelOpen = signal<boolean>(false);
   private _exploreMode = signal<boolean>(false);
   private _panelPushMode = signal<boolean>(true);
+  private _showIntro = signal<boolean>(true);
 
   // Public read-only signals
   readonly activeItemId = this._activeItemId.asReadonly();
@@ -25,6 +26,7 @@ export class UiStateService {
   readonly propertiesPanelOpen = this._propertiesPanelOpen.asReadonly();
   readonly exploreMode = this._exploreMode.asReadonly();
   readonly panelPushMode = this._panelPushMode.asReadonly();
+  readonly showIntro = this._showIntro.asReadonly();
 
   // Computed signals
   readonly hasActiveItem = computed(() => this._activeItemId() !== null);
@@ -116,10 +118,25 @@ export class UiStateService {
     this.setPanelPushMode(!this._panelPushMode());
   }
 
+  setShowIntro(showIntro: boolean) {
+    this._showIntro.set(showIntro);
+    // Persist to localStorage
+    localStorage.setItem('edt2_show_intro', showIntro.toString());
+  }
+
+  toggleShowIntro() {
+    this.setShowIntro(!this._showIntro());
+  }
+
   private loadPersistedPreferences() {
     const pushMode = localStorage.getItem('edt2_panel_push_mode');
     if (pushMode !== null) {
       this._panelPushMode.set(pushMode === 'true');
+    }
+
+    const showIntro = localStorage.getItem('edt2_show_intro');
+    if (showIntro !== null) {
+      this._showIntro.set(showIntro === 'true');
     }
   }
 
