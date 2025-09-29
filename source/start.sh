@@ -671,6 +671,77 @@ else
     fi
 fi
 
+# Check if Neo4j has data and load if needed
+echo -e "\n${BLUE}Checking Neo4j data...${NC}"
+if command_exists neo4j && [ "$NEO4J_CHECK" = "200" ] || [ "$NEO4J_CHECK" = "401" ]; then
+    # Try to get node count using cypher-shell or curl
+    NODE_COUNT=0
+
+    # Method 1: Try cypher-shell if available
+    if command_exists cypher-shell; then
+        echo -n "Checking node count with cypher-shell... "
+        NODE_COUNT=$(cypher-shell -u "${NEO4J_USERNAME:-neo4j}" -p "${NEO4J_PASSWORD:-password}" \
+            -d "${NEO4J_DATABASE:-neo4j}" \
+            "MATCH (n) RETURN count(n) as count" 2>/dev/null | \
+            grep -o '[0-9]\+' | head -1 || echo "")
+    fi
+
+    # Method 2: Try curl if cypher-shell failed or not available
+    if [ -z "$NODE_COUNT" ] && command_exists curl; then
+        echo -n "Checking node count with REST API... "
+        CYPHER_QUERY='{"statements":[{"statement":"MATCH (n) RETURN count(n) as count"}]}'
+        NODE_COUNT=$(curl -s -u "${NEO4J_USERNAME:-neo4j}:${NEO4J_PASSWORD:-password}" \
+            -H "Content-Type: application/json" \
+            -X POST "http://localhost:${NEO4J_HTTP_PORT}/db/${NEO4J_DATABASE:-neo4j}/tx/commit" \
+            -d "$CYPHER_QUERY" 2>/dev/null | \
+            grep -o '"row":\[[0-9]\+\]' | grep -o '[0-9]\+' | head -1 || echo "0")
+    fi
+
+    # Set default if no count was obtained
+    NODE_COUNT=${NODE_COUNT:-0}
+
+    echo "found $NODE_COUNT nodes"
+
+    if [ "$NODE_COUNT" -eq 0 ]; then
+        echo -e "${YELLOW}⚠️  No data found in Neo4j. Loading initial data...${NC}"
+
+        # Check if data file exists
+        DATA_FILE="/workspace/source/data/neo4j/neo4j_non_codebase_backup.json"
+        IMPORT_SCRIPT="/workspace/source/scripts/import_neo4j.py"
+
+        if [ -f "$DATA_FILE" ] && [ -f "$IMPORT_SCRIPT" ]; then
+            echo -e "${BLUE}Loading data from $DATA_FILE...${NC}"
+
+            # Install required Python packages if needed
+            if ! python3 -c "import neo4j" 2>/dev/null; then
+                echo -e "${YELLOW}Installing Python neo4j driver...${NC}"
+                pip3 install neo4j || sudo pip3 install neo4j
+            fi
+
+            # Run the import script
+            python3 "$IMPORT_SCRIPT" "$DATA_FILE" \
+                --uri "${NEO4J_URI:-bolt://localhost:7687}" \
+                --user "${NEO4J_USERNAME:-neo4j}" \
+                --password "${NEO4J_PASSWORD:-password}" \
+                --database "${NEO4J_DATABASE:-neo4j}"
+
+            if [ $? -eq 0 ]; then
+                echo -e "${GREEN}✅ Data loaded successfully${NC}"
+            else
+                echo -e "${YELLOW}⚠️  Data loading failed, but continuing...${NC}"
+            fi
+        else
+            echo -e "${YELLOW}⚠️  Data file or import script not found, skipping...${NC}"
+            [ ! -f "$DATA_FILE" ] && echo -e "${YELLOW}     Missing: $DATA_FILE${NC}"
+            [ ! -f "$IMPORT_SCRIPT" ] && echo -e "${YELLOW}     Missing: $IMPORT_SCRIPT${NC}"
+        fi
+    else
+        echo -e "${GREEN}✅ Neo4j already contains data ($NODE_COUNT nodes)${NC}"
+    fi
+else
+    echo -e "${YELLOW}⚠️  Neo4j not running or not accessible, skipping data check${NC}"
+fi
+
 # Check SSL certificates
 if [ "$ENABLE_HTTPS" = "true" ]; then
     echo -e "\n${BLUE}Checking SSL certificates...${NC}"
