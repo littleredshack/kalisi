@@ -389,11 +389,7 @@ echo -e "${BLUE}Checking build status...${NC}"
 RUST_BIN="$RUST_BINARY_PATH"
 RUST_SRC_CHANGED=false
 
-# In container mode, skip source change detection if binary exists
-if [ "$IS_CONTAINER" = true ] && [ -f "$RUST_BIN" ]; then
-    echo -e "${GREEN}✅ Using existing API Gateway binary (container mode)${NC}"
-    RUST_SRC_CHANGED=false
-elif [ ! -f "$RUST_BIN" ]; then
+if [ ! -f "$RUST_BIN" ]; then
     echo -e "${YELLOW}⚠️  No release binary found${NC}"
     RUST_SRC_CHANGED=true
 else
@@ -486,69 +482,55 @@ else
     fi
 fi
 
-if [ "$DEV_MODE" = "true" ] && [ "$IS_CONTAINER" = false ]; then
-    echo -e "${BLUE}Development mode enabled - enabling file watching${NC}"
-    cd frontend
-    if [ ! -d "node_modules" ]; then
-        echo -e "${YELLOW}Installing frontend dependencies...${NC}"
-        npm install
-    fi
+# Frontend build with file watching - always enabled
+echo -e "${BLUE}Setting up frontend with file watching...${NC}"
 
-    # Build initially
-    npm run build
-    
-    # Start file watcher in background for auto-rebuild
-    echo -e "${BLUE}Starting frontend file watcher for auto-rebuild...${NC}"
-    nohup npm run watch > frontend-watch.log 2>&1 &
-    WATCH_PID=$!
-    echo $WATCH_PID > frontend-watch.pid
-    
-    echo -e "${GREEN}✅ Frontend watcher started (PID: $WATCH_PID)${NC}"
-    echo -e "${YELLOW}Frontend changes will auto-rebuild and be served on your existing ports!${NC}"
-    
-    # Fix ownership if running as root
-    if [ "$EUID" -eq 0 ]; then
-        ACTUAL_USER=${SUDO_USER:-devuser}
-        echo -e "${BLUE}Fixing ownership for user: $ACTUAL_USER${NC}"
-        chown -R "$ACTUAL_USER:$ACTUAL_USER" dist/
+# Fix ownership issues with frontend dist directory
+if [ -d "frontend/dist" ]; then
+    echo -e "${BLUE}Fixing frontend dist directory ownership...${NC}"
+    sudo chown -R $(whoami):$(whoami) frontend/dist 2>/dev/null || true
+    # If ownership fix fails, just remove and rebuild
+    if [ ! -w "frontend/dist" ]; then
+        echo -e "${YELLOW}Removing dist directory due to permission issues...${NC}"
+        sudo rm -rf frontend/dist 2>/dev/null || rm -rf frontend/dist
     fi
-    
-    cd ..
-elif [ "$FRONTEND_SRC_CHANGED" = true ]; then
-    echo -e "${BLUE}Building WASM assets for FR-003...${NC}"
-    if [ -f "./scripts/build-wasm.sh" ]; then
-        ./scripts/build-wasm.sh
-    else
-        echo -e "${YELLOW}⚠️  WASM build script not found, skipping...${NC}"
-    fi
-
-    echo -e "${BLUE}Building frontend for production...${NC}"
-    cd frontend
-    if [ ! -d "node_modules" ]; then
-        echo -e "${YELLOW}Installing frontend dependencies...${NC}"
-        npm install
-    fi
-    # Use timeout to prevent ESBuild deadlock and process isolation
-    echo -e "${YELLOW}Building with timeout and resource limits...${NC}"
-    CI=true NODE_OPTIONS="--max-old-space-size=4096" timeout 180 npm run build || {
-        echo -e "${RED}Build timed out or failed, trying with cache clear...${NC}"
-        rm -rf node_modules/.angular
-        CI=true NODE_OPTIONS="--max-old-space-size=4096" timeout 180 npm run build
-    }
-    
-    # Fix ownership if running as root
-    if [ "$EUID" -eq 0 ]; then
-        # Get the actual user who invoked sudo
-        ACTUAL_USER=${SUDO_USER:-devuser}
-        echo -e "${BLUE}Fixing ownership for user: $ACTUAL_USER${NC}"
-        chown -R "$ACTUAL_USER:$ACTUAL_USER" dist/
-    fi
-    
-    cd ..
-    echo -e "${GREEN}✅ Frontend built${NC}"
-else
-    echo -e "${GREEN}✅ Frontend build is up to date${NC}"
 fi
+
+# Build WASM assets if script exists
+echo -e "${BLUE}Building WASM assets...${NC}"
+if [ -f "./scripts/build-wasm.sh" ]; then
+    ./scripts/build-wasm.sh
+else
+    echo -e "${YELLOW}⚠️  WASM build script not found, skipping...${NC}"
+fi
+
+cd frontend
+if [ ! -d "node_modules" ]; then
+    echo -e "${YELLOW}Installing frontend dependencies...${NC}"
+    npm install
+fi
+
+# Build initially
+echo -e "${BLUE}Building frontend...${NC}"
+npm run build
+
+# Start file watcher in background for auto-rebuild
+echo -e "${BLUE}Starting frontend file watcher for auto-rebuild...${NC}"
+nohup npm run watch > frontend-watch.log 2>&1 &
+WATCH_PID=$!
+echo $WATCH_PID > frontend-watch.pid
+
+echo -e "${GREEN}✅ Frontend watcher started (PID: $WATCH_PID)${NC}"
+echo -e "${YELLOW}Frontend changes will auto-rebuild and be served instantly!${NC}"
+
+# Fix ownership if running as root
+if [ "$EUID" -eq 0 ]; then
+    ACTUAL_USER=${SUDO_USER:-devuser}
+    echo -e "${BLUE}Fixing ownership for user: $ACTUAL_USER${NC}"
+    chown -R "$ACTUAL_USER:$ACTUAL_USER" dist/
+fi
+
+cd ..
 
 # Start Redis if not running
 echo -e "\n${BLUE}Starting services...${NC}"

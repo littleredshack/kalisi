@@ -1202,6 +1202,22 @@ export class LandingShellComponent implements OnInit, OnDestroy {
     this.uiState.setLibraryPanel(false);
     this.uiState.setSettingsPanel(false);
     // Keep right-side panels (properties, chat) as they are
+
+    // Return to floating shapes by clearing selected entity
+    this.selectedEntityId = null;
+    this.selectedEntityLabel = null;
+    this.selectedEntityData = null;
+    this.selectedLibraryItem = null;
+    this.selectedViewNodeDetails = null;
+
+    // Clear any selected view to show the animated background
+    this.selectedView = 'data'; // Reset to default but entity is null so workspace won't show
+
+    // Clear the UI state's active view as well to ensure no lingering state
+    this.uiState.setActiveView(null as any);
+
+    // Also tell the view node state service to deselect any view node
+    this.viewNodeState.clearSelection();
   }
 
   onViewChange(viewType: string) {
