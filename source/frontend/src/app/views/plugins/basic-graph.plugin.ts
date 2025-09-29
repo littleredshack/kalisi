@@ -7,7 +7,7 @@ export class BasicGraphPlugin implements ViewPlugin {
     name: 'Basic Graph Display',
     version: '1.0.0',
     description: 'Displays all nodes and relationships with force-directed layout',
-    author: 'OPEN EDT System',
+    author: 'Kalisi System',
     category: 'Core'
   };
 

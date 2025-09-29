@@ -75,9 +75,9 @@ describe('ChatService', () => {
 
   describe('Chat API', () => {
     it('should send message to API and handle response', (done) => {
-      const userMessage = 'What is OPEN EDT?';
+      const userMessage = 'What is Kalisi?';
       const apiResponse = {
-        content: 'OPEN EDT is an Enterprise Digital Twin platform.',
+        content: 'Kalisi is an Enterprise Digital Twin platform.',
         message_id: 'msg-123'
       };
 

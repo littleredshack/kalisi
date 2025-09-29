@@ -80,7 +80,8 @@ import { takeUntil } from 'rxjs/operators';
                 [format]="'hex'"
                 (onChange)="onBorderColorChange($event)"
                 [appendTo]="'body'"
-                class="color-swatch border-swatch">
+                class="color-swatch border-swatch"
+                [style]="{'--swatch-border': borderColor}">
               </p-colorPicker>
               <input
                 type="text"
@@ -200,13 +201,23 @@ import { takeUntil } from 'rxjs/operators';
       border-radius: 4px !important;
       width: 40px !important;
       height: 40px !important;
+      border: 2px solid var(--app-border) !important;
       box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1) !important;
+    }
+
+    /* More specific selector for the input element */
+    .color-swatch :deep(input.p-colorpicker-preview) {
+      border: 2px solid #30363d !important;
+      border-radius: 4px !important;
+      width: 40px !important;
+      height: 40px !important;
     }
 
     .color-swatch :deep(.p-colorpicker-input) {
       border-radius: 4px !important;
       width: 40px !important;
       height: 40px !important;
+      border: 2px solid var(--app-border) !important;
     }
 
     /* Target the actual button element in PrimeNG ColorPicker */
@@ -214,6 +225,7 @@ import { takeUntil } from 'rxjs/operators';
       border-radius: 4px !important;
       width: 40px !important;
       height: 40px !important;
+      border: 2px solid var(--app-border) !important;
     }
 
     .color-swatch :deep(.p-button) {
@@ -230,12 +242,12 @@ import { takeUntil } from 'rxjs/operators';
       border: 2px solid var(--swatch-border, var(--app-border)) !important;
     }
 
-    /* Border color swatch uses text color for visibility */
+    /* Border color swatch uses the current border color for dynamic updates */
     .border-swatch :deep(.p-colorpicker-preview),
     .border-swatch :deep(.p-colorpicker-input),
     .border-swatch :deep(button),
     .border-swatch :deep(.p-button) {
-      border: 2px solid var(--text-color) !important;
+      border: 2px solid var(--swatch-border, var(--text-color)) !important;
     }
 
     @media (max-width: 768px) {

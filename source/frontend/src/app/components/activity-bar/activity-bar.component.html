@@ -32,14 +32,15 @@
   
   <!-- Bottom Items (Admin/Settings) -->
   <div class="bottom-items">
-    <button 
+    <button
       *ngFor="let item of bottomItems"
       class="activity-item"
       [class.active]="item.isActive"
       (click)="onItemClick(item)"
       [pTooltip]="item.tooltip"
       tooltipPosition="right"
-      [attr.aria-label]="item.label">
+      [attr.aria-label]="item.label"
+      [attr.data-debug]="'button-' + item.id">
       <i class="pi pi-{{ item.icon }}"></i>
     </button>
   </div>
