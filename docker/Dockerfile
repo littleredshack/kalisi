@@ -125,6 +125,16 @@ RUN rm -rf /opt/neo4j \
 
 COPY config/neo4j/neo4j.conf /etc/neo4j/neo4j.conf
 
+# Install APOC plugin for Neo4j 2025.09.0
+RUN curl -L https://github.com/neo4j/apoc/releases/download/2025.09.0/apoc-2025.09.0-core.jar \
+    -o /var/lib/neo4j/plugins/apoc-2025.09.0-core.jar \
+    && chown neo4j:neo4j /var/lib/neo4j/plugins/apoc-2025.09.0-core.jar
+
+# Configure Neo4j to allow unrestricted APOC meta procedures
+RUN echo "" >> /etc/neo4j/neo4j.conf && \
+    echo "# Allow unrestricted APOC procedures" >> /etc/neo4j/neo4j.conf && \
+    echo "dbms.security.procedures.unrestricted=apoc.meta.*" >> /etc/neo4j/neo4j.conf
+
 RUN useradd --create-home --shell /bin/bash kalisi \
     && mkdir -p /home/kalisi/.ssh \
     && chmod 700 /home/kalisi/.ssh \
