@@ -20,23 +20,8 @@ fi
 
 echo "✅ Docker found and running"
 
-# Get actual image size from GitHub Container Registry
-echo "📦 Checking image size..."
-IMAGE_SIZE=$(curl -s "https://ghcr.io/v2/littleredshack/kalisi/manifests/latest" \
-  -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
-  | grep -o '"size":[0-9]*' | head -1 | cut -d: -f2)
-
-if [ -n "$IMAGE_SIZE" ] && [ "$IMAGE_SIZE" -gt 0 ]; then
-  SIZE_MB=$((IMAGE_SIZE / 1024 / 1024))
-  SIZE_GB=$((SIZE_MB / 1024))
-  if [ $SIZE_GB -gt 0 ]; then
-    echo "📦 Pulling Kalisi image (${SIZE_GB}.${SIZE_MB}GB download)..."
-  else
-    echo "📦 Pulling Kalisi image (${SIZE_MB}MB download)..."
-  fi
-else
-  echo "📦 Pulling Kalisi image (~4.7GB download)..."
-fi
+# Pull Kalisi image
+echo "📦 Pulling Kalisi image (~4.7GB download)..."
 
 echo "This may take several minutes depending on your internet connection."
 docker pull ghcr.io/littleredshack/kalisi:latest
