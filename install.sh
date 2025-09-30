@@ -70,7 +70,31 @@ docker run -d \
   littleredshack/kalisi:latest
 
 echo ""
-echo "✅ Kalisi is running!"
+echo "⏳ Waiting for services to start (this may take 2-3 minutes)..."
+
+# Wait for services to be ready
+MAX_WAIT=180  # 3 minutes
+WAIT_TIME=0
+HTTPS_READY=false
+
+while [ $WAIT_TIME -lt $MAX_WAIT ]; do
+  if curl -k -s --connect-timeout 5 https://localhost:8443 >/dev/null 2>&1; then
+    HTTPS_READY=true
+    break
+  fi
+  echo -n "."
+  sleep 5
+  WAIT_TIME=$((WAIT_TIME + 5))
+done
+
+echo ""
+
+if [ "$HTTPS_READY" = true ]; then
+  echo "✅ Kalisi is running and ready!"
+else
+  echo "⚠️  Kalisi started but services may still be initializing."
+  echo "   Check logs with: docker logs -f kalisi"
+fi
 echo ""
 echo "Access methods:"
 echo "  🌐 Web App:    https://localhost:8443"
