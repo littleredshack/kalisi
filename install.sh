@@ -20,9 +20,10 @@ fi
 
 echo "✅ Docker found and running"
 
-# Pull latest image (force to ensure we get registry version)
-echo "📦 Pulling Kalisi image..."
-docker pull --quiet littleredshack/kalisi:latest
+# Pull latest image with progress
+echo "📦 Pulling Kalisi image (~4.7GB download)..."
+echo "This may take several minutes depending on your internet connection."
+DOCKER_BUILDKIT=0 docker pull littleredshack/kalisi:latest
 
 echo "🚀 Starting Kalisi..."
 
