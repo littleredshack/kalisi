@@ -168,6 +168,9 @@ RUN mkdir -p /opt/bootstrap/workspace-template/bin \
     /opt/bootstrap/workspace-template/runtime/certs \
     /opt/bootstrap/workspace-template/runtime/config
 
+# Copy custom ttyd index and favicon to workspace template
+COPY ttyd-custom-index.html /opt/bootstrap/workspace-template/ttyd-custom-index.html
+COPY favicon.ico /opt/bootstrap/workspace-template/favicon.ico
 
 COPY --from=rust-builder --chown=kalisi:kalisi /app/target/release/kalisi-gateway /opt/bootstrap/workspace-template/bin/kalisi-gateway
 COPY --from=rust-builder --chown=kalisi:kalisi /app/target/release/agent-runtime-service /opt/bootstrap/workspace-template/bin/agent-runtime-service
