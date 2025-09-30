@@ -84,7 +84,7 @@ docker run -d \
   -v kalisi-redis:/data/redis \
   -v kalisi-home:/home/kalisi \
   --restart unless-stopped \
-  littleredshack/kalisi:latest
+  ghcr.io/littleredshack/kalisi:latest
 
 echo ""
 echo "⏳ Waiting for services to start (this may take 2-3 minutes)..."
