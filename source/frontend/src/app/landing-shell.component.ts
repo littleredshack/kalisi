@@ -198,27 +198,22 @@ const LIBRARY_ITEMS: LibraryItem[] = [
            (mousedown)="startDrag($event)">
         <div class="brand drag-handle" style="cursor: move;">
           <img src="assets/kalisi_logo_header_blue.png" alt="Kalisi Logo" class="brand-logo">
-          <span>Agentic Digital Twin</span>
+          <span class="brand-title">Kalisi</span>
           <i class="pi pi-arrows-alt drag-icon"></i>
         </div>
 
         <div class="mission-content">
-          <h3>Why</h3>
-          <p>Accelerate change without losing control. Unify architecture, operations, and engineering in a live, verifiable model of your enterprise.</p>
-          
-          <h3>What</h3>
-          <p>A graph-driven digital twin that maps people, processes, systems, risks, and outcomes. Streamed telemetry + AI agents for decisions with traceability.</p>
-          
-          <h3>How</h3>
-          <p>Model, Monitor, Adapt.</p>
-          <p>Ingest from Neo4j, Dynatrace, ServiceNow, etc. Explore visually, ask questions, simulate scenarios. Everything is linkable, explainable, and auditable.</p>
+          <p class="mission-tagline">{{ missionContent.tagline }}</p>
+
+          <ng-container *ngFor="let section of missionContent.sections">
+            <h3>{{ section.heading }}</h3>
+            <p *ngFor="let paragraph of section.paragraphs">{{ paragraph }}</p>
+          </ng-container>
         </div>
 
         <div class="cta-row">
           <p-button label="Explore" icon="pi pi-play" severity="contrast" styleClass="explore-btn" (click)="enterExploreMode()"></p-button>
-          <p-button label="Sign In" icon="pi pi-shield" (click)="loginVisible = true"></p-button>
         </div>
-        <small class="hint">You can roam the graph before signing in.</small>
       </div>
 
       <!-- Login dialog -->
@@ -272,7 +267,7 @@ const LIBRARY_ITEMS: LibraryItem[] = [
     
     .glass {
       position: absolute;
-      width: clamp(320px, 34vw, 600px);
+      width: clamp(421px, 44.5vw, 785px);
       background: var(--app-background);
       border: 1px solid rgba(110,168,254,.2);
       box-shadow: 0 10px 40px rgba(0,0,0,.5);
@@ -304,37 +299,65 @@ const LIBRARY_ITEMS: LibraryItem[] = [
       margin-bottom: .8rem;
       font-size: 1.2rem;
     }
-    
+
+    .brand-title {
+      color: var(--accent-blue);
+      font-size: 1.71rem;
+      font-family: var(--font-heading);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+
     .brand .pi {
       color: var(--accent-blue);
-      font-size: 1.4rem;
+      font-size: 1.33rem;
     }
-    
+
     .brand-logo {
-      height: 1.4rem;
+      height: 1.463rem;
       width: auto;
     }
-    
+
     .mission-content {
       font-family: var(--font-body);
     }
-    
+
+    .mission-title {
+      color: var(--accent-blue);
+      margin: 0 0 0.5rem 0;
+      font-size: 1.71rem;
+      font-family: var(--font-heading);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+
+    .mission-tagline {
+      margin: 0 0 1.5rem 0;
+      opacity: 0.95;
+      line-height: 1.6;
+      font-family: var(--font-body);
+      font-weight: 400;
+      font-size: 0.9975rem;
+      font-style: italic;
+    }
+
     .mission-content h3 {
       color: var(--accent-blue);
       margin: 1.2rem 0 0.6rem 0;
-      font-size: 1.1rem;
+      font-size: 1.045rem;
       font-family: var(--font-heading);
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.1em;
     }
-    
+
     .mission-content p {
       margin: 0.8rem 0;
       opacity: 0.92;
       line-height: 1.5;
       font-family: var(--font-body);
       font-weight: 400;
+      font-size: 0.9025rem;
     }
     
     .cta-row {
@@ -778,11 +801,18 @@ export class LandingShellComponent implements OnInit, OnDestroy {
   // Configuration - populated from service
   libraryItems: LibraryItem[] = [];
   staticLibraryItems = LIBRARY_ITEMS; // Keep static items as fallback
-  
+
   loginVisible = false;
   email = '';
   password = '';
   remember = true;
+
+  // Mission card content loaded from markdown
+  missionContent = {
+    title: '',
+    tagline: '',
+    sections: [] as { heading: string; paragraphs: string[] }[]
+  };
   private rafId = 0;
   private ctx!: CanvasRenderingContext2D;
   private canvas!: HTMLCanvasElement;
@@ -836,7 +866,7 @@ export class LandingShellComponent implements OnInit, OnDestroy {
   // Drag state
   private isDragging = false;
   private dragOffset = { x: 0, y: 0 };
-  panelPosition = { x: 11, y: 11 }; // vw/vh units
+  panelPosition = { x: 11, y: 7.1 }; // vw/vh units
 
   // Computed property for any LEFT panel open state (for push mode)
   get anyLeftPanelOpen(): boolean {
@@ -879,9 +909,12 @@ export class LandingShellComponent implements OnInit, OnDestroy {
     private themeService: ThemeService
   ) {}
 
-  ngOnInit(): void {
+  async ngOnInit(): Promise<void> {
     // Initialize theme service (will load persisted theme and set CSS variables)
     // The service constructor handles initialization automatically
+
+    // Load mission card content
+    await this.loadMissionContent();
 
     // Initialize state management services
     this.viewRegistry.initializeDefaultViews();
@@ -1416,6 +1449,85 @@ export class LandingShellComponent implements OnInit, OnDestroy {
 
   // SetNode selection is now handled in onLibraryItemSelect
 
+  async loadMissionContent(): Promise<void> {
+    try {
+      const response = await firstValueFrom(
+        this.http.get('assets/mission_card.md', { responseType: 'text' })
+      );
+      this.parseMissionMarkdown(response);
+    } catch (error) {
+      console.error('Failed to load mission card content:', error);
+      // Fallback to hardcoded content
+      this.missionContent = {
+        title: 'Kalisi',
+        tagline: 'Draw your world. Link it together. Adapt with clarity.',
+        sections: [
+          {
+            heading: 'Model',
+            paragraphs: [
+              'Start by sketching your world in a way that makes sense to you.',
+              'It looks like a diagram — a software stack, a compliance process, even something personal — but every shape and link is stored in a graph.'
+            ]
+          },
+          {
+            heading: 'Monitor',
+            paragraphs: [
+              'Connect live data streams to your model.',
+              'See how systems, processes, and outcomes behave in real time.',
+              'Turn a static picture into a living system.'
+            ]
+          },
+          {
+            heading: 'Analyze',
+            paragraphs: [
+              'Uncover patterns, risks, and dependencies hidden in complexity.',
+              'Ask "what if?" and test scenarios before making changes.',
+              'Move from reactive to predictive.'
+            ]
+          }
+        ]
+      };
+    }
+  }
 
+  parseMissionMarkdown(markdown: string): void {
+    const lines = markdown.split('\n').map(line => line.trim()).filter(line => line);
+
+    this.missionContent.title = '';
+    this.missionContent.tagline = '';
+    this.missionContent.sections = [];
+
+    let currentSection: { heading: string; paragraphs: string[] } | null = null;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      // H1 - Title
+      if (line.startsWith('# ')) {
+        this.missionContent.title = line.substring(2);
+      }
+      // H2 - Section heading
+      else if (line.startsWith('## ')) {
+        if (currentSection) {
+          this.missionContent.sections.push(currentSection);
+        }
+        currentSection = { heading: line.substring(3), paragraphs: [] };
+      }
+      // Regular paragraph
+      else if (!line.startsWith('#')) {
+        // If no section yet, treat as tagline
+        if (!currentSection && !this.missionContent.tagline) {
+          this.missionContent.tagline = line;
+        } else if (currentSection) {
+          currentSection.paragraphs.push(line);
+        }
+      }
+    }
+
+    // Add last section
+    if (currentSection) {
+      this.missionContent.sections.push(currentSection);
+    }
+  }
 
 }
