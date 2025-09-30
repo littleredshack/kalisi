@@ -20,8 +20,24 @@ fi
 
 echo "✅ Docker found and running"
 
-# Pull latest image
-echo "📦 Pulling Kalisi image (~4.7GB download)..."
+# Get actual image size from registry
+echo "📦 Checking image size..."
+IMAGE_SIZE=$(curl -s "https://registry-1.docker.io/v2/littleredshack/kalisi/manifests/latest" \
+  -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+  | grep -o '"size":[0-9]*' | head -1 | cut -d: -f2)
+
+if [ -n "$IMAGE_SIZE" ] && [ "$IMAGE_SIZE" -gt 0 ]; then
+  SIZE_MB=$((IMAGE_SIZE / 1024 / 1024))
+  SIZE_GB=$((SIZE_MB / 1024))
+  if [ $SIZE_GB -gt 0 ]; then
+    echo "📦 Pulling Kalisi image (${SIZE_GB}.${SIZE_MB}GB download)..."
+  else
+    echo "📦 Pulling Kalisi image (${SIZE_MB}MB download)..."
+  fi
+else
+  echo "📦 Pulling Kalisi image..."
+fi
+
 echo "This may take several minutes depending on your internet connection."
 docker pull littleredshack/kalisi:latest
 
