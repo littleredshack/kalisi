@@ -1,11 +1,10 @@
 # Kalisi
 
-Clarity and control over the things that matter to you.
+A drop-in pod for visibility and control of the things that matter to you.
 
 ## Model
 
-Like a Miro board: draw, import any model, capture conversations, or pull in live data.
-
+Like a Miro board: draw a picture of your problem, import models or documents
 Model anything — a software stack, a compliance process, even something personal.
 Every shape and link is stored in a graph, so everything stays connected.
 
@@ -23,5 +22,5 @@ Move from reactive to predictive.
 
 ## Adapt
 
-Continuously refine your model as things change.
-Evolve faster, stay compliant, and keep control. Your model grows with you.
+Start small and scale. 
+Evolve and keep control. Your model grows with you.
