@@ -1,12 +1,12 @@
 services:
-  app:
+  kalisi:
     container_name: kalisi
     build:
       context: .
       dockerfile: docker/Dockerfile
     image: ${KALISI_IMAGE:-kalisi:latest}
     environment:
-      - KALISI_AUTO_START=${KALISI_AUTO_START:-false}
+      - KALISI_AUTO_START=${KALISI_AUTO_START:-true}
       - AUTHORIZED_KEYS=${AUTHORIZED_KEYS:-}
       - NEO4J_PASSWORD=${NEO4J_PASSWORD:-kalisi-neo4j}
       - JWT_SECRET=${JWT_SECRET:-change-me}

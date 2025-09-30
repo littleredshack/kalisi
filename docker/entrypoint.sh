@@ -157,8 +157,7 @@ start_ttyd() {
       log "Starting ttyd web terminal on port 7681"
       # Check if custom index exists, otherwise use default
       if [ -f "/workspace/ttyd-custom-index.html" ]; then
-        # Use custom index with base path for assets
-        ttyd -W -p 7681 --index /workspace/ttyd-custom-index.html --base-path / sudo -u kalisi bash >/dev/null 2>&1 &
+        ttyd -W -p 7681 -I /workspace/ttyd-custom-index.html sudo -u kalisi bash >/dev/null 2>&1 &
       else
         ttyd -W -p 7681 sudo -u kalisi bash >/dev/null 2>&1 &
       fi

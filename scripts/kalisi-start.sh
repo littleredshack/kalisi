@@ -86,13 +86,13 @@ fi
 
 if $BUILD; then
   echo "[kalisi-start] Building image..."
-  "${COMPOSE_CMD[@]}" build app
+  "${COMPOSE_CMD[@]}" build kalisi
 fi
 
 echo "[kalisi-start] Starting Kalisi container..."
-"${COMPOSE_CMD[@]}" up -d app
+"${COMPOSE_CMD[@]}" up -d kalisi
 
-CONTAINER_ID=$("${COMPOSE_CMD[@]}" ps -q app)
+CONTAINER_ID=$("${COMPOSE_CMD[@]}" ps -q kalisi)
 
 echo "\nKalisi container is running." 
 echo "Next steps:"
