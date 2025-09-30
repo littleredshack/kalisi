@@ -155,8 +155,12 @@ start_ttyd() {
   if command -v ttyd >/dev/null 2>&1; then
     if ! pgrep -x ttyd >/dev/null 2>&1; then
       log "Starting ttyd web terminal on port 7681"
-      # Start ttyd with default interface (custom index will be available if present)
-      ttyd -W -p 7681 sudo -u kalisi bash >/dev/null 2>&1 &
+      # Check if custom index exists, otherwise use default
+      if [ -f "/workspace/ttyd-custom-index.html" ]; then
+        ttyd -W -p 7681 -I /workspace/ttyd-custom-index.html sudo -u kalisi bash >/dev/null 2>&1 &
+      else
+        ttyd -W -p 7681 sudo -u kalisi bash >/dev/null 2>&1 &
+      fi
 
       # Give ttyd a moment to start
       sleep 2
