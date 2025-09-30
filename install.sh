@@ -20,7 +20,7 @@ fi
 
 echo "✅ Docker found and running"
 
-# Pull latest image with progress
+# Pull latest image
 echo "📦 Pulling Kalisi image (~4.7GB download)..."
 echo "This may take several minutes depending on your internet connection."
 docker pull littleredshack/kalisi:latest
