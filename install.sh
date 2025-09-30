@@ -91,6 +91,16 @@ echo ""
 
 if [ "$HTTPS_READY" = true ]; then
   echo "✅ Kalisi is running and ready!"
+  echo "🌐 Opening Kalisi in your browser..."
+
+  # Open browser (works on macOS and Linux)
+  if command -v open >/dev/null 2>&1; then
+    open https://localhost:8443
+  elif command -v xdg-open >/dev/null 2>&1; then
+    xdg-open https://localhost:8443
+  else
+    echo "   Please open https://localhost:8443 manually"
+  fi
 else
   echo "⚠️  Kalisi started but services may still be initializing."
   echo "   Check logs with: docker logs -f kalisi"
