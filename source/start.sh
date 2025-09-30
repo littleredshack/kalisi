@@ -673,7 +673,7 @@ fi
 
 # Check if Neo4j has data and load if needed
 echo -e "\n${BLUE}Checking Neo4j data...${NC}"
-if command_exists neo4j && [ "$NEO4J_CHECK" = "200" ] || [ "$NEO4J_CHECK" = "401" ]; then
+if command_exists neo4j && ([ "$NEO4J_CHECK" = "200" ] || [ "$NEO4J_CHECK" = "401" ]); then
     # Try to get node count using cypher-shell or curl
     NODE_COUNT=0
 

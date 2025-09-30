@@ -2,6 +2,7 @@
 set -euo pipefail
 
 COMPOSE_CMD="docker compose"
+PROJECT_NAME="kalisi"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "Docker is not installed." >&2
@@ -14,6 +15,6 @@ if ! $COMPOSE_CMD version >/dev/null 2>&1; then
 fi
 
 echo "🛑 Stopping Kalisi container..."
-$COMPOSE_CMD down
+$COMPOSE_CMD -p $PROJECT_NAME down
 
 echo "✅ Kalisi stopped. Volumes left intact."

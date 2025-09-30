@@ -1,5 +1,6 @@
 services:
-  kalisi:
+  app:
+    container_name: kalisi
     build:
       context: .
       dockerfile: docker/Dockerfile

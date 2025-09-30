@@ -77,7 +77,7 @@ if [[ -z "$AUTHORIZED_KEYS_VALUE" ]]; then
 fi
 export KALISI_AUTO_START=$AUTO_START
 
-COMPOSE_CMD=(docker compose)
+COMPOSE_CMD=(docker compose -p kalisi)
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "Docker is required but not installed." >&2
@@ -86,13 +86,13 @@ fi
 
 if $BUILD; then
   echo "[kalisi-start] Building image..."
-  "${COMPOSE_CMD[@]}" build kalisi
+  "${COMPOSE_CMD[@]}" build app
 fi
 
 echo "[kalisi-start] Starting Kalisi container..."
-"${COMPOSE_CMD[@]}" up -d kalisi
+"${COMPOSE_CMD[@]}" up -d app
 
-CONTAINER_ID=$("${COMPOSE_CMD[@]}" ps -q kalisi)
+CONTAINER_ID=$("${COMPOSE_CMD[@]}" ps -q app)
 
 echo "\nKalisi container is running." 
 echo "Next steps:"

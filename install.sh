@@ -72,16 +72,24 @@ docker run -d \
 echo ""
 echo "⏳ Waiting for services to start (this may take 2-3 minutes)..."
 
-# Wait for services to be ready
+# Wait for Docker health check to pass
 MAX_WAIT=180  # 3 minutes
 WAIT_TIME=0
-HTTPS_READY=false
+SERVICES_READY=false
 
 while [ $WAIT_TIME -lt $MAX_WAIT ]; do
-  if curl -k -s --connect-timeout 5 https://localhost:8443 >/dev/null 2>&1; then
-    HTTPS_READY=true
+  HEALTH_STATUS=$(docker inspect --format='{{.State.Health.Status}}' kalisi 2>/dev/null || echo "starting")
+
+  if [ "$HEALTH_STATUS" = "healthy" ]; then
+    SERVICES_READY=true
     break
+  elif [ "$HEALTH_STATUS" = "unhealthy" ]; then
+    echo ""
+    echo "❌ Services failed to start properly."
+    echo "   Check logs with: docker logs kalisi"
+    exit 1
   fi
+
   echo -n "."
   sleep 5
   WAIT_TIME=$((WAIT_TIME + 5))
@@ -89,7 +97,7 @@ done
 
 echo ""
 
-if [ "$HTTPS_READY" = true ]; then
+if [ "$SERVICES_READY" = true ]; then
   echo "✅ Kalisi is running and ready!"
   echo "🌐 Opening Kalisi in your browser..."
 
@@ -102,7 +110,8 @@ if [ "$HTTPS_READY" = true ]; then
     echo "   Please open https://localhost:8443 manually"
   fi
 else
-  echo "⚠️  Kalisi started but services may still be initializing."
+  echo "⚠️  Services are still starting up."
+  echo "   Check status with: docker inspect kalisi"
   echo "   Check logs with: docker logs -f kalisi"
 fi
 echo ""

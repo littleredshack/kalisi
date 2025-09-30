@@ -155,7 +155,18 @@ start_ttyd() {
   if command -v ttyd >/dev/null 2>&1; then
     if ! pgrep -x ttyd >/dev/null 2>&1; then
       log "Starting ttyd web terminal on port 7681"
-      ttyd -W -p 7681 -I /workspace/ttyd-custom-index.html sudo -u kalisi bash >/dev/null 2>&1 &
+      # Start ttyd with default interface (custom index will be available if present)
+      ttyd -W -p 7681 sudo -u kalisi bash >/dev/null 2>&1 &
+
+      # Give ttyd a moment to start
+      sleep 2
+
+      # Verify it started successfully
+      if pgrep -x ttyd >/dev/null 2>&1; then
+        log "ttyd started successfully"
+      else
+        log "Warning: ttyd failed to start"
+      fi
     fi
   fi
 }
@@ -188,6 +199,18 @@ if [[ "${KALISI_AUTO_START:-false}" == "true" ]]; then
   if [ "$status" -ne 0 ]; then
     log "start.sh exited with status $status"
   fi
+
+  # Wait for services to be ready
+  log "Waiting for services to be ready..."
+  for i in {1..60}; do
+    # Check if HTTPS gateway is responding
+    if curl -k -s --connect-timeout 2 https://localhost:8443 >/dev/null 2>&1; then
+      log "Services are ready"
+      break
+    fi
+    sleep 2
+  done
+
   babysit_container
   exit 0
 fi

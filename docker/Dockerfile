@@ -168,6 +168,7 @@ RUN mkdir -p /opt/bootstrap/workspace-template/bin \
     /opt/bootstrap/workspace-template/runtime/certs \
     /opt/bootstrap/workspace-template/runtime/config
 
+
 COPY --from=rust-builder --chown=kalisi:kalisi /app/target/release/kalisi-gateway /opt/bootstrap/workspace-template/bin/kalisi-gateway
 COPY --from=rust-builder --chown=kalisi:kalisi /app/target/release/agent-runtime-service /opt/bootstrap/workspace-template/bin/agent-runtime-service
 COPY --from=rust-builder --chown=kalisi:kalisi /app/target/release/neo4j-ui /opt/bootstrap/workspace-template/bin/neo4j-ui
@@ -189,6 +190,12 @@ RUN chmod +x /usr/local/bin/container-entrypoint
 EXPOSE 22 8443
 
 VOLUME ["/workspace", "/data/neo4j", "/data/redis"]
+
+# Health check to verify all services are running
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+  CMD curl -k -f https://localhost:8443 >/dev/null 2>&1 && \
+      curl -f http://localhost:7474 >/dev/null 2>&1 && \
+      curl -f http://localhost:7681 >/dev/null 2>&1 || exit 1
 
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/container-entrypoint"]
 CMD ["sleep", "infinity"]
