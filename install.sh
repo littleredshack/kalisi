@@ -20,8 +20,11 @@ fi
 
 echo "✅ Docker found and running"
 
-# Pull and run Kalisi directly
-echo "📦 Pulling and starting Kalisi..."
+# Pull latest image
+echo "📦 Pulling Kalisi image..."
+docker pull littleredshack/kalisi:latest
+
+echo "🚀 Starting Kalisi..."
 
 # Detect SSH key
 AUTHORIZED_KEYS=""
