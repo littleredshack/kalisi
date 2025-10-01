@@ -36,6 +36,11 @@ fi
 echo "✅ Docker found and running"
 
 # Pull Kalisi image
+echo "📦 Pulling Kalisi image (~4.7GB download)..."
+
+echo "This may take several minutes depending on your internet connection."
+docker pull ghcr.io/littleredshack/kalisi:latest
+
 if docker scout --help >/dev/null 2>&1; then
   echo "🔍 Running Docker Scout quickview (supply chain scan)..."
   if ! docker scout quickview ghcr.io/littleredshack/kalisi:latest; then
@@ -44,11 +49,6 @@ if docker scout --help >/dev/null 2>&1; then
 else
   echo "ℹ️  Docker Scout not found; skipping security scan."
 fi
-
-echo "📦 Pulling Kalisi image (~4.7GB download)..."
-
-echo "This may take several minutes depending on your internet connection."
-docker pull ghcr.io/littleredshack/kalisi:latest
 
 echo ""
 echo "🛠️  Docker commands you may need:"
