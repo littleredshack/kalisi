@@ -98,9 +98,6 @@ RUN apt-get update \
         mold \
         sccache \
         libcap2-bin \
-        xdg-utils \
-        lynx \
-        wslu \
     && curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - \
     && apt-get update \
     && apt-get install -y --no-install-recommends nodejs \
