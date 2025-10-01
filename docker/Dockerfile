@@ -2,6 +2,7 @@
 
 ARG NEO4J_VERSION=5.15.0
 ARG NODE_MAJOR=20
+ARG APT_PROXY=""
 
 ########################################
 # Rust builder
@@ -10,7 +11,15 @@ FROM rust:slim AS rust-builder
 
 WORKDIR /app
 
-RUN apt-get update \
+RUN set -eux; \
+    if [ -n "$APT_PROXY" ]; then \
+      echo "Acquire::HTTP::Proxy \"$APT_PROXY\";" >/etc/apt/apt.conf.d/01proxy; \
+      echo "Acquire::HTTPS::Proxy \"$APT_PROXY\";" >>/etc/apt/apt.conf.d/01proxy; \
+    fi; \
+    if ! apt-get update; then \
+      rm -f /etc/apt/apt.conf.d/01proxy; \
+      apt-get update; \
+    fi \
     && apt-get install -y --no-install-recommends \
         build-essential \
         pkg-config \
