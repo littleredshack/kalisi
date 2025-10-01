@@ -1,13 +1,15 @@
 # Kalisi
 
-A drop-in pod for managing complexity in a connected world.
+Drop a pod into your world — and see the connections.
 
 ## 1. Model
 
-Like a Miro board: draw a picture of the problem and you are solving it already 
-BYOM (Bring Your Own Model) - import models, diagrams, documents, etc
-Model anything — a software stack, a compliance process, even something personal.
-Every shape and link is stored in a graph, so everything stays connected.
+Like an intelligent Miro board:
+- Picture your world, or the problem you're trying to solve — and you'll see the links.
+
+BYOM (Bring Your Own Model): business or personal.
+- Take in any model data in any format: diagrams, documents, recordings, regulations...
+- Business architectures, software stacks, a process, your thoughts, books...
 
 ## 2. Monitor
 
@@ -16,11 +18,10 @@ Turn a static picture into a living system.
 
 ## 3. Analyze
 
-Uncover patterns, risks, and dependencies hidden in complexity.
-Ask “what if?” and test scenarios before making changes.
-Move from reactive to predictive.
+Uncover opportunities, patterns, risks, and dependencies hidden in complexity.
+Ask "what if?" and test scenarios before making changes.
 
 ## 4. Adapt
 
-Start small, repeat and scale. Your model grows with you. 
-Evolve and keep control. 
+Start small, repeat and scale. Your model grows with you.
+Evolve and keep control.
