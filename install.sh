@@ -23,7 +23,7 @@ cat <<'INTRO'
 
 This script will:
   1. Download the Kalisi container image (~4.7GB)
-  2. Run Docker Scout quickview (if available) to review supply-chain metadata
+  2. Check for high/critical vulnerabilities with Docker Scout quickview (if available)
   3. Start the Kalisi container and stream its logs while services initialize
   4. Launch the Kalisi web app in your browser once everything is ready
 
