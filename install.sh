@@ -29,10 +29,14 @@ This script will:
 
 INTRO
 
-read -r -p "Continue? [Y/n] " RESPONSE
-if [[ "$RESPONSE" =~ ^[Nn]$ ]]; then
-  echo "Installation cancelled."
-  exit 0
+if [ -t 0 ]; then
+  read -r -p "Continue? [Y/n] " RESPONSE
+  if [[ "$RESPONSE" =~ ^[Nn]$ ]]; then
+    echo "Installation cancelled."
+    exit 0
+  fi
+else
+  echo "ℹ️  No interactive terminal detected; continuing automatically."
 fi
 
 # Check Docker
