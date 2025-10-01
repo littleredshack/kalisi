@@ -671,6 +671,18 @@ else
     fi
 fi
 
+# Refresh Neo4j status after attempting startup so data import sees the latest state
+if command_exists curl; then
+    for attempt in {1..5}; do
+        NEO4J_CHECK=$(timeout 10 curl -s -o /dev/null -w "%{http_code}" \
+            --connect-timeout 5 --max-time 10 "http://localhost:${NEO4J_HTTP_PORT}" 2>/dev/null || echo "TIMEOUT")
+        if [ "$NEO4J_CHECK" = "200" ] || [ "$NEO4J_CHECK" = "401" ]; then
+            break
+        fi
+        sleep 2
+    done
+fi
+
 # Check if Neo4j has data and load if needed
 echo -e "\n${BLUE}Checking Neo4j data...${NC}"
 if command_exists neo4j && ([ "$NEO4J_CHECK" = "200" ] || [ "$NEO4J_CHECK" = "401" ]); then
