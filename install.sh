@@ -29,26 +29,7 @@ This script will:
 
 INTRO
 
-prompt_confirmation() {
-  local prompt_device="$1"
-  local response
-  if read -r -p "Continue? [Y/n] " response <"$prompt_device"; then
-    RESPONSE="$response"
-  else
-    RESPONSE=""
-  fi
-}
-
-RESPONSE=""
-if [ -t 0 ]; then
-  prompt_confirmation "/dev/stdin"
-elif [ -r /dev/tty ]; then
-  prompt_confirmation "/dev/tty"
-else
-  echo "❌ Unable to prompt for confirmation (no terminal detected)."
-  exit 1
-fi
-
+read -r -p "Continue? [Y/n] " RESPONSE < /dev/tty
 if [[ "$RESPONSE" =~ ^[Nn]$ ]]; then
   echo "Installation cancelled."
   exit 0
