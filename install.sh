@@ -29,17 +29,27 @@ This script will:
 
 INTRO
 
-RESPONSE=""
-if [ -t 0 ]; then
-  if ! read -r -p "Continue? [Y/n] " RESPONSE; then
+prompt_confirmation() {
+  local prompt_device="$1"
+  local response
+  if read -r -p "Continue? [Y/n] " response <"$prompt_device"; then
+    RESPONSE="$response"
+  else
     RESPONSE=""
   fi
+}
+
+RESPONSE=""
+if [ -t 0 ]; then
+  prompt_confirmation "/dev/stdin"
+elif [ -r /dev/tty ]; then
+  prompt_confirmation "/dev/tty"
 else
-  echo "❌ Non-interactive environment detected; this installer requires confirmation."
+  echo "❌ Unable to prompt for confirmation (no terminal detected)."
   exit 1
 fi
 
-if [[ -z "$RESPONSE" || "$RESPONSE" =~ ^[Nn]$ ]]; then
+if [[ "$RESPONSE" =~ ^[Nn]$ ]]; then
   echo "Installation cancelled."
   exit 0
 fi
