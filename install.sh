@@ -36,6 +36,15 @@ fi
 echo "✅ Docker found and running"
 
 # Pull Kalisi image
+if docker scout --help >/dev/null 2>&1; then
+  echo "🔍 Running Docker Scout quickview (supply chain scan)..."
+  if ! docker scout quickview ghcr.io/littleredshack/kalisi:latest; then
+    echo "   ⚠️  Docker Scout quickview failed; continuing without scan results."
+  fi
+else
+  echo "ℹ️  Docker Scout not found; skipping security scan."
+fi
+
 echo "📦 Pulling Kalisi image (~4.7GB download)..."
 
 echo "This may take several minutes depending on your internet connection."
@@ -158,4 +167,3 @@ fi
 echo "  🗄️  Neo4j:      http://localhost:7474 (neo4j/kalisi-neo4j)"
 echo "  💻 Terminal:   http://localhost:7681"
 echo ""
-echo "Documentation: https://github.com/littleredshack/kalisi"
