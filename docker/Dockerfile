@@ -172,9 +172,10 @@ RUN mkdir -p /opt/bootstrap/workspace-template/bin \
 COPY ttyd-custom-index.html /opt/bootstrap/workspace-template/ttyd-custom-index.html
 COPY favicon.ico /opt/bootstrap/workspace-template/favicon.ico
 
-COPY --from=rust-builder --chown=kalisi:kalisi /app/target/release/kalisi-gateway /opt/bootstrap/workspace-template/bin/kalisi-gateway
-COPY --from=rust-builder --chown=kalisi:kalisi /app/target/release/agent-runtime-service /opt/bootstrap/workspace-template/bin/agent-runtime-service
-COPY --from=rust-builder --chown=kalisi:kalisi /app/target/release/neo4j-ui /opt/bootstrap/workspace-template/bin/neo4j-ui
+COPY --from=rust-builder --chown=kalisi:kalisi /app/target/release /opt/bootstrap/workspace-template/source/target/release
+RUN ln -sf ../source/target/release/kalisi-gateway /opt/bootstrap/workspace-template/bin/kalisi-gateway \
+  && ln -sf ../source/target/release/agent-runtime-service /opt/bootstrap/workspace-template/bin/agent-runtime-service \
+  && ln -sf ../source/target/release/neo4j-ui /opt/bootstrap/workspace-template/bin/neo4j-ui
 
 COPY --from=frontend-builder --chown=kalisi:kalisi /frontend/dist/ /opt/bootstrap/workspace-template/runtime/frontend/dist/
 
