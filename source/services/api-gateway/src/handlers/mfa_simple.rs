@@ -16,6 +16,7 @@ use crate::{
 use crate::logging::security_events::{SecurityEvent as LogSecurityEvent, SecurityEventType as LogSecurityEventType};
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct MfaSetupRequest {
     // No parameters needed - just initiate setup
 }

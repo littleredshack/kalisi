@@ -14,6 +14,7 @@ use crate::state::AppState;
 use crate::csp_styles;
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct CollectStylesRequest {
     #[allow(dead_code)]
     styles: Vec<String>,

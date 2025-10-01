@@ -15,6 +15,7 @@ use crate::{
 
 // Views integration structures
 #[derive(Debug, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct ViewGraphNode {
     pub id: String,
     pub label: String,
@@ -24,6 +25,7 @@ pub struct ViewGraphNode {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct ViewGraphEdge {
     pub id: String,
     pub source: String,
@@ -33,6 +35,7 @@ pub struct ViewGraphEdge {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct ViewGraphData {
     pub nodes: Vec<ViewGraphNode>,
     pub edges: Vec<ViewGraphEdge>,
@@ -112,6 +115,7 @@ pub struct SaveCanvasResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct LoadCanvasResponse {
     pub canvas: Option<TabCanvas>,
 }
