@@ -29,14 +29,14 @@ This script will:
 
 INTRO
 
+echo "ℹ️  The installer refreshes the bundled application code in /workspace." \
+     "Your Neo4j/Redis data and home directory persist across installs."
+
 read -r -p "Continue? [Y/n] " RESPONSE < /dev/tty
 if [[ "$RESPONSE" =~ ^[Nn]$ ]]; then
   echo "Installation cancelled."
   exit 0
 fi
-
-echo "ℹ️  The installer refreshes the bundled application code in /workspace." \
-     "Your Neo4j/Redis data and home directory persist across installs."
 
 # Check Docker
 if ! command -v docker >/dev/null 2>&1; then
