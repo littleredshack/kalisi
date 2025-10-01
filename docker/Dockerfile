@@ -8,6 +8,7 @@ ARG APT_PROXY=""
 # Rust builder
 ########################################
 FROM rust:slim AS rust-builder
+ARG APT_PROXY
 
 WORKDIR /app
 
@@ -63,6 +64,7 @@ RUN npm run build
 # Unified runtime image
 ########################################
 FROM ubuntu:24.04
+ARG APT_PROXY
 
 ARG NEO4J_VERSION
 ARG NODE_MAJOR

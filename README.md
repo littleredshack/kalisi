@@ -58,6 +58,34 @@ This will:
    ./scripts/kalisi-start.sh
    ```
 
+### Optional: apt caching for faster builds
+
+If you rebuild the Docker image frequently, you can cache Debian packages locally:
+
+1. Start the cache once:
+   ```bash
+   mkdir -p ~/apt-cache
+   docker run -d --name apt-cacher-ng \
+     -p 3142:3142 \
+     -v ~/apt-cache:/var/cache/apt-cacher-ng \
+     sameersbn/apt-cacher-ng
+   ```
+
+2. Build with the cache (Dockerfile auto-falls back if the proxy is offline):
+   ```bash
+   docker build \
+     --build-arg APT_PROXY=http://host.docker.internal:3142 \
+     -t ghcr.io/littleredshack/kalisi:latest \
+     -f docker/Dockerfile .
+   ```
+
+3. Stop the cache when finished:
+   ```bash
+   docker rm -f apt-cacher-ng
+   ```
+
+The cache contents live in `~/apt-cache` so subsequent builds reuse existing `.deb` files.
+
 ### Container Management
 
 ```bash
