@@ -205,7 +205,7 @@ else
   echo "   Check logs with: docker logs -f kalisi"
 fi
 echo ""
-echo "Access methods:"
+echo "Access methods (localhost only; no external exposure):"
 echo "  🌐 Web App:    https://localhost:8443"
 if [[ -n "$AUTHORIZED_KEYS" ]]; then
 echo "  🔧 SSH:        ssh -p 2222 kalisi@localhost"
