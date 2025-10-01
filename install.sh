@@ -19,6 +19,22 @@ trap cleanup EXIT
 echo "🚀 Kalisi Installer"
 echo "=================="
 
+cat <<'INTRO'
+
+This script will:
+  1. Download the Kalisi container image (~4.7GB)
+  2. Run Docker Scout quickview (if available) to review supply-chain metadata
+  3. Start the Kalisi container and stream its logs while services initialize
+  4. Launch the Kalisi web app in your browser once everything is ready
+
+INTRO
+
+read -r -p "Continue? [Y/n] " RESPONSE
+if [[ "$RESPONSE" =~ ^[Nn]$ ]]; then
+  echo "Installation cancelled."
+  exit 0
+fi
+
 # Check Docker
 if ! command -v docker >/dev/null 2>&1; then
   echo "❌ Docker not found."
