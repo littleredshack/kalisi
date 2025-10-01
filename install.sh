@@ -95,6 +95,12 @@ fi
 echo "🧹 Cleaning up any existing kalisi containers..."
 docker ps -a --filter "name=kalisi" --format "{{.Names}}" | xargs -r docker rm -f
 
+# Refresh workspace volume so a new install pulls in the latest template
+if docker volume inspect kalisi-workspace >/dev/null 2>&1; then
+  echo "🔄 Refreshing workspace volume (kalisi-workspace) with latest template..."
+  docker volume rm kalisi-workspace >/dev/null 2>&1 || true
+fi
+
 # Run Kalisi container
 docker run -d \
   --name "$CONTAINER_NAME" \
