@@ -35,6 +35,9 @@ if [[ "$RESPONSE" =~ ^[Nn]$ ]]; then
   exit 0
 fi
 
+echo "ℹ️  The installer refreshes the bundled application code in /workspace." \
+     "Your Neo4j/Redis data and home directory persist across installs."
+
 # Check Docker
 if ! command -v docker >/dev/null 2>&1; then
   echo "❌ Docker not found."
@@ -58,10 +61,29 @@ echo "This may take several minutes depending on your internet connection."
 docker pull ghcr.io/littleredshack/kalisi:latest
 
 if docker scout --help >/dev/null 2>&1; then
-  echo "🔍 Scanning image for common vulnerabilities (Docker Scout quickview)..."
-  if ! docker scout quickview ghcr.io/littleredshack/kalisi:latest; then
+  echo "🔍 Checking for high/critical vulnerabilities (Docker Scout quickview)..."
+  QUICKVIEW_LOG=$(mktemp)
+  if docker scout quickview ghcr.io/littleredshack/kalisi:latest >"$QUICKVIEW_LOG" 2>&1; then
+    SEVERITY_FIELD=$(awk -F'│' '/Target[[:space:]]+│/ {severity=$3; gsub(/^[[:space:]]+|[[:space:]]+$/, "", severity); print severity; exit}' "$QUICKVIEW_LOG")
+    COMPACT_SEVERITY=${SEVERITY_FIELD//[[:space:]]/}
+    if [[ $COMPACT_SEVERITY =~ ^([0-9]+)C([0-9]+)H([0-9]+)M([0-9]+)L$ ]]; then
+      CRITICAL_COUNT=${BASH_REMATCH[1]}
+      HIGH_COUNT=${BASH_REMATCH[2]}
+      if (( CRITICAL_COUNT == 0 && HIGH_COUNT == 0 )); then
+        echo "   No high or critical vulnerabilities reported."
+      else
+        echo "   ⚠️  ${CRITICAL_COUNT} critical, ${HIGH_COUNT} high vulnerabilities reported; details:"
+        cat "$QUICKVIEW_LOG"
+      fi
+    else
+      echo "   ℹ️  Unable to summarise scan output; see full report:"
+      cat "$QUICKVIEW_LOG"
+    fi
+  else
     echo "   ⚠️  Docker Scout quickview failed; continuing without scan results."
+    cat "$QUICKVIEW_LOG"
   fi
+  rm -f "$QUICKVIEW_LOG"
 else
   echo "ℹ️  Docker Scout not found; skipping security scan."
 fi
@@ -124,6 +146,8 @@ docker run -d \
   --restart unless-stopped \
   ghcr.io/littleredshack/kalisi:latest
 
+echo ""
+echo "🔒 All container ports are bound to 127.0.0.1; services stay accessible only from this machine."
 echo ""
 echo "📟 Streaming Kalisi startup logs..."
 echo "   (Logs will stream below while Kalisi starts; the installer will finish automatically.)"
