@@ -29,7 +29,7 @@ This script will:
 
 INTRO
 
-echo "ℹ️  The installer refreshes the bundled application code in /workspace." \
+echo "ℹ️  The installer refreshes the bundled application code." \
      "Your Neo4j/Redis data and home directory persist across installs."
 
 read -r -p "Continue? [Y/n] " RESPONSE < /dev/tty
