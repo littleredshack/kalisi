@@ -58,7 +58,7 @@ echo "This may take several minutes depending on your internet connection."
 docker pull ghcr.io/littleredshack/kalisi:latest
 
 if docker scout --help >/dev/null 2>&1; then
-  echo "🔍 Running Docker Scout quickview (supply chain scan)..."
+  echo "🔍 Scanning image for common vulnerabilities (Docker Scout quickview)..."
   if ! docker scout quickview ghcr.io/littleredshack/kalisi:latest; then
     echo "   ⚠️  Docker Scout quickview failed; continuing without scan results."
   fi
