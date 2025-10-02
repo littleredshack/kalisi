@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CheckboxModule } from 'primeng/checkbox';
@@ -23,20 +23,20 @@ import { UiStateService } from '../../../core/services/ui-state.service';
           <h4>Startup Options</h4>
           <div class="setting-item">
             <p-checkbox
-              [(ngModel)]="showIntroCard"
+              [ngModel]="showIntroCard()"
               [binary]="true"
               inputId="showIntro"
-              (onChange)="onShowIntroChange()">
+              (onChange)="onShowIntroChange($event)">
             </p-checkbox>
             <label for="showIntro" class="setting-label">Show introduction card on startup</label>
           </div>
 
           <div class="setting-item">
             <p-checkbox
-              [(ngModel)]="autoOpenLibraryPanel"
+              [ngModel]="autoOpenLibraryPanel()"
               [binary]="true"
               inputId="autoLibrary"
-              (onChange)="onAutoOpenLibraryChange()">
+              (onChange)="onAutoOpenLibraryChange($event)">
             </p-checkbox>
             <label for="autoLibrary" class="setting-label">Automatically open Library Panel on startup</label>
           </div>
@@ -46,10 +46,10 @@ import { UiStateService } from '../../../core/services/ui-state.service';
           <h4>Panel Behavior</h4>
           <div class="setting-item">
             <p-checkbox
-              [(ngModel)]="panelPushMode"
+              [ngModel]="panelPushMode()"
               [binary]="true"
               inputId="pushMode"
-              (onChange)="onPanelPushModeChange()">
+              (onChange)="onPanelPushModeChange($event)">
             </p-checkbox>
             <label for="pushMode" class="setting-label">Push canvas when opening left panels (vs overlay)</label>
           </div>
@@ -136,41 +136,30 @@ import { UiStateService } from '../../../core/services/ui-state.service';
   `]
 })
 export class InterfaceComponent {
-  // UI Settings - these will be synced with UiStateService
-  showIntroCard = true;
-  autoOpenLibraryPanel = true;
-  panelPushMode = true;
+  // Computed signals that directly reference the service state
+  // This ensures both interfaces are always in sync - no duplicate state
+  showIntroCard = this.uiState.showIntro;
+  autoOpenLibraryPanel = this.uiState.autoOpenLibraryPanel;
+  panelPushMode = this.uiState.panelPushMode;
 
-  constructor(private uiState: UiStateService) {
-    this.loadSettings();
+  constructor(private uiState: UiStateService) {}
+
+  onShowIntroChange(event: any) {
+    this.uiState.setShowIntro(event.checked);
   }
 
-  loadSettings() {
-    // Load startup settings from UiStateService
-    this.showIntroCard = this.uiState.showIntro();
-    this.autoOpenLibraryPanel = this.uiState.autoOpenLibraryPanel();
-    this.panelPushMode = this.uiState.panelPushMode();
+  onAutoOpenLibraryChange(event: any) {
+    this.uiState.setAutoOpenLibraryPanel(event.checked);
   }
 
-  onShowIntroChange() {
-    this.uiState.setShowIntro(this.showIntroCard);
-  }
-
-  onAutoOpenLibraryChange() {
-    this.uiState.setAutoOpenLibraryPanel(this.autoOpenLibraryPanel);
-  }
-
-  onPanelPushModeChange() {
-    this.uiState.setPanelPushMode(this.panelPushMode);
+  onPanelPushModeChange(event: any) {
+    this.uiState.setPanelPushMode(event.checked);
   }
 
   resetToDefaults() {
-    // Reset UiStateService settings
-    this.showIntroCard = true;
-    this.autoOpenLibraryPanel = true;
-    this.panelPushMode = true;
-    this.uiState.setShowIntro(this.showIntroCard);
-    this.uiState.setAutoOpenLibraryPanel(this.autoOpenLibraryPanel);
-    this.uiState.setPanelPushMode(this.panelPushMode);
+    // Reset UiStateService settings directly - no local state
+    this.uiState.setShowIntro(true);
+    this.uiState.setAutoOpenLibraryPanel(true);
+    this.uiState.setPanelPushMode(true);
   }
 }

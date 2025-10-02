@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ViewChild, ViewChildren, QueryList } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ViewChildren, QueryList, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -211,6 +211,11 @@ const LIBRARY_ITEMS: LibraryItem[] = [
           </ng-container>
         </div>
 
+        <div class="dont-show-again">
+          <p-checkbox [ngModel]="dontShowAgain()" [binary]="true" inputId="dontShowAgain" (onChange)="onDontShowAgainChange($event)"></p-checkbox>
+          <label for="dontShowAgain">Do not show again</label>
+        </div>
+
         <div class="cta-row">
           <p-button label="Explore" icon="pi pi-play" severity="contrast" styleClass="explore-btn" (click)="enterExploreMode()"></p-button>
         </div>
@@ -267,7 +272,7 @@ const LIBRARY_ITEMS: LibraryItem[] = [
     
     .glass {
       position: absolute;
-      width: clamp(421px, 44.5vw, 785px);
+      width: clamp(421px, 48.95vw, 785px);
       background: var(--app-background);
       border: 1px solid rgba(110,168,254,.2);
       box-shadow: 0 10px 40px rgba(0,0,0,.5);
@@ -360,10 +365,25 @@ const LIBRARY_ITEMS: LibraryItem[] = [
       font-size: 0.9025rem;
     }
     
+    .dont-show-again {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 1.5rem;
+      opacity: 0.85;
+    }
+
+    .dont-show-again label {
+      cursor: pointer;
+      font-size: 0.875rem;
+      user-select: none;
+      font-family: var(--font-body);
+    }
+
     .cta-row {
       display: flex;
       gap: .6rem;
-      margin-top: 1.5rem;
+      margin-top: 1rem;
     }
     
     .hint {
@@ -830,6 +850,9 @@ export class LandingShellComponent implements OnInit, OnDestroy {
   get propertiesPanelOpen() { return this.uiState.propertiesPanelOpen(); }
   get chatPanelOpen() { return this.uiState.chatPanelOpen(); }
   get debugPanelOpen() { return this.uiState.debugPanelOpen(); }
+
+  // Computed: "Don't show again" is the inverse of "Show intro"
+  dontShowAgain = computed(() => !this.uiState.showIntro());
   currentViewJsonData = '';
   activityBarHover = false;
   activityBarHidden = false;
@@ -1069,6 +1092,11 @@ export class LandingShellComponent implements OnInit, OnDestroy {
     // Simple mouse interaction
   }
 
+
+  onDontShowAgainChange(event: any) {
+    // Inverse logic: "don't show again" = true means showIntro = false
+    this.uiState.setShowIntro(!event.checked);
+  }
 
   enterExploreMode() {
     // Step 1: Start 3-second fade out
