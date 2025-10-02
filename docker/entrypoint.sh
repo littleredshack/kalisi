@@ -44,16 +44,20 @@ ensure_workspace() {
     current_version=$(cat "$sentinel" 2>/dev/null || echo "")
   fi
 
-  if [ -z "$non_runtime_content" ] || [ ! -f "$WORKSPACE/start.sh" ] || { [ -n "$template_version" ] && [ "$template_version" != "$current_version" ]; }; then
-    log "Seeding workspace at $WORKSPACE"
+  if [ ! -f "$WORKSPACE/start.sh" ]; then
+    log "Seeding workspace at $WORKSPACE (start.sh missing)"
     rsync -a "$TEMPLATE_ROOT"/ "$WORKSPACE"/
-    local stamp_value="$template_version"
-    if [ -z "$stamp_value" ]; then
-      stamp_value=$(date +%s)
-    fi
-    printf '%s\n' "$stamp_value" > "$sentinel"
-    chown "$SSH_USER:$SSH_USER" "$sentinel" 2>/dev/null || true
+  elif [ -n "$template_version" ] && [ "$template_version" != "$current_version" ]; then
+    log "Seeding workspace at $WORKSPACE (template updated)"
+    rsync -a "$TEMPLATE_ROOT"/ "$WORKSPACE"/
   fi
+
+  if [ -n "$template_version" ]; then
+    printf '%s\n' "$template_version" > "$sentinel"
+  else
+    printf '%s\n' "seeded-$(date +%s)" > "$sentinel"
+  fi
+  chown "$SSH_USER:$SSH_USER" "$sentinel" 2>/dev/null || true
 
   chown -R "$SSH_USER:$SSH_USER" "$WORKSPACE" 2>/dev/null || true
   find "$WORKSPACE" -type f -name '*.sh' -exec chmod +x {} + || true
