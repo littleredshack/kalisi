@@ -178,10 +178,33 @@ prepare_ssh() {
   mkdir -p "$SSH_HOME/.ssh"
   chmod 700 "$SSH_HOME/.ssh"
 
+  local auth_keys="$SSH_HOME/.ssh/authorized_keys"
+  local workspace_keys="$WORKSPACE/runtime/.authorized_keys"
+  mkdir -p "$(dirname "$workspace_keys")"
+
   if [ -n "$AUTHORIZED_KEYS_VALUE" ]; then
     log "Installing authorized SSH keys for $SSH_USER"
-    printf '%s\n' "$AUTHORIZED_KEYS_VALUE" > "$SSH_HOME/.ssh/authorized_keys"
-    chmod 600 "$SSH_HOME/.ssh/authorized_keys"
+    printf '%s\n' "$AUTHORIZED_KEYS_VALUE" > "$auth_keys"
+    chmod 600 "$auth_keys"
+    printf '%s\n' "$AUTHORIZED_KEYS_VALUE" > "$workspace_keys"
+    chmod 600 "$workspace_keys" 2>/dev/null || true
+    chown "$SSH_USER:$SSH_USER" "$workspace_keys" 2>/dev/null || true
+  elif [ -f "$auth_keys" ] && [ -s "$auth_keys" ]; then
+    log "Retaining existing authorized SSH keys for $SSH_USER"
+    if cmp -s "$auth_keys" "$workspace_keys" 2>/dev/null; then
+      : # workspace cache already matches
+    else
+      log "Updating workspace SSH key cache"
+      cp "$auth_keys" "$workspace_keys"
+      chmod 600 "$workspace_keys" 2>/dev/null || true
+      chown "$SSH_USER:$SSH_USER" "$workspace_keys" 2>/dev/null || true
+    fi
+  elif [ -f "$workspace_keys" ] && [ -s "$workspace_keys" ]; then
+    log "Restoring authorized SSH keys for $SSH_USER from workspace cache"
+    cp "$workspace_keys" "$auth_keys"
+    chmod 600 "$auth_keys"
+  else
+    log "Warning: no authorized SSH keys provided; SSH login will be unavailable"
   fi
 
   chown -R "$SSH_USER:$SSH_USER" "$SSH_HOME/.ssh"

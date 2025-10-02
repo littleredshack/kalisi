@@ -40,6 +40,31 @@ ensure_https_capability() {
   fi
 }
 
+ensure_frontend_assets() {
+  local runtime_dist="$RUNTIME_DIR/frontend/dist"
+  local source_frontend="$SOURCE_DIR/frontend"
+  local source_dist="$source_frontend/dist"
+
+  if [ ! -d "$runtime_dist" ]; then
+    log "Warning: prebuilt frontend bundle missing at $runtime_dist"
+    return
+  fi
+
+  mkdir -p "$source_frontend"
+
+  if [ -L "$source_dist" ]; then
+    if [ "$(readlink "$source_dist")" = "$runtime_dist" ]; then
+      return
+    fi
+    rm -f "$source_dist"
+  elif [ -e "$source_dist" ]; then
+    rm -rf "$source_dist"
+  fi
+
+  ln -s "$runtime_dist" "$source_dist"
+  log "Linked prebuilt frontend bundle into $source_dist"
+}
+
 start_redis() {
   if command -v redis-cli >/dev/null 2>&1 && redis-cli ping >/dev/null 2>&1; then
     log "Redis already running"
@@ -101,6 +126,24 @@ start_gateway() {
 
   ensure_https_capability
 
+  if [ "${ENABLE_HTTPS:-false}" = "true" ]; then
+    local cert_dir="$SOURCE_DIR/certs"
+    local fullchain="$cert_dir/fullchain.pem"
+    local privkey="$cert_dir/privkey.pem"
+
+    if [ ! -f "$fullchain" ] || [ ! -f "$privkey" ]; then
+      log "Generating self-signed TLS certificates"
+      mkdir -p "$cert_dir"
+      openssl req -x509 -newkey rsa:4096 \
+        -keyout "$privkey" \
+        -out "$fullchain" \
+        -days 365 \
+        -nodes \
+        -subj "/C=US/ST=State/L=City/O=Kalisi/CN=localhost" >/dev/null 2>&1
+      chmod 600 "$privkey" 2>/dev/null || true
+    fi
+  fi
+
   local log_file="$LOG_DIR/kalisi-gateway.log"
   log "Starting Kalisi gateway (logs: $log_file)"
   nohup "$RUST_BIN" >>"$log_file" 2>&1 &
@@ -135,6 +178,7 @@ start_agent_runtime() {
 
 start_redis
 start_neo4j
+ensure_frontend_assets
 start_gateway
 start_agent_runtime
 
