@@ -34,6 +34,7 @@ ensure_workspace() {
 
   local template_version=""
   if [ -d "$TEMPLATE_ROOT/.git" ]; then
+    git config --global --add safe.directory "$TEMPLATE_ROOT" 2>/dev/null || true
     template_version=$(git -C "$TEMPLATE_ROOT" rev-parse HEAD 2>/dev/null || echo "")
   fi
 
