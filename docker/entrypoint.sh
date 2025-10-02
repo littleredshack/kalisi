@@ -16,6 +16,50 @@ log() {
   printf '[entrypoint] %s\n' "$1"
 }
 
+compute_template_version() {
+  local version=""
+  if [ -d "$TEMPLATE_ROOT/.git" ]; then
+    git config --global --add safe.directory "$TEMPLATE_ROOT" 2>/dev/null || true
+    version=$(git -C "$TEMPLATE_ROOT" rev-parse HEAD 2>/dev/null || echo "")
+    if [ -n "$version" ]; then
+      printf '%s\n' "$version"
+      return
+    fi
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$TEMPLATE_ROOT" <<'PY'
+import hashlib, os, sys
+root = sys.argv[1]
+digest = hashlib.sha256()
+
+for current, dirs, files in os.walk(root):
+    rel_dir = os.path.relpath(current, root)
+    if rel_dir == '.git':
+        dirs[:] = []
+        continue
+    dirs.sort()
+    files.sort()
+    digest.update(rel_dir.encode('utf-8', 'surrogateescape'))
+    for name in files:
+        if name == '.workspace-template-version':
+            continue
+        path = os.path.join(current, name)
+        rel_file = os.path.relpath(path, root)
+        digest.update(rel_file.encode('utf-8', 'surrogateescape'))
+        try:
+            with open(path, 'rb') as fh:
+                for chunk in iter(lambda: fh.read(131072), b''):
+                    digest.update(chunk)
+        except OSError:
+            continue
+
+print(digest.hexdigest())
+PY
+    return
+  fi
+  printf 'fallback-%s\n' "$(date +%s)"
+}
+
 ensure_workspace() {
   if [ ! -d "$WORKSPACE" ]; then
     mkdir -p "$WORKSPACE"
@@ -32,11 +76,8 @@ ensure_workspace() {
     -not -path "$WORKSPACE/runtime"'/*' \
     -print -quit 2>/dev/null || true)
 
-  local template_version=""
-  if [ -d "$TEMPLATE_ROOT/.git" ]; then
-    git config --global --add safe.directory "$TEMPLATE_ROOT" 2>/dev/null || true
-    template_version=$(git -C "$TEMPLATE_ROOT" rev-parse HEAD 2>/dev/null || echo "")
-  fi
+  local template_version
+  template_version=$(compute_template_version)
 
   local sentinel="$WORKSPACE/.workspace-template-version"
   local current_version=""
@@ -44,25 +85,46 @@ ensure_workspace() {
     current_version=$(cat "$sentinel" 2>/dev/null || echo "")
   fi
 
+  local reseed_reason=""
   if [ ! -f "$WORKSPACE/start.sh" ]; then
-    log "Seeding workspace at $WORKSPACE (start.sh missing)"
-    rsync -a "$TEMPLATE_ROOT"/ "$WORKSPACE"/
-  elif [ -n "$template_version" ] && [ "$template_version" != "$current_version" ]; then
-    log "Seeding workspace at $WORKSPACE (template updated)"
+    reseed_reason="start.sh missing"
+  elif [ -z "$non_runtime_content" ]; then
+    reseed_reason="workspace empty"
+  elif [ "$template_version" != "$current_version" ]; then
+    reseed_reason="template updated"
+  fi
+
+  if [ -n "$reseed_reason" ]; then
+    log "Seeding workspace at $WORKSPACE ($reseed_reason)"
     rsync -a "$TEMPLATE_ROOT"/ "$WORKSPACE"/
   fi
 
-  if [ -n "$template_version" ]; then
-    printf '%s\n' "$template_version" > "$sentinel"
-  else
-    printf '%s\n' "seeded-$(date +%s)" > "$sentinel"
+  # Ensure new helper scripts exist even if workspace was seeded previously
+  if [ ! -f "$WORKSPACE/start-prebuilt.sh" ] && [ -f "$TEMPLATE_ROOT/start-prebuilt.sh" ]; then
+    log "Adding missing start-prebuilt.sh to workspace"
+    cp "$TEMPLATE_ROOT/start-prebuilt.sh" "$WORKSPACE/start-prebuilt.sh"
+    chown "$SSH_USER:$SSH_USER" "$WORKSPACE/start-prebuilt.sh" 2>/dev/null || true
+    chmod +x "$WORKSPACE/start-prebuilt.sh" 2>/dev/null || true
   fi
+
+  if [ ! -f "$WORKSPACE/source/scripts/start-prebuilt.sh" ] && \
+     [ -f "$TEMPLATE_ROOT/source/scripts/start-prebuilt.sh" ]; then
+    log "Adding missing source/scripts/start-prebuilt.sh to workspace"
+    mkdir -p "$WORKSPACE/source/scripts"
+    cp "$TEMPLATE_ROOT/source/scripts/start-prebuilt.sh" \
+       "$WORKSPACE/source/scripts/start-prebuilt.sh"
+    chown "$SSH_USER:$SSH_USER" "$WORKSPACE/source/scripts/start-prebuilt.sh" 2>/dev/null || true
+    chmod +x "$WORKSPACE/source/scripts/start-prebuilt.sh" 2>/dev/null || true
+  fi
+
+  printf '%s\n' "$template_version" > "$sentinel"
   chown "$SSH_USER:$SSH_USER" "$sentinel" 2>/dev/null || true
 
   chown -R "$SSH_USER:$SSH_USER" "$WORKSPACE" 2>/dev/null || true
   find "$WORKSPACE" -type f -name '*.sh' -exec chmod +x {} + || true
 
   ln -sf "$WORKSPACE/start.sh" /usr/local/bin/start.sh || true
+  ln -sf "$WORKSPACE/start-prebuilt.sh" /usr/local/bin/start-prebuilt.sh || true
 }
 
 sync_workspace_from_git() {
@@ -259,13 +321,13 @@ initialize_neo4j_password
 start_ttyd
 
 if [[ "${KALISI_AUTO_START:-false}" == "true" ]]; then
-  log "Auto-start enabled; launching start.sh in daemon mode"
+  log "Auto-start enabled; launching prebuilt runtime"
   set +e
-  su - "$SSH_USER" -c "export DOCKER_CONTAINER=true; cd '$WORKSPACE' && ./start.sh --daemon"
+  su - "$SSH_USER" -c "export DOCKER_CONTAINER=true; cd '$WORKSPACE' && ./start-prebuilt.sh"
   status=$?
   set -e
   if [ "$status" -ne 0 ]; then
-    log "start.sh exited with status $status"
+    log "start-prebuilt.sh exited with status $status"
   fi
 
   # Wait for services to be ready
