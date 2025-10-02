@@ -24,4 +24,3 @@ Ask "what if?" and test scenarios before making changes.
 ## 4. Adapt
 
 Start small, repeat and scale. Your model grows with you.
-Evolve and keep control.
