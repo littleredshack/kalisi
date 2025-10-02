@@ -27,6 +27,10 @@ pub struct Node {
     pub name: String,
     pub language: Language,
 
+    /// Neo4j labels for this node (e.g., ["CodeModel", "Rust", "Function"])
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub labels: Vec<String>,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub location: Option<Location>,
 
@@ -42,16 +46,40 @@ pub struct Node {
 
 impl Node {
     pub fn new(kind: NodeKind, name: String, language: Language) -> Self {
-        Self {
+        let mut node = Self {
             guid: Uuid::new_v4().to_string(),
             kind,
             name,
             language,
+            labels: Vec::new(),
             location: None,
             metadata: None,
             children: Vec::new(),
             hash: None,
-        }
+        };
+
+        // Auto-generate labels based on kind and language
+        node.labels = node.generate_labels();
+        node
+    }
+
+    /// Generate Neo4j labels for this node
+    fn generate_labels(&self) -> Vec<String> {
+        let mut labels = vec!["CodeModel".to_string()];
+
+        // Add language label
+        labels.push(match self.language {
+            Language::Rust => "Rust",
+            Language::TypeScript => "TypeScript",
+            Language::Python => "Python",
+            Language::Multi => "Multi",
+            Language::Unknown => "Unknown",
+        }.to_string());
+
+        // Add kind label
+        labels.push(format!("{:?}", self.kind));
+
+        labels
     }
 
     pub fn with_location(mut self, location: Location) -> Self {
@@ -259,6 +287,10 @@ pub struct Edge {
     pub from_guid: String,
     pub to_guid: String,
 
+    /// Tags for this edge (e.g., ["CodeModel", "Rust"])
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub tags: Vec<String>,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<EdgeMetadata>,
 }
@@ -270,6 +302,7 @@ impl Edge {
             edge_type,
             from_guid,
             to_guid,
+            tags: vec!["CodeModel".to_string()],
             metadata: None,
         }
     }
