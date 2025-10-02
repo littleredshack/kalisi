@@ -132,30 +132,17 @@ fi
 
 # Now check if rustc is available
 if ! command_exists rustc; then
-    echo -e "${YELLOW}⚠️  Rust not found. Installing latest version...${NC}"
+    echo -e "${YELLOW}⚠️  Rust not found. Installing stable toolchain...${NC}"
     if [ "$NON_INTERACTIVE" = true ]; then
-        # Non-interactive installation with default options
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile default
     else
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
     fi
     source "$HOME/.cargo/env"
     echo -e "${GREEN}✅ Rust installed${NC}"
 else
     RUST_VERSION=$(rustc --version | cut -d' ' -f2)
     echo -e "${GREEN}  Current Rust version: $RUST_VERSION${NC}"
-    
-    # Update Rust to latest stable
-    echo -e "${BLUE}  Updating Rust to latest stable...${NC}"
-    rustup update stable 2>&1 | grep -E "(unchanged|updated)" || true
-    
-    # Get new version after update
-    NEW_RUST_VERSION=$(rustc --version | cut -d' ' -f2)
-    if [ "$RUST_VERSION" != "$NEW_RUST_VERSION" ]; then
-        echo -e "${GREEN}  ✅ Rust updated from $RUST_VERSION to $NEW_RUST_VERSION${NC}"
-    else
-        echo -e "${GREEN}  ✅ Rust is already at latest version: $NEW_RUST_VERSION${NC}"
-    fi
 fi
 
 # Check and install/update Node.js

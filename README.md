@@ -86,6 +86,57 @@ If you rebuild the Docker image frequently, you can cache Debian packages locall
 
 The cache contents live in `~/apt-cache` so subsequent builds reuse existing `.deb` files.
 
+### Keep It Updated
+
+Here’s the workflow we follow so the image you build, push, and install always mirrors the code you just finished editing:
+
+#### While developing
+
+- Work inside the running container with VS Code, make edits, run tests.
+- Commit and push from inside that container when you’re happy.
+- Stop that dev container when you’re done (`docker stop kalisi` or `docker compose down`).
+
+#### Ship a build from the host
+
+1. **Grab the latest commits**
+   ```bash
+   git pull
+   ```
+2. **Rebuild using the apt cache (optional but fast when the proxy is running)**
+   ```bash
+   docker compose build --build-arg APT_PROXY=http://host.docker.internal:3142 kalisi
+   ```
+3. **Push to the registry**
+   ```bash
+   KALISI_IMAGE=ghcr.io/littleredshack/kalisi:latest docker compose push kalisi
+   ```
+
+#### Test the installer cleanly
+
+1. **Pretend it’s a fresh machine**
+   ```bash
+   docker compose down -v                 # from the repo root
+   docker volume prune                    # optional; prompts before removing
+   docker image rm ghcr.io/littleredshack/kalisi:latest   # optional cache bust
+   ```
+2. **Run the installer**
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/littleredshack/kalisi/main/install.sh | bash
+   ```
+   The installer pulls `ghcr.io/littleredshack/kalisi:latest`, which now contains your latest commit.
+
+#### Verify
+
+- After the installer finishes:
+  ```bash
+  docker exec kalisi head -n 5 /workspace/source/frontend/src/assets/mission_card.md
+  ```
+  (or open `https://localhost:8443`) to confirm the change flowed through.
+
+> **Note:** On every startup the container runs `git fetch --tags origin` followed by `git reset --hard origin/main`, so be sure your latest changes are pushed before you restart it.
+
+The only rule: clear out your dev container/volumes before running the installer so `/workspace` reseeds from the new image. No extra flags required.
+
 ### Container Management
 
 ```bash

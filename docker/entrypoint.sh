@@ -43,6 +43,31 @@ ensure_workspace() {
   ln -sf "$WORKSPACE/start.sh" /usr/local/bin/start.sh || true
 }
 
+sync_workspace_from_git() {
+  local repo_dir="$WORKSPACE"
+
+  if [ ! -d "$repo_dir/.git" ]; then
+    log "No git repository found in $repo_dir; skipping git sync"
+    return
+  fi
+
+  local target_ref="origin/main"
+
+  log "Syncing workspace with git ($target_ref)"
+
+  if ! su - "$SSH_USER" -c "git config --global --add safe.directory '$repo_dir'" >/dev/null 2>&1; then
+    log "Warning: unable to update git safe.directory for $repo_dir"
+  fi
+
+  if su - "$SSH_USER" -c "cd '$repo_dir' && git fetch --tags origin"; then
+    if ! su - "$SSH_USER" -c "cd '$repo_dir' && git reset --hard '$target_ref'"; then
+      log "Warning: git reset to $target_ref failed; continuing with existing workspace"
+    fi
+  else
+    log "Warning: git fetch failed; workspace left as-is"
+  fi
+}
+
 prepare_ssh() {
   mkdir -p /var/run/sshd
   if [ ! -f /etc/ssh/ssh_host_rsa_key ]; then
@@ -187,6 +212,7 @@ babysit_container() {
 }
 
 ensure_workspace
+sync_workspace_from_git
 prepare_data_dirs
 set_https_capability
 prepare_ssh

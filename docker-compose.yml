@@ -4,7 +4,7 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    image: ${KALISI_IMAGE:-kalisi:latest}
+    image: ${KALISI_IMAGE:-ghcr.io/littleredshack/kalisi:latest}
     environment:
       - KALISI_AUTO_START=${KALISI_AUTO_START:-true}
       - AUTHORIZED_KEYS=${AUTHORIZED_KEYS:-}
@@ -22,7 +22,6 @@ services:
       - CAP_SETFCAP
       - CAP_NET_BIND_SERVICE
     volumes:
-      - kalisi-workspace:/workspace
       - kalisi-neo4j:/data/neo4j
       - kalisi-redis:/data/redis
       - kalisi-home:/home/kalisi
@@ -30,7 +29,6 @@ services:
     restart: unless-stopped
 
 volumes:
-  kalisi-workspace:
   kalisi-neo4j:
   kalisi-redis:
   kalisi-home:

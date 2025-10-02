@@ -36,6 +36,8 @@ COPY source/crates ./crates
 COPY source/codebase-analyzer ./codebase-analyzer
 COPY source/services ./services
 COPY source/neo4rs-glen-custom ./neo4rs-glen-custom
+COPY source/agents ./agents
+COPY source/spikes ./spikes
 
 RUN cargo +nightly fetch
 
@@ -72,8 +74,16 @@ ARG NODE_MAJOR
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
+RUN set -eux; \
+    if [ -n "$APT_PROXY" ]; then \
+      echo "Acquire::HTTP::Proxy \"$APT_PROXY\";" >/etc/apt/apt.conf.d/01proxy; \
+      echo "Acquire::HTTPS::Proxy \"$APT_PROXY\";" >>/etc/apt/apt.conf.d/01proxy; \
+    fi; \
+    if ! apt-get update; then \
+      rm -f /etc/apt/apt.conf.d/01proxy; \
+      apt-get update; \
+    fi; \
+    apt-get install -y --no-install-recommends \
         bash \
         ca-certificates \
         curl \

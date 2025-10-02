@@ -157,12 +157,10 @@ LOGS_PID=$!
 echo ""
 echo "⏳ Waiting for services to start (this may take 2-3 minutes)..."
 
-# Wait for Docker health check to pass
-MAX_WAIT=180  # 3 minutes
-WAIT_TIME=0
+# Wait for Docker health check to pass (no timeout; user can Ctrl-C)
 SERVICES_READY=false
 
-while [ $WAIT_TIME -lt $MAX_WAIT ]; do
+while true; do
   HEALTH_STATUS=$(docker inspect --format='{{.State.Health.Status}}' kalisi 2>/dev/null || echo "starting")
 
   if [ "$HEALTH_STATUS" = "healthy" ]; then
@@ -172,12 +170,12 @@ while [ $WAIT_TIME -lt $MAX_WAIT ]; do
     echo ""
     echo "❌ Services failed to start properly."
     echo "   Check logs with: docker logs kalisi"
+    cleanup
     exit 1
   fi
 
   echo -n "."
   sleep 5
-  WAIT_TIME=$((WAIT_TIME + 5))
 done
 
 echo ""
@@ -187,22 +185,16 @@ cleanup
 
 echo ""
 
-if [ "$SERVICES_READY" = true ]; then
-  echo "✅ Kalisi is running and ready!"
-  echo "🌐 Opening Kalisi in your browser..."
+echo "✅ Kalisi is running and ready!"
+echo "🌐 Opening Kalisi in your browser..."
 
-  # Open browser (works on macOS and Linux)
-  if command -v open >/dev/null 2>&1; then
-    open https://localhost:8443
-  elif command -v xdg-open >/dev/null 2>&1; then
-    xdg-open https://localhost:8443
-  else
-    echo "   Please open https://localhost:8443 manually"
-  fi
+# Open browser (works on macOS and Linux)
+if command -v open >/dev/null 2>&1; then
+  open https://localhost:8443
+elif command -v xdg-open >/dev/null 2>&1; then
+  xdg-open https://localhost:8443
 else
-  echo "⚠️  Services are still starting up."
-  echo "   Check status with: docker inspect kalisi"
-  echo "   Check logs with: docker logs -f kalisi"
+  echo "   Please open https://localhost:8443 manually"
 fi
 echo ""
 echo "Access methods (localhost only; no external exposure):"
