@@ -4,6 +4,8 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
+      args:
+        APT_PROXY: ${APT_PROXY-http://host.docker.internal:3142}
     image: ${KALISI_IMAGE:-ghcr.io/littleredshack/kalisi:latest}
     environment:
       - KALISI_AUTO_START=${KALISI_AUTO_START:-true}
