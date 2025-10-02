@@ -32,9 +32,24 @@ ensure_workspace() {
     -not -path "$WORKSPACE/runtime"'/*' \
     -print -quit 2>/dev/null || true)
 
-  if [ -z "$non_runtime_content" ]; then
+  local template_version=""
+  if [ -d "$TEMPLATE_ROOT/.git" ]; then
+    template_version=$(git -C "$TEMPLATE_ROOT" rev-parse HEAD 2>/dev/null || echo "")
+  fi
+
+  local sentinel="$WORKSPACE/.workspace-template-version"
+  local current_version=""
+  if [ -f "$sentinel" ]; then
+    current_version=$(cat "$sentinel" 2>/dev/null || echo "")
+  fi
+
+  if [ -z "$non_runtime_content" ] || [ -n "$template_version" ] && [ "$template_version" != "$current_version" ]; then
     log "Seeding workspace at $WORKSPACE"
     rsync -a "$TEMPLATE_ROOT"/ "$WORKSPACE"/
+    if [ -n "$template_version" ]; then
+      printf '%s\n' "$template_version" > "$sentinel"
+      chown "$SSH_USER:$SSH_USER" "$sentinel" 2>/dev/null || true
+    fi
   fi
 
   chown -R "$SSH_USER:$SSH_USER" "$WORKSPACE" 2>/dev/null || true
