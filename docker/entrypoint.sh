@@ -43,13 +43,15 @@ ensure_workspace() {
     current_version=$(cat "$sentinel" 2>/dev/null || echo "")
   fi
 
-  if [ -z "$non_runtime_content" ] || [ -n "$template_version" ] && [ "$template_version" != "$current_version" ]; then
+  if [ -z "$non_runtime_content" ] || [ ! -f "$WORKSPACE/start.sh" ] || { [ -n "$template_version" ] && [ "$template_version" != "$current_version" ]; }; then
     log "Seeding workspace at $WORKSPACE"
     rsync -a "$TEMPLATE_ROOT"/ "$WORKSPACE"/
-    if [ -n "$template_version" ]; then
-      printf '%s\n' "$template_version" > "$sentinel"
-      chown "$SSH_USER:$SSH_USER" "$sentinel" 2>/dev/null || true
+    local stamp_value="$template_version"
+    if [ -z "$stamp_value" ]; then
+      stamp_value=$(date +%s)
     fi
+    printf '%s\n' "$stamp_value" > "$sentinel"
+    chown "$SSH_USER:$SSH_USER" "$sentinel" 2>/dev/null || true
   fi
 
   chown -R "$SSH_USER:$SSH_USER" "$WORKSPACE" 2>/dev/null || true
