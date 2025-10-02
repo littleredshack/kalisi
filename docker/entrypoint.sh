@@ -59,9 +59,25 @@ sync_workspace_from_git() {
     log "Warning: unable to update git safe.directory for $repo_dir"
   fi
 
+  local current_ref
+  current_ref=$(su - "$SSH_USER" -c "cd '$repo_dir' && git rev-parse HEAD" 2>/dev/null || echo "")
+
   if su - "$SSH_USER" -c "cd '$repo_dir' && git fetch --tags origin"; then
-    if ! su - "$SSH_USER" -c "cd '$repo_dir' && git reset --hard '$target_ref'"; then
-      log "Warning: git reset to $target_ref failed; continuing with existing workspace"
+    local desired_ref
+    desired_ref=$(su - "$SSH_USER" -c "cd '$repo_dir' && git rev-parse '$target_ref'" 2>/dev/null || echo "")
+
+    if [ -z "$desired_ref" ]; then
+      log "Warning: unable to resolve $target_ref after fetch; keeping existing workspace"
+      return
+    fi
+
+    if [ -n "$current_ref" ] && [ "$current_ref" = "$desired_ref" ]; then
+      log "Workspace already at $desired_ref; no reset needed"
+      return
+    fi
+
+    if ! su - "$SSH_USER" -c "cd '$repo_dir' && git reset --hard '$desired_ref'"; then
+      log "Warning: git reset to $desired_ref failed; continuing with existing workspace"
     fi
   else
     log "Warning: git fetch failed; workspace left as-is"
