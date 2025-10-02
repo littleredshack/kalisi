@@ -5,6 +5,7 @@ members = [
     "crates/*",
     "services/*",
     "agents/*",
+    "spikes/*",
 ]
 
 [workspace.package]
