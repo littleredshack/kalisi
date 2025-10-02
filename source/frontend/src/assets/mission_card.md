@@ -1,22 +1,22 @@
 # Kalisi
 
-Drop a pod into your world — and see the connections.
+A docker pod to model with graphs. Includes drawing frontend, neo4j admin and coding terminal
 
 ## 1. Model
 
 Like an intelligent Miro board:
-- Picture your world, or the problem you're trying to solve — and you'll see the links.
+- Draw a model of your world, or the problem you're trying to solve — that gets you started.
 
 BYOM (Bring Your Own Model): business or personal.
-- Take in any model data in any format: diagrams, documents, recordings, regulations...
-- Business architectures, software stacks, a process, your thoughts, books...
+- Import model data from anywhere: diagrams, documents, recordings, regulations...
+- Model anything: business architecture, software stack, a process, your thoughts, books...
 
-## 2. Monitor
+## 2. Monitor (coming)
 
 Connect live data streams to your model.
 Turn a static picture into a living system.
 
-## 3. Analyze
+## 3. Analyze (coming)
 
 Uncover opportunities, patterns, risks, and dependencies hidden in complexity.
 Ask "what if?" and test scenarios before making changes.

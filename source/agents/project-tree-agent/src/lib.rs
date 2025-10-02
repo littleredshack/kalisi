@@ -6,6 +6,7 @@ use std::io::Write as IoWrite;
 use tracing::{info, error, warn};
 use anyhow::Result;
 use chrono::Utc;
+use reqwest::Client;
 
 /// Project Tree Agent Response
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,6 +42,42 @@ struct UnansweredQuestion {
     reason: String,
 }
 
+/// Claude API request structures
+#[derive(Debug, Serialize)]
+struct ClaudeRequest {
+    model: String,
+    max_tokens: i32,
+    messages: Vec<ClaudeMessage>,
+}
+
+#[derive(Debug, Serialize)]
+struct ClaudeMessage {
+    role: String,
+    content: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ClaudeResponse {
+    content: Vec<ClaudeContent>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ClaudeContent {
+    text: String,
+}
+
+/// Parsed intent from Claude
+#[derive(Debug, Deserialize)]
+struct ParsedIntent {
+    action: String,
+    depth: Option<usize>,
+    exclude: Option<Vec<String>>,
+    path: Option<String>,
+    show_all_hidden: Option<bool>,
+    hide_all_hidden: Option<bool>,
+    include_files: Option<bool>,
+}
+
 /// Project Tree Agent - Generates visual tree representations of project structure
 /// Bounded task: Can ONLY generate and visualize project directory trees
 /// Flexible: Understands natural language, learns user preferences
@@ -49,12 +86,24 @@ pub struct ProjectTreeAgent {
     default_excludes: Vec<String>,
     conversation_history: Vec<String>,
     unanswered_questions_file: String,
+    http_client: Client,
+    claude_api_key: String,
+    claude_api_url: String,
+    claude_model: String,
 }
 
 impl ProjectTreeAgent {
     pub async fn new(redis_url: &str) -> Result<Self> {
         let client = redis::Client::open(redis_url)?;
         let redis_connection = client.get_multiplexed_async_connection().await?;
+
+        // Load Claude API configuration from environment
+        let claude_api_key = std::env::var("CLAUDE_API_KEY")
+            .unwrap_or_else(|_| "sk-ant-api03-your_claude_api_key_here".to_string());
+        let claude_api_url = std::env::var("CLAUDE_API_URL")
+            .unwrap_or_else(|_| "https://api.anthropic.com/v1/messages".to_string());
+        let claude_model = std::env::var("CLAUDE_MODEL")
+            .unwrap_or_else(|_| "claude-3-5-sonnet-20241022".to_string());
 
         info!("🌲 Project Tree Agent created");
 
@@ -69,6 +118,10 @@ impl ProjectTreeAgent {
             ],
             conversation_history: Vec::new(),
             unanswered_questions_file: "/workspace/source/agents/project-tree-agent/unanswered_questions.jsonl".to_string(),
+            http_client: Client::new(),
+            claude_api_key,
+            claude_api_url,
+            claude_model,
         })
     }
 
@@ -99,8 +152,8 @@ impl ProjectTreeAgent {
             });
         }
 
-        // Parse user intent
-        let intent = self.parse_intent(query);
+        // Parse user intent using Claude API
+        let intent = self.parse_intent(query).await?;
 
         match intent.action {
             TreeAction::ShowTree => {
@@ -175,136 +228,95 @@ impl ProjectTreeAgent {
         }
     }
 
-    /// Parse natural language to understand user intent
-    fn parse_intent(&self, query: &str) -> UserIntent {
-        let query_lower = query.to_lowercase();
+    /// Parse natural language using Claude API to understand user intent
+    async fn parse_intent(&self, query: &str) -> Result<UserIntent> {
+        let prompt = format!(
+            r#"Parse this user query about showing a project directory tree and extract the intent as JSON.
 
-        // Check for help requests
-        if query_lower.contains("help") || query_lower.contains("what can you") || query_lower.contains("how do") {
-            return UserIntent {
-                action: TreeAction::Help,
-                depth: None,
-                exclude: vec![],
-                path: None,
-                show_all_hidden: false,
-                hide_all_hidden: false,
-                include_files: false,
-            };
+User query: "{}"
+
+Respond ONLY with a JSON object (no markdown, no explanation) with these fields:
+- action: "show_tree" or "help"
+- depth: number (1-20) or null for default. Parse phrases like "one level"=1, "two levels"=2, "shallow"=2, "deep"=10
+- exclude: array of folder names to exclude, or null
+- path: specific path like "src" or "services", or null
+- show_all_hidden: true/false - if user wants to see ALL hidden files including .git
+- hide_all_hidden: true/false - if user wants to hide ALL dotfiles
+- include_files: true/false - if user wants to see files (not just directories)
+
+Default values if not specified:
+- depth: 3
+- exclude: ["target", "node_modules", ".git", ".angular", "dist"]
+- include_files: false
+- show_all_hidden: false
+- hide_all_hidden: false
+
+Example queries:
+"show me one level" -> {{"action": "show_tree", "depth": 1, "exclude": null, "path": null, "show_all_hidden": false, "hide_all_hidden": false, "include_files": false}}
+"show tree with files at depth 2" -> {{"action": "show_tree", "depth": 2, "exclude": null, "path": null, "show_all_hidden": false, "hide_all_hidden": false, "include_files": true}}"#,
+            query
+        );
+
+        let request = ClaudeRequest {
+            model: self.claude_model.clone(),
+            max_tokens: 512,
+            messages: vec![ClaudeMessage {
+                role: "user".to_string(),
+                content: prompt,
+            }],
+        };
+
+        let response = self
+            .http_client
+            .post(&self.claude_api_url)
+            .header("x-api-key", &self.claude_api_key)
+            .header("anthropic-version", "2023-06-01")
+            .header("content-type", "application/json")
+            .json(&request)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await?;
+            anyhow::bail!("Claude API error {}: {}", status, body);
         }
 
-        // Parse depth
-        let depth = self.extract_depth(&query_lower);
+        let claude_response: ClaudeResponse = response.json().await?;
+        let json_text = claude_response
+            .content
+            .first()
+            .map(|c| c.text.as_str())
+            .unwrap_or("{}");
 
-        // Parse file inclusion
-        let include_files = query_lower.contains("with files")
-            || query_lower.contains("include files")
-            || query_lower.contains("show files")
-            || query_lower.contains("files and folders")
-            || query_lower.contains("files and directories");
+        info!("🤖 Claude response: {}", json_text);
 
-        // Parse hidden files preferences
-        let show_all_hidden = query_lower.contains("show everything")
-            || query_lower.contains("include hidden")
-            || query_lower.contains("show hidden")
-            || query_lower.contains("all files")
-            || query_lower.contains("including hidden");
+        let parsed: ParsedIntent = serde_json::from_str(json_text)?;
 
-        let hide_all_hidden = query_lower.contains("hide hidden")
-            || query_lower.contains("no hidden")
-            || query_lower.contains("without hidden")
-            || query_lower.contains("skip hidden")
-            || query_lower.contains("hide dotfiles");
-
-        // Parse exclusions
-        let mut exclude = if hide_all_hidden {
-            // Start with empty, we'll add all hidden dirs
-            vec![]
-        } else if show_all_hidden {
-            // Don't exclude the normally excluded hidden dirs
-            vec![]
+        // Convert to UserIntent
+        let action = if parsed.action == "help" {
+            TreeAction::Help
         } else {
-            // Default behavior - exclude common build/cache dirs
+            TreeAction::ShowTree
+        };
+
+        let exclude = if let Some(exc) = parsed.exclude {
+            exc
+        } else {
             self.default_excludes.clone()
         };
 
-        // Add custom exclusions from query
-        let custom_excludes = self.extract_exclusions(&query_lower);
-        exclude.extend(custom_excludes);
-
-        // Extract path if specified
-        let path = self.extract_path(&query_lower);
-
-        UserIntent {
-            action: TreeAction::ShowTree,
-            depth,
+        Ok(UserIntent {
+            action,
+            depth: parsed.depth,
             exclude,
-            path,
-            show_all_hidden,
-            hide_all_hidden,
-            include_files,
-        }
+            path: parsed.path,
+            show_all_hidden: parsed.show_all_hidden.unwrap_or(false),
+            hide_all_hidden: parsed.hide_all_hidden.unwrap_or(false),
+            include_files: parsed.include_files.unwrap_or(false),
+        })
     }
 
-    /// Extract depth from user query
-    fn extract_depth(&self, query: &str) -> Option<usize> {
-        if query.contains("shallow") || query.contains("top level") || query.contains("just the top") {
-            Some(2)
-        } else if query.contains("deep") || query.contains("full") || query.contains("complete") || query.contains("everything") {
-            Some(10)
-        } else if query.contains("depth") {
-            // Try to extract number
-            for word in query.split_whitespace() {
-                if let Ok(num) = word.parse::<usize>() {
-                    if num > 0 && num < 20 {
-                        return Some(num);
-                    }
-                }
-            }
-            Some(3)
-        } else {
-            Some(3) // default
-        }
-    }
-
-    /// Extract what to exclude from query
-    fn extract_exclusions(&self, query: &str) -> Vec<String> {
-        let mut excludes = Vec::new();
-
-        if query.contains("exclude") || query.contains("skip") || query.contains("ignore") || query.contains("without") {
-            // Look for common patterns
-            if query.contains("build") || query.contains("target") {
-                excludes.push("target".to_string());
-            }
-            if query.contains("dependencies") || query.contains("node_modules") {
-                excludes.push("node_modules".to_string());
-            }
-            if query.contains("test") {
-                excludes.push("tests".to_string());
-                excludes.push("test".to_string());
-            }
-            if query.contains("doc") {
-                excludes.push("docs".to_string());
-                excludes.push("documentation".to_string());
-            }
-        }
-
-        excludes
-    }
-
-
-    /// Extract path from query
-    fn extract_path(&self, query: &str) -> Option<String> {
-        // Look for path-like patterns
-        if query.contains("src/") {
-            Some("src".to_string())
-        } else if query.contains("services/") {
-            Some("services".to_string())
-        } else if query.contains("frontend/") {
-            Some("frontend".to_string())
-        } else {
-            None
-        }
-    }
 
     /// Execute the tree generation with parsed intent
     async fn execute_tree_generation(&self, intent: UserIntent) -> Result<ProjectTreeResponse> {

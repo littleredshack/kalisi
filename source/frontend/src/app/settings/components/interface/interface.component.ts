@@ -136,13 +136,13 @@ import { UiStateService } from '../../../core/services/ui-state.service';
   `]
 })
 export class InterfaceComponent {
+  constructor(private uiState: UiStateService) {}
+
   // Computed signals that directly reference the service state
   // This ensures both interfaces are always in sync - no duplicate state
-  showIntroCard = this.uiState.showIntro;
-  autoOpenLibraryPanel = this.uiState.autoOpenLibraryPanel;
-  panelPushMode = this.uiState.panelPushMode;
-
-  constructor(private uiState: UiStateService) {}
+  get showIntroCard() { return this.uiState.showIntro; }
+  get autoOpenLibraryPanel() { return this.uiState.autoOpenLibraryPanel; }
+  get panelPushMode() { return this.uiState.panelPushMode; }
 
   onShowIntroChange(event: any) {
     this.uiState.setShowIntro(event.checked);

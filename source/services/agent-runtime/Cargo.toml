@@ -27,7 +27,7 @@ name = "agent-runtime-service"
 path = "src/main.rs"
 
 [[bin]]
-name = "tree-agent-cli"
+name = "runtime-tree-agent-cli"
 path = "src/bin/tree_agent_cli.rs"
 
 [dev-dependencies]

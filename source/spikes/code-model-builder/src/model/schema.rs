@@ -46,8 +46,11 @@ pub struct Node {
 
 impl Node {
     pub fn new(kind: NodeKind, name: String, language: Language) -> Self {
+        // Generate deterministic UUID based on kind, name, and language
+        let guid = Self::generate_deterministic_uuid(&kind, &name, &language, None);
+
         let mut node = Self {
-            guid: Uuid::new_v4().to_string(),
+            guid,
             kind,
             name,
             language,
@@ -83,8 +86,26 @@ impl Node {
     }
 
     pub fn with_location(mut self, location: Location) -> Self {
+        // Regenerate GUID with location for better uniqueness
+        self.guid = Self::generate_deterministic_uuid(&self.kind, &self.name, &self.language, Some(&location));
         self.location = Some(location);
         self
+    }
+
+    /// Generate a deterministic UUID v5 based on node properties
+    fn generate_deterministic_uuid(kind: &NodeKind, name: &str, language: &Language, location: Option<&Location>) -> String {
+        // Use a namespace UUID for code model (randomly generated once, hardcoded)
+        let namespace = Uuid::parse_str("6ba7b810-9dad-11d1-80b4-00c04fd430c8").unwrap();
+
+        // Create a unique string from node properties
+        let unique_str = if let Some(loc) = location {
+            format!("{:?}::{}::{:?}::{}::{:?}::{:?}",
+                kind, name, language, loc.path, loc.start_line, loc.start_col)
+        } else {
+            format!("{:?}::{}::{:?}", kind, name, language)
+        };
+
+        Uuid::new_v5(&namespace, unique_str.as_bytes()).to_string()
     }
 
     pub fn with_metadata(mut self, metadata: Metadata) -> Self {
@@ -297,14 +318,28 @@ pub struct Edge {
 
 impl Edge {
     pub fn new(edge_type: EdgeType, from_guid: String, to_guid: String) -> Self {
+        // Generate deterministic UUID based on edge properties
+        let guid = Self::generate_deterministic_uuid(&edge_type, &from_guid, &to_guid);
+
         Self {
-            guid: Uuid::new_v4().to_string(),
+            guid,
             edge_type,
             from_guid,
             to_guid,
             tags: vec!["CodeModel".to_string()],
             metadata: None,
         }
+    }
+
+    /// Generate a deterministic UUID v5 for edges
+    fn generate_deterministic_uuid(edge_type: &EdgeType, from_guid: &str, to_guid: &str) -> String {
+        // Use same namespace UUID as nodes
+        let namespace = Uuid::parse_str("6ba7b810-9dad-11d1-80b4-00c04fd430c8").unwrap();
+
+        // Create unique string from edge properties
+        let unique_str = format!("{:?}::{}::{}", edge_type, from_guid, to_guid);
+
+        Uuid::new_v5(&namespace, unique_str.as_bytes()).to_string()
     }
 
     pub fn with_metadata(mut self, metadata: EdgeMetadata) -> Self {
