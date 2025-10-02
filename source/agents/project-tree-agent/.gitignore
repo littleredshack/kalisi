@@ -1,0 +1,6 @@
+# Agent runtime logs
+unanswered_questions.jsonl
+
+# Build artifacts
+target/
+Cargo.lock

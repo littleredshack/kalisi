@@ -1,8 +1,10 @@
 [workspace]
 resolver = "2"
-members = [ "codebase-analyzer",
+members = [
+    "codebase-analyzer",
     "crates/*",
     "services/*",
+    "agents/*",
 ]
 
 [workspace.package]
