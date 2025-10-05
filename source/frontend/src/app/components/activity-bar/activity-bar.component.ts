@@ -46,9 +46,9 @@ export class ActivityBarComponent implements OnInit, OnChanges {
     },
     {
       id: 'library',
-      icon: 'sitemap', 
+      icon: 'sitemap',
       label: 'Library',
-      tooltip: 'Library',
+      tooltip: 'Models',
       isActive: false
     },
     {
@@ -70,13 +70,6 @@ export class ActivityBarComponent implements OnInit, OnChanges {
       icon: 'cog',
       label: 'Settings',
       tooltip: 'Settings',
-      isActive: false
-    },
-    {
-      id: 'debug',
-      icon: 'wrench',
-      label: 'Debug',
-      tooltip: 'Debug Panel',
       isActive: false
     }
   ];
@@ -122,9 +115,6 @@ export class ActivityBarComponent implements OnInit, OnChanges {
           break;
         case 'admin': // Settings
           item.isActive = this.settingsPanelOpen;
-          break;
-        case 'debug':
-          item.isActive = this.debugPanelOpen;
           break;
         case 'home':
           item.isActive = false; // Home never stays active

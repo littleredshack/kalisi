@@ -106,7 +106,7 @@ const LIBRARY_ITEMS: LibraryItem[] = [
       <!-- Library Panel -->
       <div class="library-panel" [class.visible]="panelsEnabled && !activityBarHidden && libraryPanelOpen" [class.open]="libraryPanelOpen">
         <div class="panel-header">
-          <h3 pTooltip="Global Library of Edges and Nodes" tooltipPosition="top">Global Library</h3>
+          <h3>Models</h3>
           <input type="text" placeholder="Search..." class="search-input" />
         </div>
         <div class="tree-container">
