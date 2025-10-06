@@ -49,6 +49,15 @@ RUN cargo +nightly build --release \
     --package agent-runtime \
     --package neo4j-ui
 
+# Strip release binaries and stage lean artifacts for the runtime image
+RUN install -d /release-artifacts \
+    && strip target/release/kalisi-gateway \
+    && strip target/release/agent-runtime-service \
+    && strip target/release/neo4j-ui \
+    && cp target/release/kalisi-gateway /release-artifacts/ \
+    && cp target/release/agent-runtime-service /release-artifacts/ \
+    && cp target/release/neo4j-ui /release-artifacts/
+
 ########################################
 # Frontend builder
 ########################################
@@ -193,7 +202,10 @@ RUN mkdir -p /opt/bootstrap/workspace-template/bin \
 COPY ttyd-custom-index.html /opt/bootstrap/workspace-template/ttyd-custom-index.html
 COPY favicon.ico /opt/bootstrap/workspace-template/favicon.ico
 
-COPY --from=rust-builder --chown=kalisi:kalisi /app/target/release /opt/bootstrap/workspace-template/source/target/release
+RUN install -d -o kalisi -g kalisi /opt/bootstrap/workspace-template/source/target/release
+COPY --from=rust-builder --chown=kalisi:kalisi /release-artifacts/kalisi-gateway /opt/bootstrap/workspace-template/source/target/release/kalisi-gateway
+COPY --from=rust-builder --chown=kalisi:kalisi /release-artifacts/agent-runtime-service /opt/bootstrap/workspace-template/source/target/release/agent-runtime-service
+COPY --from=rust-builder --chown=kalisi:kalisi /release-artifacts/neo4j-ui /opt/bootstrap/workspace-template/source/target/release/neo4j-ui
 RUN ln -sf ../source/target/release/kalisi-gateway /opt/bootstrap/workspace-template/bin/kalisi-gateway \
   && ln -sf ../source/target/release/agent-runtime-service /opt/bootstrap/workspace-template/bin/agent-runtime-service \
   && ln -sf ../source/target/release/neo4j-ui /opt/bootstrap/workspace-template/bin/neo4j-ui

@@ -99,24 +99,6 @@ ensure_workspace() {
     rsync -a "$TEMPLATE_ROOT"/ "$WORKSPACE"/
   fi
 
-  # Ensure new helper scripts exist even if workspace was seeded previously
-  if [ ! -f "$WORKSPACE/start-prebuilt.sh" ] && [ -f "$TEMPLATE_ROOT/start-prebuilt.sh" ]; then
-    log "Adding missing start-prebuilt.sh to workspace"
-    cp "$TEMPLATE_ROOT/start-prebuilt.sh" "$WORKSPACE/start-prebuilt.sh"
-    chown "$SSH_USER:$SSH_USER" "$WORKSPACE/start-prebuilt.sh" 2>/dev/null || true
-    chmod +x "$WORKSPACE/start-prebuilt.sh" 2>/dev/null || true
-  fi
-
-  if [ ! -f "$WORKSPACE/source/scripts/start-prebuilt.sh" ] && \
-     [ -f "$TEMPLATE_ROOT/source/scripts/start-prebuilt.sh" ]; then
-    log "Adding missing source/scripts/start-prebuilt.sh to workspace"
-    mkdir -p "$WORKSPACE/source/scripts"
-    cp "$TEMPLATE_ROOT/source/scripts/start-prebuilt.sh" \
-       "$WORKSPACE/source/scripts/start-prebuilt.sh"
-    chown "$SSH_USER:$SSH_USER" "$WORKSPACE/source/scripts/start-prebuilt.sh" 2>/dev/null || true
-    chmod +x "$WORKSPACE/source/scripts/start-prebuilt.sh" 2>/dev/null || true
-  fi
-
   printf '%s\n' "$template_version" > "$sentinel"
   chown "$SSH_USER:$SSH_USER" "$sentinel" 2>/dev/null || true
 
@@ -124,7 +106,6 @@ ensure_workspace() {
   find "$WORKSPACE" -type f -name '*.sh' -exec chmod +x {} + || true
 
   ln -sf "$WORKSPACE/start.sh" /usr/local/bin/start.sh || true
-  ln -sf "$WORKSPACE/start-prebuilt.sh" /usr/local/bin/start-prebuilt.sh || true
 }
 
 sync_workspace_from_git() {
@@ -344,13 +325,13 @@ initialize_neo4j_password
 start_ttyd
 
 if [[ "${KALISI_AUTO_START:-false}" == "true" ]]; then
-  log "Auto-start enabled; launching prebuilt runtime"
+  log "Auto-start enabled; launching runtime"
   set +e
-  su - "$SSH_USER" -c "export DOCKER_CONTAINER=true; cd '$WORKSPACE' && ./start-prebuilt.sh"
+  su - "$SSH_USER" -c "export DOCKER_CONTAINER=true; cd '$WORKSPACE' && ./start.sh"
   status=$?
   set -e
   if [ "$status" -ne 0 ]; then
-    log "start-prebuilt.sh exited with status $status"
+    log "start.sh exited with status $status"
   fi
 
   # Wait for services to be ready

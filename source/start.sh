@@ -75,6 +75,204 @@ check_version() {
     fi
 }
 
+# Lightweight runtime helpers for container mode
+container_log() {
+    printf '[start] %s\n' "$1"
+}
+
+container_ensure_https_capability() {
+    if [ "${ENABLE_HTTPS:-false}" = "true" ] && [ "${HTTPS_PORT:-0}" -lt 1024 ]; then
+        if command_exists setcap; then
+            if sudo setcap 'cap_net_bind_service=+ep' "$CONTAINER_RUST_BIN" >/dev/null 2>&1; then
+                container_log "Applied cap_net_bind_service to kalisi-gateway"
+            else
+                container_log "Warning: unable to set HTTPS capability; HTTPS on privileged ports may fail"
+            fi
+        else
+            container_log "Warning: setcap not available; HTTPS on privileged ports may fail"
+        fi
+    fi
+}
+
+container_ensure_frontend_assets() {
+    local runtime_dist="$CONTAINER_RUNTIME_DIR/frontend/dist"
+    local source_frontend="$CONTAINER_SOURCE_DIR/frontend"
+    local source_dist="$source_frontend/dist"
+
+    if [ ! -d "$runtime_dist" ]; then
+        container_log "Warning: prebuilt frontend bundle missing at $runtime_dist"
+        return
+    fi
+
+    mkdir -p "$source_frontend"
+
+    if [ -L "$source_dist" ]; then
+        if [ "$(readlink "$source_dist")" = "$runtime_dist" ]; then
+            return
+        fi
+        rm -f "$source_dist"
+    elif [ -e "$source_dist" ]; then
+        rm -rf "$source_dist"
+    fi
+
+    ln -s "$runtime_dist" "$source_dist"
+    container_log "Linked prebuilt frontend bundle into $source_dist"
+}
+
+container_generate_certs() {
+    if [ "${ENABLE_HTTPS:-false}" != "true" ]; then
+        return
+    fi
+
+    local cert_dir="$CONTAINER_SOURCE_DIR/certs"
+    local fullchain="$cert_dir/fullchain.pem"
+    local privkey="$cert_dir/privkey.pem"
+
+    if [ -f "$fullchain" ] && [ -f "$privkey" ]; then
+        return
+    fi
+
+    container_log "Generating self-signed TLS certificates"
+    mkdir -p "$cert_dir"
+    openssl req -x509 -newkey rsa:4096 \
+        -keyout "$privkey" \
+        -out "$fullchain" \
+        -days 365 \
+        -nodes \
+        -subj "/C=US/ST=State/L=City/O=Kalisi/CN=localhost" >/dev/null 2>&1
+    chmod 600 "$privkey" 2>/dev/null || true
+}
+
+container_start_redis() {
+    if command_exists redis-cli && redis-cli ping >/dev/null 2>&1; then
+        container_log "Redis already running"
+        return
+    fi
+
+    container_log "Starting Redis"
+    if command_exists systemctl && sudo systemctl start redis-server >/dev/null 2>&1; then
+        container_log "Redis started via systemctl"
+        return
+    fi
+    if redis-server --daemonize yes >/dev/null 2>&1; then
+        container_log "Redis started via redis-server --daemonize"
+        return
+    fi
+    if command_exists service && sudo service redis-server start >/dev/null 2>&1; then
+        container_log "Redis started via service"
+        return
+    fi
+    container_log "Warning: Redis could not be started automatically"
+}
+
+container_start_neo4j() {
+    local neo4j_status
+    if command_exists curl; then
+        neo4j_status=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 2 "http://localhost:${NEO4J_HTTP_PORT:-7474}" || true)
+        if [ "$neo4j_status" = "200" ] || [ "$neo4j_status" = "401" ]; then
+            container_log "Neo4j already running"
+            return
+        fi
+    fi
+
+    container_log "Starting Neo4j"
+    if command_exists systemctl && sudo systemctl start neo4j >/dev/null 2>&1; then
+        container_log "Neo4j started via systemctl"
+        return
+    fi
+    if command_exists neo4j && sudo neo4j start >/dev/null 2>&1; then
+        container_log "Neo4j started via neo4j CLI"
+        return
+    fi
+    if command_exists service && sudo service neo4j start >/dev/null 2>&1; then
+        container_log "Neo4j started via service"
+        return
+    fi
+    container_log "Warning: Neo4j could not be started automatically"
+}
+
+container_start_gateway() {
+    if pgrep -x "kalisi-gateway" >/dev/null 2>&1; then
+        container_log "Gateway already running"
+        return
+    fi
+
+    if [ ! -x "$CONTAINER_RUST_BIN" ]; then
+        container_log "Error: gateway binary missing at $CONTAINER_RUST_BIN"
+        exit 1
+    fi
+
+    container_ensure_https_capability
+    container_generate_certs
+
+    local log_file="$CONTAINER_LOG_DIR/kalisi-gateway.log"
+    container_log "Starting Kalisi gateway (logs: $log_file)"
+    nohup "$CONTAINER_RUST_BIN" >>"$log_file" 2>&1 &
+    local pid=$!
+    echo $pid > "$CONTAINER_PID_DIR/kalisi-gateway.pid"
+
+    for _ in {1..30}; do
+        if pgrep -x "kalisi-gateway" >/dev/null 2>&1; then
+            container_log "Gateway started (PID: $pid)"
+            return
+        fi
+        sleep 1
+    done
+
+    container_log "Warning: gateway launch timed out"
+}
+
+container_start_agent_runtime() {
+    if [ ! -x "$CONTAINER_AGENT_BIN" ]; then
+        container_log "Agent runtime binary not found; skipping"
+        return
+    fi
+    if pgrep -x "agent-runtime-service" >/dev/null 2>&1; then
+        container_log "Agent runtime already running"
+        return
+    fi
+    local log_file="$CONTAINER_LOG_DIR/agent-runtime.log"
+    container_log "Starting agent runtime (logs: $log_file)"
+    nohup "$CONTAINER_AGENT_BIN" >>"$log_file" 2>&1 &
+    echo $! > "$CONTAINER_PID_DIR/agent-runtime.pid"
+}
+
+container_run() {
+    CONTAINER_SOURCE_DIR=$(pwd)
+    CONTAINER_WORKSPACE_DIR=$(cd .. && pwd)
+    CONTAINER_RUNTIME_DIR="$CONTAINER_WORKSPACE_DIR/runtime"
+    CONTAINER_LOG_DIR="$CONTAINER_RUNTIME_DIR/logs"
+    CONTAINER_PID_DIR="$CONTAINER_RUNTIME_DIR/pids"
+    CONTAINER_RUST_BIN="$CONTAINER_WORKSPACE_DIR/bin/kalisi-gateway"
+    CONTAINER_AGENT_BIN="$CONTAINER_WORKSPACE_DIR/bin/agent-runtime-service"
+    CONTAINER_ENV_FILE="$CONTAINER_SOURCE_DIR/.env"
+
+    mkdir -p "$CONTAINER_LOG_DIR" "$CONTAINER_PID_DIR" "$CONTAINER_RUNTIME_DIR/frontend"
+
+    if [ ! -f "$CONTAINER_ENV_FILE" ]; then
+        container_log "Error: .env not found at $CONTAINER_ENV_FILE"
+        exit 1
+    fi
+
+    set -a
+    # shellcheck disable=SC1090
+    source "$CONTAINER_ENV_FILE"
+    set +a
+
+    container_ensure_frontend_assets
+    container_start_redis
+    container_start_neo4j
+    container_start_gateway
+    container_start_agent_runtime
+
+    container_log "Prebuilt startup complete"
+}
+
+if [ "${DOCKER_CONTAINER:-false}" = "true" ]; then
+    container_run
+    exit 0
+fi
+
 # Portable helper to read path owner (works on GNU/BSD stat)
 get_owner() {
     local path="$1"

@@ -55,7 +55,7 @@ fi
 echo "✅ Docker found and running"
 
 # Pull Kalisi image
-echo "📦 Pulling Kalisi image (~4.7GB download)..."
+echo "📦 Pulling Kalisi image (~4.3GB download)..."
 
 echo "This may take several minutes depending on your internet connection."
 docker pull ghcr.io/littleredshack/kalisi:latest
