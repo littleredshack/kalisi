@@ -14,7 +14,7 @@ impl TestFixtures {
             ("charlie@example.com", "Charlie Brown"),
             ("dave@example.com", "Dave Wilson"),
         ];
-        
+
         let mut user_ids = Vec::new();
         for (email, name) in users {
             let user_id = storage.create_user(email, name)
@@ -22,14 +22,14 @@ impl TestFixtures {
                 .expect("Failed to create test user");
             user_ids.push(user_id);
         }
-        
+
         user_ids
     }
-    
+
     /// Create test sessions for users
     pub async fn create_test_sessions(storage: &mut Storage, user_ids: &[i64]) -> Vec<String> {
         let mut tokens = Vec::new();
-        
+
         for (i, user_id) in user_ids.iter().enumerate() {
             let token = format!("test-token-{}", i);
             storage.create_session(*user_id, &token)
@@ -37,10 +37,10 @@ impl TestFixtures {
                 .expect("Failed to create test session");
             tokens.push(token);
         }
-        
+
         tokens
     }
-    
+
     /// Create test OTP codes
     pub async fn create_test_otps(storage: &mut Storage, emails: &[&str]) {
         for (i, email) in emails.iter().enumerate() {
@@ -50,9 +50,9 @@ impl TestFixtures {
                 .expect("Failed to store test OTP");
         }
     }
-    
+
     */
-    
+
     // NOTE: Disabled until GraphDb methods are implemented
     /*
     /// Create test graph data
@@ -68,14 +68,14 @@ impl TestFixtures {
         )
         .await
         .expect("Failed to create self node");
-        
+
         // Create capability nodes
         let capabilities = vec![
             ("Authentication", "User authentication and session management"),
             ("Self-Awareness", "System introspection and learning"),
             ("API Gateway", "Request routing and middleware"),
         ];
-        
+
         for (name, description) in capabilities {
             let cap_node = graph.create_node(
                 "Capability",
@@ -87,7 +87,7 @@ impl TestFixtures {
             )
             .await
             .expect("Failed to create capability node");
-            
+
             graph.create_relationship(
                 self_node.id,
                 cap_node.id,
@@ -97,7 +97,7 @@ impl TestFixtures {
             .await
             .expect("Failed to create capability relationship");
         }
-        
+
         // Create test patterns
         let patterns = vec![
             ("greeting", "User greeting pattern"),
@@ -105,7 +105,7 @@ impl TestFixtures {
             ("technical_query", "Technical question"),
             ("feedback", "User feedback"),
         ];
-        
+
         for (name, description) in patterns {
             graph.create_node(
                 "Pattern",
@@ -119,7 +119,7 @@ impl TestFixtures {
             .expect("Failed to create pattern node");
         }
     }
-    
+
     /// Generate test interaction data
     pub fn generate_test_interactions(count: usize) -> Vec<serde_json::Value> {
         let contents = vec![
@@ -132,7 +132,7 @@ impl TestFixtures {
             "Can you explain how sessions work?",
             "What is JWT authentication?",
         ];
-        
+
         let patterns = vec![
             vec!["greeting", "help_request"],
             vec!["help_request", "authentication"],
@@ -143,7 +143,7 @@ impl TestFixtures {
             vec!["explanation_request", "technical_query"],
             vec!["technical_query", "authentication"],
         ];
-        
+
         (0..count)
             .map(|i| {
                 let idx = i % contents.len();
@@ -157,7 +157,7 @@ impl TestFixtures {
             })
             .collect()
     }
-    
+
     /// Generate test auth events
     pub fn generate_test_auth_events(user_id: i64, count: usize) -> Vec<serde_json::Value> {
         let event_types = vec!["login", "logout", "token_refresh", "failed_login"];
@@ -167,12 +167,12 @@ impl TestFixtures {
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Safari/14.1",
             "Mozilla/5.0 (X11; Linux x86_64) Firefox/89.0",
         ];
-        
+
         (0..count)
             .map(|i| {
                 let event_type = &event_types[i % event_types.len()];
                 let success = event_type != "failed_login";
-                
+
                 json!({
                     "user_id": user_id,
                     "event_type": event_type,
@@ -184,9 +184,9 @@ impl TestFixtures {
             })
             .collect()
     }
-    
+
     */
-    
+
     /// Clean up test data
     pub async fn cleanup_test_data(redis_conn: &mut redis::Connection, graph: &GraphDb) {
         // Clean up Redis test keys
@@ -195,18 +195,22 @@ impl TestFixtures {
             .arg(0)
             .arg("test:*")
             .query(redis_conn);
-        
+
         // Clean up graph
-        let _ = graph.graph.run(neo4rs::query("MATCH (n) WHERE n.environment = 'test' DETACH DELETE n"))
+        let _ = graph
+            .graph
+            .run(neo4rs::query(
+                "MATCH (n) WHERE n.environment = 'test' DETACH DELETE n",
+            ))
             .await;
     }
 }
 
 /// Mock implementations for testing
 pub mod mocks {
-    use actix_web::{HttpRequest, HttpMessage};
+    use actix_web::{HttpMessage, HttpRequest};
     use std::collections::HashMap;
-    
+
     /// Mock HTTP request with custom headers and extensions
     pub fn create_mock_request() -> HttpRequest {
         test::TestRequest::default()
@@ -214,7 +218,7 @@ pub mod mocks {
             .insert_header(("User-Agent", "Test Client 1.0"))
             .to_http_request()
     }
-    
+
     /// Mock authenticated request
     pub fn create_auth_request(token: &str) -> HttpRequest {
         test::TestRequest::default()
@@ -222,14 +226,14 @@ pub mod mocks {
             .insert_header(("X-Request-ID", "test-request-123"))
             .to_http_request()
     }
-    
+
     /// Mock rate limiter for testing
     pub struct MockRateLimiter {
         limits: std::sync::Arc<tokio::sync::Mutex<HashMap<String, Vec<std::time::Instant>>>>,
         max_requests: usize,
         window: std::time::Duration,
     }
-    
+
     impl MockRateLimiter {
         pub fn new(max_requests: usize, window: std::time::Duration) -> Self {
             Self {
@@ -238,16 +242,16 @@ pub mod mocks {
                 window,
             }
         }
-        
+
         pub async fn check_rate_limit(&self, key: &str) -> bool {
             let mut limits = self.limits.lock().await;
             let now = std::time::Instant::now();
-            
+
             let requests = limits.entry(key.to_string()).or_insert_with(Vec::new);
-            
+
             // Remove old requests outside the window
             requests.retain(|&time| now.duration_since(time) < self.window);
-            
+
             if requests.len() < self.max_requests {
                 requests.push(now);
                 true
@@ -255,41 +259,41 @@ pub mod mocks {
                 false
             }
         }
-        
+
         pub async fn reset(&self, key: &str) {
             let mut limits = self.limits.lock().await;
             limits.remove(key);
         }
     }
-    
+
     /// Mock email service for testing
     pub struct MockEmailService {
         sent_emails: std::sync::Arc<tokio::sync::Mutex<Vec<(String, String, String)>>>,
     }
-    
+
     impl MockEmailService {
         pub fn new() -> Self {
             Self {
                 sent_emails: std::sync::Arc::new(tokio::sync::Mutex::new(Vec::new())),
             }
         }
-        
+
         pub async fn send_email(&self, to: &str, subject: &str, body: &str) -> Result<(), String> {
             let mut emails = self.sent_emails.lock().await;
             emails.push((to.to_string(), subject.to_string(), body.to_string()));
             Ok(())
         }
-        
+
         pub async fn get_sent_emails(&self) -> Vec<(String, String, String)> {
             let emails = self.sent_emails.lock().await;
             emails.clone()
         }
-        
+
         pub async fn clear(&self) {
             let mut emails = self.sent_emails.lock().await;
             emails.clear();
         }
     }
-    
+
     use actix_web::test;
 }

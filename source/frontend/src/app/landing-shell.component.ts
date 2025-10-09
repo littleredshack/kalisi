@@ -27,6 +27,7 @@ import { PropertiesRhsPanelComponent } from './components/properties-rhs-panel/p
 import { DebugPanelComponent } from './components/debug-panel/debug-panel.component';
 import { ViewType } from './core/models/view.models';
 import { SettingsComponent } from './settings/settings.component';
+import { TreeTableComponent } from './shared/tree-table/tree-table.component';
 
 // Library Item Configuration
 interface LibraryItem {
@@ -74,7 +75,8 @@ const LIBRARY_ITEMS: LibraryItem[] = [
     ChatRhsPanelComponent,
     PropertiesRhsPanelComponent,
     DebugPanelComponent,
-    SettingsComponent
+    SettingsComponent,
+    TreeTableComponent
   ],
   providers: [MessageService],
   template: `
@@ -250,6 +252,10 @@ const LIBRARY_ITEMS: LibraryItem[] = [
         [jsonData]="currentViewJsonData"
         (panelClosed)="onDebugPanelClosed()">
       </app-debug-panel>
+
+      <aside class="tree-table-preview" *ngIf="debugPanelOpen">
+        <app-tree-table></app-tree-table>
+      </aside>
     </div>
   `,
   styles: [`
@@ -403,12 +409,37 @@ const LIBRARY_ITEMS: LibraryItem[] = [
       border-color: rgba(110, 168, 254, 0.6) !important;
     }
     
-    .hint {
-      opacity: .7;
-      display: block;
-      margin-top: 1rem;
+    .tree-table-preview {
+      position: absolute;
+      right: 1.5rem;
+      bottom: 1.5rem;
+      width: min(420px, 45vw);
+      max-height: 40vh;
+      overflow: auto;
+      padding: 1rem;
+      background: rgba(15, 23, 42, 0.92);
+      border: 1px solid rgba(110, 168, 254, 0.3);
+      border-radius: 12px;
+      color: #e6edf3;
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+      font-size: 0.85rem;
+      backdrop-filter: blur(12px);
     }
-    
+
+    .tree-table__preview {
+      max-height: 26vh;
+      overflow: auto;
+      padding: 0.75rem;
+      background: rgba(9, 14, 22, 0.85);
+      border-radius: 8px;
+      border: 1px solid rgba(110, 168, 254, 0.2);
+      color: #cbd5f5;
+    }
+
+    .tree-table__error {
+      color: #f87171;
+    }
+
     .login-form {
       display: flex;
       flex-direction: column;
@@ -889,7 +920,7 @@ export class LandingShellComponent implements OnInit, OnDestroy {
   // Drag state
   private isDragging = false;
   private dragOffset = { x: 0, y: 0 };
-  panelPosition = { x: 11, y: 7.1 }; // vw/vh units
+  panelPosition = { x: 11, y: 5.4 }; // vw/vh units
 
   // Computed property for any LEFT panel open state (for push mode)
   get anyLeftPanelOpen(): boolean {

@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Authority levels for agent operations
@@ -28,37 +28,37 @@ pub struct AuditInfo {
 pub struct Envelope {
     /// Unique message ID
     pub message_id: String,
-    
+
     /// Correlation ID for tracing conversations
     pub correlation_id: String,
-    
+
     /// Sender agent ID
     pub sender: String,
-    
+
     /// Recipient agent ID or broadcast
     pub recipient: String,
-    
+
     /// Protocol being used (e.g., "security.logs.query.v1")
     pub protocol: String,
-    
+
     /// Message verb (e.g., "Query", "Response", "Error")
     pub verb: String,
-    
+
     /// Timestamp
     pub timestamp: DateTime<Utc>,
-    
+
     /// Resource limits for this operation
     pub resource_limits: crate::agent::ResourceLimits,
-    
+
     /// Authority level required
     pub authority_required: AuthorityLevel,
-    
+
     /// Audit metadata for compliance
     pub audit: AuditInfo,
-    
+
     /// Priority (0-10, higher = more important)
     pub priority: u8,
-    
+
     /// Deadline for response (optional)
     pub deadline: Option<DateTime<Utc>>,
 }
@@ -87,25 +87,25 @@ impl Envelope {
             deadline: None,
         }
     }
-    
+
     /// Set correlation ID for conversation tracking
     pub fn with_correlation(mut self, correlation_id: String) -> Self {
         self.correlation_id = correlation_id;
         self
     }
-    
+
     /// Set sender
     pub fn from(mut self, sender: String) -> Self {
         self.sender = sender;
         self
     }
-    
+
     /// Set recipient
     pub fn to(mut self, recipient: String) -> Self {
         self.recipient = recipient;
         self
     }
-    
+
     /// Set audit info
     pub fn with_audit(mut self, audit: AuditInfo) -> Self {
         self.audit = audit;

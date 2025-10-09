@@ -1,16 +1,13 @@
 use axum::{
-    extract::{Path, State, Extension},
+    extract::{Extension, Path, State},
     http::StatusCode,
-    response::{Json, IntoResponse},
+    response::{IntoResponse, Json},
 };
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    state::AppState,
-    middleware::auth::AuthUser,
-};
+use crate::{middleware::auth::AuthUser, state::AppState};
 // Note: edt_core types available if needed for future Neo4j integration
 
 // Views integration structures
@@ -128,7 +125,7 @@ pub async fn save_canvas(
 ) -> impl IntoResponse {
     let canvas_id = Uuid::new_v4().to_string();
     let tab_id = Uuid::new_v4().to_string();
-    
+
     // For now, return a success response
     // TODO: Implement actual Neo4j storage when Neo4j client is available
     Json(SaveCanvasResponse {
@@ -203,4 +200,3 @@ pub async fn load_view_into_canvas(
         message: "View loaded into canvas successfully".to_string(),
     })
 }
-

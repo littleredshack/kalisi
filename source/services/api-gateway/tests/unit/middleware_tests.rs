@@ -1,4 +1,5 @@
-use actix_web::{test, web, App, http::StatusCode, middleware::Logger};
+use actix_web::dev::ServiceRequest;
+use actix_web::{http::StatusCode, middleware::Logger, test, web, App};
 use edt_gateway::{
     middleware::{auth::AuthMiddleware, security::SecurityHeaders},
     state::AppState,
@@ -6,44 +7,47 @@ use edt_gateway::{
 };
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use actix_web::dev::ServiceRequest;
 
 async fn setup_test_app() -> (web::Data<AppState>, String) {
-    let storage = Storage::new_test().await.expect("Failed to create test storage");
-    
+    let storage = Storage::new_test()
+        .await
+        .expect("Failed to create test storage");
+
     // Create a test user and session
     let token = {
         let mut storage_guard = storage.clone();
-        let user_id = storage_guard.create_user("test@example.com", "Test User")
+        let user_id = storage_guard
+            .create_user("test@example.com", "Test User")
             .await
             .expect("Failed to create user");
-        storage_guard.create_session(user_id, "test-token")
+        storage_guard
+            .create_session(user_id, "test-token")
             .await
             .expect("Failed to create session");
         "test-token".to_string()
     };
-    
+
     let state = web::Data::new(AppState {
         storage: Arc::new(RwLock::new(storage)),
         neo4j_client: None,
     });
-    
+
     (state, token)
 }
 
 #[actix_web::test]
 async fn test_auth_middleware_valid_token() {
     let (state, token) = setup_test_app().await;
-    
+
     let app = test::init_service(
         App::new()
             .app_data(state.clone())
             .wrap(AuthMiddleware)
             .service(
-                web::resource("/protected")
-                    .route(web::get().to(|| async { "Protected content" }))
-            )
-    ).await;
+                web::resource("/protected").route(web::get().to(|| async { "Protected content" })),
+            ),
+    )
+    .await;
 
     let req = test::TestRequest::get()
         .uri("/protected")
@@ -57,20 +61,18 @@ async fn test_auth_middleware_valid_token() {
 #[actix_web::test]
 async fn test_auth_middleware_missing_token() {
     let (state, _) = setup_test_app().await;
-    
+
     let app = test::init_service(
         App::new()
             .app_data(state.clone())
             .wrap(AuthMiddleware)
             .service(
-                web::resource("/protected")
-                    .route(web::get().to(|| async { "Protected content" }))
-            )
-    ).await;
+                web::resource("/protected").route(web::get().to(|| async { "Protected content" })),
+            ),
+    )
+    .await;
 
-    let req = test::TestRequest::get()
-        .uri("/protected")
-        .to_request();
+    let req = test::TestRequest::get().uri("/protected").to_request();
 
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
@@ -79,16 +81,16 @@ async fn test_auth_middleware_missing_token() {
 #[actix_web::test]
 async fn test_auth_middleware_invalid_token() {
     let (state, _) = setup_test_app().await;
-    
+
     let app = test::init_service(
         App::new()
             .app_data(state.clone())
             .wrap(AuthMiddleware)
             .service(
-                web::resource("/protected")
-                    .route(web::get().to(|| async { "Protected content" }))
-            )
-    ).await;
+                web::resource("/protected").route(web::get().to(|| async { "Protected content" })),
+            ),
+    )
+    .await;
 
     let req = test::TestRequest::get()
         .uri("/protected")
@@ -104,19 +106,15 @@ async fn test_security_headers_middleware() {
     let app = test::init_service(
         App::new()
             .wrap(SecurityHeaders)
-            .service(
-                web::resource("/test")
-                    .route(web::get().to(|| async { "Test response" }))
-            )
-    ).await;
+            .service(web::resource("/test").route(web::get().to(|| async { "Test response" }))),
+    )
+    .await;
 
-    let req = test::TestRequest::get()
-        .uri("/test")
-        .to_request();
+    let req = test::TestRequest::get().uri("/test").to_request();
 
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), StatusCode::OK);
-    
+
     // Check security headers
     let headers = resp.headers();
     assert_eq!(headers.get("X-Content-Type-Options").unwrap(), "nosniff");
@@ -129,7 +127,7 @@ async fn test_security_headers_middleware() {
 #[actix_web::test]
 async fn test_cors_configuration() {
     let (state, _) = setup_test_app().await;
-    
+
     let app = test::init_service(
         App::new()
             .app_data(state.clone())
@@ -138,13 +136,11 @@ async fn test_cors_configuration() {
                     .allowed_origin("http://localhost:3000")
                     .allowed_methods(vec!["GET", "POST"])
                     .allowed_headers(vec!["Authorization", "Content-Type"])
-                    .max_age(3600)
+                    .max_age(3600),
             )
-            .service(
-                web::resource("/api/test")
-                    .route(web::get().to(|| async { "CORS test" }))
-            )
-    ).await;
+            .service(web::resource("/api/test").route(web::get().to(|| async { "CORS test" }))),
+    )
+    .await;
 
     // Preflight request
     let req = test::TestRequest::options()
@@ -155,7 +151,7 @@ async fn test_cors_configuration() {
 
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), StatusCode::OK);
-    
+
     let headers = resp.headers();
     assert_eq!(
         headers.get("Access-Control-Allow-Origin").unwrap(),
@@ -166,9 +162,9 @@ async fn test_cors_configuration() {
 #[actix_web::test]
 async fn test_rate_limiting_middleware() {
     use edt_gateway::middleware::rate_limit::RateLimiter;
-    
+
     let limiter = RateLimiter::new(2, std::time::Duration::from_secs(60));
-    
+
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(limiter))
@@ -176,15 +172,17 @@ async fn test_rate_limiting_middleware() {
                 use actix_web::dev::Service;
                 use std::future::Future;
                 use std::pin::Pin;
-                
+
                 let limiter = req.app_data::<web::Data<RateLimiter>>().cloned();
                 let fut = srv.call(req);
-                
+
                 async move {
                     if let Some(limiter) = limiter {
                         let ip = "127.0.0.1";
                         if !limiter.check_rate_limit(ip).await {
-                            return Err(actix_web::error::ErrorTooManyRequests("Rate limit exceeded"));
+                            return Err(actix_web::error::ErrorTooManyRequests(
+                                "Rate limit exceeded",
+                            ));
                         }
                     }
                     fut.await
@@ -192,24 +190,21 @@ async fn test_rate_limiting_middleware() {
             })
             .service(
                 web::resource("/limited")
-                    .route(web::get().to(|| async { "Rate limited endpoint" }))
-            )
-    ).await;
+                    .route(web::get().to(|| async { "Rate limited endpoint" })),
+            ),
+    )
+    .await;
 
     // First two requests should succeed
     for _ in 0..2 {
-        let req = test::TestRequest::get()
-            .uri("/limited")
-            .to_request();
+        let req = test::TestRequest::get().uri("/limited").to_request();
 
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
     // Third request should be rate limited
-    let req = test::TestRequest::get()
-        .uri("/limited")
-        .to_request();
+    let req = test::TestRequest::get().uri("/limited").to_request();
 
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
@@ -222,27 +217,20 @@ mod request_id_tests {
 
     #[actix_web::test]
     async fn test_request_id_generation() {
-        let app = test::init_service(
-            App::new()
-                .wrap(RequestId)
-                .service(
-                    web::resource("/test")
-                        .route(web::get().to(|req: actix_web::HttpRequest| async move {
-                            let extensions = req.extensions();
-                            let request_id = extensions.get::<String>()
-                                .expect("Request ID not found");
-                            format!("Request ID: {}", request_id)
-                        }))
-                )
-        ).await;
+        let app = test::init_service(App::new().wrap(RequestId).service(
+            web::resource("/test").route(web::get().to(|req: actix_web::HttpRequest| async move {
+                let extensions = req.extensions();
+                let request_id = extensions.get::<String>().expect("Request ID not found");
+                format!("Request ID: {}", request_id)
+            })),
+        ))
+        .await;
 
-        let req = test::TestRequest::get()
-            .uri("/test")
-            .to_request();
+        let req = test::TestRequest::get().uri("/test").to_request();
 
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
-        
+
         // Check that response includes request ID header
         assert!(resp.headers().get("X-Request-ID").is_some());
     }
@@ -252,11 +240,9 @@ mod request_id_tests {
         let app = test::init_service(
             App::new()
                 .wrap(RequestId)
-                .service(
-                    web::resource("/test")
-                        .route(web::get().to(|| async { "Test" }))
-                )
-        ).await;
+                .service(web::resource("/test").route(web::get().to(|| async { "Test" }))),
+        )
+        .await;
 
         // Send request with existing request ID
         let existing_id = "test-request-id-12345";
@@ -267,11 +253,8 @@ mod request_id_tests {
 
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
-        
+
         // Check that the same request ID is returned
-        assert_eq!(
-            resp.headers().get("X-Request-ID").unwrap(),
-            existing_id
-        );
+        assert_eq!(resp.headers().get("X-Request-ID").unwrap(), existing_id);
     }
 }

@@ -1,15 +1,10 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::Json,
-    Json as JsonExtractor,
-};
+use axum::{extract::State, http::StatusCode, response::Json, Json as JsonExtractor};
 use serde::{Deserialize, Serialize};
 use std::env;
 use tracing::{error, info, warn};
 
-use crate::state::AppState;
 use crate::logging::LogCategory;
+use crate::state::AppState;
 
 #[derive(Debug, Deserialize)]
 pub struct ChatRequest {
@@ -69,7 +64,7 @@ pub async fn handle_chat_request(
 ) -> Result<Json<ChatResponse>, StatusCode> {
     info!("🔥 CHATGPT HANDLER CALLED - Request received");
     info!("🔥 Request details: {:?}", request);
-    
+
     // Get ChatGPT configuration from environment
     let api_key = match env::var("CHATGPT_API_KEY") {
         Ok(key) if !key.is_empty() => key,
@@ -79,7 +74,10 @@ pub async fn handle_chat_request(
                 content: String::new(),
                 full_content: None,
                 done: true,
-                error: Some("ChatGPT API key not configured. Please set CHATGPT_API_KEY in .env".to_string()),
+                error: Some(
+                    "ChatGPT API key not configured. Please set CHATGPT_API_KEY in .env"
+                        .to_string(),
+                ),
                 model: "none".to_string(),
                 tokens_used: None,
             }));
@@ -87,7 +85,8 @@ pub async fn handle_chat_request(
     };
 
     let model = env::var("CHATGPT_MODEL").unwrap_or_else(|_| "gpt-4o".to_string());
-    let api_url = env::var("CHATGPT_API_URL").unwrap_or_else(|_| "https://api.openai.com/v1/chat/completions".to_string());
+    let api_url = env::var("CHATGPT_API_URL")
+        .unwrap_or_else(|_| "https://api.openai.com/v1/chat/completions".to_string());
 
     // Validate request
     if request.messages.is_empty() {
@@ -103,11 +102,18 @@ pub async fn handle_chat_request(
     }
 
     // Log chat request (without sensitive content)
-    app_state.logger.info(
-        LogCategory::Api,
-        &format!("ChatGPT request: model={}, messages={}", model, request.messages.len()),
-        std::collections::HashMap::new(),
-    ).await;
+    app_state
+        .logger
+        .info(
+            LogCategory::Api,
+            &format!(
+                "ChatGPT request: model={}, messages={}",
+                model,
+                request.messages.len()
+            ),
+            std::collections::HashMap::new(),
+        )
+        .await;
 
     // Prepare OpenAI request
     let openai_request = OpenAIRequest {
@@ -120,7 +126,7 @@ pub async fn handle_chat_request(
 
     // Create HTTP client
     let client = reqwest::Client::new();
-    
+
     // Make request to OpenAI API
     let response = match client
         .post(&api_url)
@@ -147,9 +153,12 @@ pub async fn handle_chat_request(
     // Check response status
     if !response.status().is_success() {
         let status = response.status();
-        let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
         error!("OpenAI API error {}: {}", status, error_text);
-        
+
         return Ok(Json(ChatResponse {
             content: String::new(),
             full_content: None,
@@ -188,12 +197,19 @@ pub async fn handle_chat_request(
     info!("ChatGPT response received, tokens: {:?}", tokens_used);
 
     // Log successful response
-    app_state.logger.info(
-        LogCategory::Api,
-        &format!("ChatGPT response: model={}, tokens={:?}, length={}", 
-                openai_response.model, tokens_used, response_content.len()),
-        std::collections::HashMap::new(),
-    ).await;
+    app_state
+        .logger
+        .info(
+            LogCategory::Api,
+            &format!(
+                "ChatGPT response: model={}, tokens={:?}, length={}",
+                openai_response.model,
+                tokens_used,
+                response_content.len()
+            ),
+            std::collections::HashMap::new(),
+        )
+        .await;
 
     Ok(Json(ChatResponse {
         content: response_content.clone(),

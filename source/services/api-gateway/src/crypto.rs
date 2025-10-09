@@ -6,7 +6,9 @@ use aes_gcm::{
     Aes256Gcm, Key, Nonce,
 };
 use argon2::{
-    password_hash::{rand_core::RngCore, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    password_hash::{
+        rand_core::RngCore, PasswordHash, PasswordHasher, PasswordVerifier, SaltString,
+    },
     Argon2,
 };
 use base64::{engine::general_purpose, Engine as _};
@@ -19,19 +21,19 @@ use thiserror::Error;
 pub enum CryptoError {
     #[error("Encryption failed: {0}")]
     EncryptionError(String),
-    
+
     #[error("Decryption failed: {0}")]
     DecryptionError(String),
-    
+
     #[error("Key derivation failed: {0}")]
     KeyDerivationError(String),
-    
+
     #[error("Invalid key format")]
     InvalidKeyFormat,
-    
+
     #[error("Invalid nonce")]
     InvalidNonce,
-    
+
     #[error("Base64 decode error: {0}")]
     Base64Error(#[from] base64::DecodeError),
 }
@@ -49,66 +51,66 @@ impl FieldEncryption {
         let key_bytes = general_purpose::STANDARD
             .decode(key_base64)
             .map_err(|_| CryptoError::InvalidKeyFormat)?;
-            
+
         if key_bytes.len() != 32 {
             return Err(CryptoError::InvalidKeyFormat);
         }
-        
+
         let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
         let cipher = Aes256Gcm::new(key);
-        
+
         Ok(Self {
             cipher: Arc::new(cipher),
             rng: Arc::new(SystemRandom::new()),
         })
     }
-    
+
     /// Generate a new encryption key
     pub fn generate_key() -> String {
         let mut key = [0u8; 32];
         OsRng.fill_bytes(&mut key);
         general_purpose::STANDARD.encode(&key)
     }
-    
+
     /// Encrypt a string value
     pub fn encrypt_string(&self, plaintext: &str) -> Result<String, CryptoError> {
         let mut nonce_bytes = [0u8; 12];
         self.rng
             .fill(&mut nonce_bytes)
             .map_err(|_| CryptoError::EncryptionError("Failed to generate nonce".to_string()))?;
-            
+
         let nonce = Nonce::from_slice(&nonce_bytes);
-        
-        let ciphertext = self.cipher
+
+        let ciphertext = self
+            .cipher
             .encrypt(nonce, plaintext.as_bytes())
             .map_err(|e| CryptoError::EncryptionError(e.to_string()))?;
-            
+
         // Combine nonce and ciphertext
         let mut combined = Vec::with_capacity(nonce_bytes.len() + ciphertext.len());
         combined.extend_from_slice(&nonce_bytes);
         combined.extend_from_slice(&ciphertext);
-        
+
         Ok(general_purpose::STANDARD.encode(&combined))
     }
-    
+
     /// Decrypt a string value
     pub fn decrypt_string(&self, encrypted: &str) -> Result<String, CryptoError> {
-        let combined = general_purpose::STANDARD
-            .decode(encrypted)?;
-            
+        let combined = general_purpose::STANDARD.decode(encrypted)?;
+
         if combined.len() < 12 {
             return Err(CryptoError::InvalidNonce);
         }
-        
+
         let (nonce_bytes, ciphertext) = combined.split_at(12);
         let nonce = Nonce::from_slice(nonce_bytes);
-        
-        let plaintext = self.cipher
+
+        let plaintext = self
+            .cipher
             .decrypt(nonce, ciphertext)
             .map_err(|e| CryptoError::DecryptionError(e.to_string()))?;
-            
-        String::from_utf8(plaintext)
-            .map_err(|e| CryptoError::DecryptionError(e.to_string()))
+
+        String::from_utf8(plaintext).map_err(|e| CryptoError::DecryptionError(e.to_string()))
     }
 }
 
@@ -142,7 +144,7 @@ impl KeyManager {
     pub fn new() -> Self {
         let default_key_id = "default-v1".to_string();
         let mut keys = std::collections::HashMap::new();
-        
+
         // In production, this should load from a secure key store
         if let Ok(key) = std::env::var("FIELD_ENCRYPTION_KEY") {
             if let Ok(encryption) = FieldEncryption::new(&key) {
@@ -156,27 +158,32 @@ impl KeyManager {
                 keys.insert(default_key_id.clone(), encryption);
             }
         }
-        
+
         Self {
             current_key_id: default_key_id,
             keys,
         }
     }
-    
+
     pub fn encrypt(&self, plaintext: &str) -> Result<EncryptedEnvelope, CryptoError> {
-        let encryption = self.keys
+        let encryption = self
+            .keys
             .get(&self.current_key_id)
             .ok_or_else(|| CryptoError::InvalidKeyFormat)?;
-            
+
         let encrypted = encryption.encrypt_string(plaintext)?;
-        Ok(EncryptedEnvelope::new(encrypted, self.current_key_id.clone()))
+        Ok(EncryptedEnvelope::new(
+            encrypted,
+            self.current_key_id.clone(),
+        ))
     }
-    
+
     pub fn decrypt(&self, envelope: &EncryptedEnvelope) -> Result<String, CryptoError> {
-        let encryption = self.keys
+        let encryption = self
+            .keys
             .get(&envelope.key_id)
             .ok_or_else(|| CryptoError::InvalidKeyFormat)?;
-            
+
         encryption.decrypt_string(&envelope.data)
     }
 }
@@ -198,21 +205,22 @@ impl SecurePasswordHasher {
         let hasher = Argon2::default();
         Self { hasher }
     }
-    
+
     pub fn hash_password(&self, password: &str) -> Result<String, CryptoError> {
         let salt = SaltString::generate(&mut OsRng);
-        
+
         self.hasher
             .hash_password(password.as_bytes(), &salt)
             .map(|hash| hash.to_string())
             .map_err(|e| CryptoError::KeyDerivationError(e.to_string()))
     }
-    
+
     pub fn verify_password(&self, password: &str, hash: &str) -> Result<bool, CryptoError> {
-        let parsed_hash = PasswordHash::new(hash)
-            .map_err(|e| CryptoError::KeyDerivationError(e.to_string()))?;
-            
-        Ok(self.hasher
+        let parsed_hash =
+            PasswordHash::new(hash).map_err(|e| CryptoError::KeyDerivationError(e.to_string()))?;
+
+        Ok(self
+            .hasher
             .verify_password(password.as_bytes(), &parsed_hash)
             .is_ok())
     }
@@ -239,19 +247,19 @@ impl CryptoService {
             password_hasher: Arc::new(SecurePasswordHasher::new()),
         }
     }
-    
+
     pub fn encrypt_field(&self, plaintext: &str) -> Result<EncryptedEnvelope, CryptoError> {
         self.key_manager.encrypt(plaintext)
     }
-    
+
     pub fn decrypt_field(&self, envelope: &EncryptedEnvelope) -> Result<String, CryptoError> {
         self.key_manager.decrypt(envelope)
     }
-    
+
     pub fn hash_password(&self, password: &str) -> Result<String, CryptoError> {
         self.password_hasher.hash_password(password)
     }
-    
+
     pub fn verify_password(&self, password: &str, hash: &str) -> Result<bool, CryptoError> {
         self.password_hasher.verify_password(password, hash)
     }
@@ -274,40 +282,41 @@ pub fn generate_secure_otp() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_field_encryption() {
         let key = FieldEncryption::generate_key();
         let encryption = FieldEncryption::new(&key).unwrap();
-        
+
         let plaintext = "sensitive data";
         let encrypted = encryption.encrypt_string(plaintext).unwrap();
         let decrypted = encryption.decrypt_string(&encrypted).unwrap();
-        
+
         assert_eq!(plaintext, decrypted);
         assert_ne!(plaintext, encrypted);
     }
-    
+
     #[test]
     fn test_password_hashing() {
         let hasher = SecurePasswordHasher::new();
         // Use environment variable for test password
-        let password = std::env::var("TEST_PASSWORD").unwrap_or_else(|_| "test_password_123".to_string());
-        
+        let password =
+            std::env::var("TEST_PASSWORD").unwrap_or_else(|_| "test_password_123".to_string());
+
         let hash = hasher.hash_password(&password).unwrap();
         assert!(hasher.verify_password(&password, &hash).unwrap());
         assert!(!hasher.verify_password("different_password", &hash).unwrap());
     }
-    
+
     #[test]
     fn test_secure_token_generation() {
         let token1 = generate_secure_token(32);
         let token2 = generate_secure_token(32);
-        
+
         assert_ne!(token1, token2);
         assert_eq!(token1.len(), 43); // Base64 URL-safe encoding of 32 bytes
     }
-    
+
     #[test]
     fn test_secure_otp_generation() {
         let otp = generate_secure_otp();

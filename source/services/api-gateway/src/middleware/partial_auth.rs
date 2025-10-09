@@ -1,13 +1,13 @@
+use crate::state::AppState;
 use axum::{
     extract::State,
-    http::{Request, StatusCode, HeaderMap},
+    http::{HeaderMap, Request, StatusCode},
     middleware::Next,
     response::Response,
     Json,
 };
-use uuid::Uuid;
 use serde::Deserialize;
-use crate::state::AppState;
+use uuid::Uuid;
 
 #[derive(Clone, Debug)]
 pub struct PartialAuthUser {
@@ -60,7 +60,7 @@ pub async fn partial_auth_middleware(
     // Verify partial token from Redis
     let partial_key = format!("partial_session:{}", partial_token);
     let mut redis = state.redis.clone();
-    
+
     let partial_data: Option<String> = match redis::cmd("GET")
         .arg(&partial_key)
         .query_async(&mut redis)
@@ -130,7 +130,7 @@ pub async fn partial_auth_middleware(
         stage: session_data.stage,
     };
     req.extensions_mut().insert(partial_auth_user);
-    
+
     let response = next.run(req).await;
     Ok(response)
 }

@@ -10,23 +10,19 @@ use tokio::sync::broadcast;
 use tokio::time::{interval, Duration};
 use tracing::{debug, error, info};
 
-use crate::AppState;
 use crate::logging::{LogCategory, LogLevel};
+use crate::AppState;
 
 /// WebSocket connection handler for real-time updates
-pub async fn websocket_handler(
-    ws: WebSocketUpgrade,
-    State(state): State<AppState>,
-) -> Response {
+pub async fn websocket_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> Response {
     ws.on_upgrade(|socket| handle_socket(socket, state))
 }
 
 /// Handle individual WebSocket connection
 async fn handle_socket(mut socket: WebSocket, state: AppState) {
-    
     // Create a broadcast receiver for updates
     let mut update_rx = state.update_channel.subscribe();
-    
+
     // Send initial security metrics
     if let Ok(monitor) = state.security_monitor.try_read() {
         let dashboard_data = monitor.get_dashboard_data().await;
@@ -34,24 +30,24 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
             "type": "security_update",
             "data": dashboard_data,
         });
-        
+
         if let Ok(text) = serde_json::to_string(&message) {
             let _ = socket.send(Message::Text(text.into())).await;
         }
     }
-    
+
     // Set up periodic updates (every 10 seconds to reduce flooding)
     let mut interval = interval(Duration::from_secs(10));
-    
+
     loop {
         tokio::select! {
-            
+
             // Handle incoming messages from client
             Some(msg) = socket.recv() => {
                 match msg {
                     Ok(Message::Text(text)) => {
                         debug!("Received WebSocket message: {}", text);
-                        
+
                         // Parse the message as JSON to handle different message types
                         if let Ok(msg_data) = serde_json::from_str::<serde_json::Value>(&text) {
                             match msg_data.get("type").and_then(|t| t.as_str()) {
@@ -81,7 +77,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                     }
                     Ok(Message::Close(_)) => {
                         info!("WebSocket connection closed by client");
-                        
+
                         // Log WebSocket close event
                         let mut context = HashMap::new();
                         context.insert("event".to_string(), serde_json::Value::String("client_close".to_string()));
@@ -95,12 +91,12 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                     Ok(_) => {},
                     Err(e) => {
                         error!("WebSocket error: {}", e);
-                        
+
                         // Log WebSocket error
                         let mut error_context = HashMap::new();
                         error_context.insert("error_type".to_string(), serde_json::Value::String("receive_error".to_string()));
                         error_context.insert("error_message".to_string(), serde_json::Value::String(e.to_string()));
-                        
+
                         state.logger.log_with_context(
                             LogLevel::Error,
                             LogCategory::WebSocket,
@@ -111,7 +107,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                     }
                 }
             }
-            
+
             // Send periodic updates
             _ = interval.tick() => {
                 if let Ok(monitor) = state.security_monitor.try_read() {
@@ -121,11 +117,11 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                         "data": dashboard_data,
                         "timestamp": chrono::Utc::now(),
                     });
-                    
+
                     if let Ok(text) = serde_json::to_string(&message) {
                         if let Err(e) = socket.send(Message::Text(text.into())).await {
                             error!("Failed to send WebSocket message: {}", e);
-                            
+
                             // Log WebSocket send error
                             let mut context = HashMap::new();
                             context.insert("error_type".to_string(), serde_json::Value::String("send_error".to_string()));
@@ -140,12 +136,12 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                     }
                 }
             }
-            
+
             // Handle broadcast updates (instant updates for events)
             Ok(update) = update_rx.recv() => {
                 if let Err(e) = socket.send(Message::Text(update.into())).await {
                     error!("Failed to send broadcast update: {}", e);
-                    
+
                     // Log WebSocket broadcast error
                     let mut context = HashMap::new();
                     context.insert("error_type".to_string(), serde_json::Value::String("broadcast_error".to_string()));
@@ -160,17 +156,23 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
             }
         }
     }
-    
+
     info!("WebSocket connection closed");
-    
+
     // Log WebSocket disconnection
     let mut context = HashMap::new();
-    context.insert("event".to_string(), serde_json::Value::String("connection_closed".to_string()));
-    state.logger.info(
-        LogCategory::WebSocket,
-        "WebSocket connection closed",
-        context
-    ).await;
+    context.insert(
+        "event".to_string(),
+        serde_json::Value::String("connection_closed".to_string()),
+    );
+    state
+        .logger
+        .info(
+            LogCategory::WebSocket,
+            "WebSocket connection closed",
+            context,
+        )
+        .await;
 }
 
 /// Handle console log messages from browser - COMPLETELY DISABLED
@@ -191,14 +193,14 @@ impl UpdateChannel {
         let (tx, _) = broadcast::channel(100);
         Self { tx }
     }
-    
+
     #[allow(dead_code)]
     pub fn send_update(&self, update: serde_json::Value) {
         if let Ok(text) = serde_json::to_string(&update) {
             let _ = self.tx.send(text);
         }
     }
-    
+
     pub fn subscribe(&self) -> broadcast::Receiver<String> {
         self.tx.subscribe()
     }
@@ -209,6 +211,3 @@ impl Default for UpdateChannel {
         Self::new()
     }
 }
-
-
-

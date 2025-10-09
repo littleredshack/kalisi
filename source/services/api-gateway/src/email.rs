@@ -1,11 +1,10 @@
 #![allow(dead_code)]
 use anyhow::Result;
-use lettre::{
-    AsyncSmtpTransport, AsyncTransport, Message,
-    transport::smtp::authentication::Credentials,
-};
 use lettre::message::{MultiPart, SinglePart};
-use tracing::{info, error, debug};
+use lettre::{
+    transport::smtp::authentication::Credentials, AsyncSmtpTransport, AsyncTransport, Message,
+};
+use tracing::{debug, error, info};
 
 pub struct EmailService {
     smtp_host: String,
@@ -25,11 +24,11 @@ impl EmailService {
         smtp_from: String,
     ) -> Self {
         let test_mode = smtp_host.is_empty() || smtp_username.is_empty();
-        
+
         if test_mode {
             info!("Email service running in test mode - emails will be logged only");
         }
-        
+
         Self {
             smtp_host,
             smtp_port,
@@ -39,7 +38,7 @@ impl EmailService {
             test_mode,
         }
     }
-    
+
     pub fn from_config(config: &crate::config::Config) -> Self {
         // Resend configuration
         Self::new(
@@ -50,7 +49,7 @@ impl EmailService {
             "EDT System <noreply@edt.local>".to_string(),
         )
     }
-    
+
     pub async fn send_otp(&self, to_email: &str, otp_code: &str) -> Result<()> {
         let subject = "Your EDT Login Code";
         let html_body = format!(
@@ -93,7 +92,7 @@ impl EmailService {
 </html>"#,
             otp_code
         );
-        
+
         let text_body = format!(
             "Your EDT Login Code\n\n\
              Your one-time password is: {}\n\n\
@@ -102,10 +101,11 @@ impl EmailService {
              Enterprise Digital Twin System",
             otp_code
         );
-        
-        self.send_email(to_email, subject, &html_body, &text_body).await
+
+        self.send_email(to_email, subject, &html_body, &text_body)
+            .await
     }
-    
+
     pub async fn send_welcome(&self, to_email: &str, user_name: &str) -> Result<()> {
         let subject = "Welcome to EDT!";
         let html_body = format!(
@@ -131,17 +131,18 @@ impl EmailService {
 </html>"#,
             user_name
         );
-        
+
         let text_body = format!(
             "Welcome to EDT, {}!\n\n\
              Your account has been successfully created. You can now log in using your email address.\n\n\
              Enterprise Digital Twin System",
             user_name
         );
-        
-        self.send_email(to_email, subject, &html_body, &text_body).await
+
+        self.send_email(to_email, subject, &html_body, &text_body)
+            .await
     }
-    
+
     pub async fn send_mfa_reset(&self, to_email: &str, reset_link: &str) -> Result<()> {
         let subject = "MFA Reset Request - EDT System";
         let html_body = format!(
@@ -186,7 +187,7 @@ impl EmailService {
 </html>"#,
             reset_link
         );
-        
+
         let text_body = format!(
             "MFA Reset Request - EDT System\n\n\
              You requested to reset your two-factor authentication.\n\n\
@@ -197,11 +198,16 @@ impl EmailService {
              Enterprise Digital Twin System",
             reset_link
         );
-        
-        self.send_email(to_email, subject, &html_body, &text_body).await
+
+        self.send_email(to_email, subject, &html_body, &text_body)
+            .await
     }
-    
-    pub async fn send_account_deletion_confirmation(&self, to_email: &str, user_name: &str) -> Result<()> {
+
+    pub async fn send_account_deletion_confirmation(
+        &self,
+        to_email: &str,
+        user_name: &str,
+    ) -> Result<()> {
         let subject = "Account Deletion Confirmation - EDT";
         let html_body = format!(
             r#"<!DOCTYPE html>
@@ -264,7 +270,7 @@ impl EmailService {
             user_name,
             chrono::Utc::now().format("%B %d, %Y at %H:%M UTC")
         );
-        
+
         let text_body = format!(
             "Account Deletion Confirmation - EDT\n\n\
              Hello {}!\n\n\
@@ -286,47 +292,50 @@ impl EmailService {
             user_name,
             chrono::Utc::now().format("%B %d, %Y at %H:%M UTC")
         );
-        
-        self.send_email(to_email, subject, &html_body, &text_body).await
+
+        self.send_email(to_email, subject, &html_body, &text_body)
+            .await
     }
-    
-    async fn send_email(&self, to: &str, subject: &str, html_body: &str, text_body: &str) -> Result<()> {
+
+    async fn send_email(
+        &self,
+        to: &str,
+        subject: &str,
+        html_body: &str,
+        text_body: &str,
+    ) -> Result<()> {
         if self.test_mode {
             info!("📧 TEST MODE - Email would be sent:");
             info!("  To: {}", to);
             info!("  From: {}", self.smtp_from);
             info!("  Subject: {}", subject);
-            info!("  Body preview: {}...", text_body.chars().take(100).collect::<String>());
+            info!(
+                "  Body preview: {}...",
+                text_body.chars().take(100).collect::<String>()
+            );
             return Ok(());
         }
-        
+
         info!("📧 Attempting to send email to {} via Resend", to);
         debug!("Sending email to {}", to);
-        
+
         let email = Message::builder()
             .from(self.smtp_from.parse()?)
             .to(to.parse()?)
             .subject(subject)
             .multipart(
                 MultiPart::alternative()
-                    .singlepart(
-                        SinglePart::plain(text_body.to_string())
-                    )
-                    .singlepart(
-                        SinglePart::html(html_body.to_string())
-                    )
+                    .singlepart(SinglePart::plain(text_body.to_string()))
+                    .singlepart(SinglePart::html(html_body.to_string())),
             )?;
-        
-        let creds = Credentials::new(
-            self.smtp_username.clone(),
-            self.smtp_password.clone(),
-        );
-        
+
+        let creds = Credentials::new(self.smtp_username.clone(), self.smtp_password.clone());
+
         let mailer = AsyncSmtpTransport::<lettre::Tokio1Executor>::starttls_relay(&self.smtp_host)?
             .credentials(creds)
             .port(self.smtp_port)
             .build();
-        
+
         match mailer.send(email).await {
             Ok(_) => {
                 info!("✅ Email sent successfully to {}", to);
@@ -343,7 +352,7 @@ impl EmailService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_email_service_test_mode() {
         let service = EmailService::new(
@@ -353,11 +362,14 @@ mod tests {
             String::new(),
             "test@edt.local".to_string(),
         );
-        
+
         assert!(service.test_mode);
-        
+
         // Should not error in test mode
         assert!(service.send_otp("user@example.com", "123456").await.is_ok());
-        assert!(service.send_welcome("user@example.com", "Test User").await.is_ok());
+        assert!(service
+            .send_welcome("user@example.com", "Test User")
+            .await
+            .is_ok());
     }
 }

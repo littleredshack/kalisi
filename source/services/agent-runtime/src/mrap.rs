@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::{info, warn};
 
@@ -55,16 +55,19 @@ pub struct ActionRecord {
 pub trait MrapLoop: Send + Sync {
     /// Monitor phase - gather relevant data
     async fn monitor(&mut self) -> anyhow::Result<HashMap<String, serde_json::Value>>;
-    
+
     /// Reason phase - analyze data and make decisions
-    async fn reason(&mut self, monitor_data: &HashMap<String, serde_json::Value>) -> anyhow::Result<ReasoningResult>;
-    
+    async fn reason(
+        &mut self,
+        monitor_data: &HashMap<String, serde_json::Value>,
+    ) -> anyhow::Result<ReasoningResult>;
+
     /// Act phase - execute the decision
     async fn act(&mut self, reasoning: &ReasoningResult) -> anyhow::Result<ActionRecord>;
-    
+
     /// Reflect phase - learn from the action and results
     async fn reflect(&mut self, state: &MrapState) -> anyhow::Result<Vec<String>>;
-    
+
     /// Execute the complete MRAP loop
     async fn execute_mrap(&mut self) -> anyhow::Result<MrapState> {
         let started_at = Utc::now();
@@ -77,49 +80,52 @@ pub trait MrapLoop: Send + Sync {
             started_at,
             completed_at: None,
         };
-        
+
         // Monitor Phase
         info!("MRAP: Starting Monitor phase");
         state.monitor_data = self.monitor().await?;
-        
+
         // Reason Phase
         info!("MRAP: Starting Reason phase");
         state.current_phase = MrapPhase::Reasoning;
         let reasoning = self.reason(&state.monitor_data).await?;
         state.reasoning_result = Some(reasoning.clone());
-        
+
         // Check risk level before acting
         if reasoning.risk_assessment == RiskLevel::Critical {
             warn!("MRAP: Critical risk detected, requiring human approval");
             // In production, this would pause for human approval
         }
-        
+
         // Act Phase
         info!("MRAP: Starting Act phase");
         state.current_phase = MrapPhase::Acting;
         let action = self.act(&reasoning).await?;
         state.action_taken = Some(action);
-        
+
         // Reflect Phase
         info!("MRAP: Starting Reflect phase");
         state.current_phase = MrapPhase::Reflecting;
         state.reflection_insights = self.reflect(&state).await?;
-        
+
         // Complete
         state.current_phase = MrapPhase::Complete;
         state.completed_at = Some(Utc::now());
-        
-        info!("MRAP: Loop complete with {} insights", state.reflection_insights.len());
-        
+
+        info!(
+            "MRAP: Loop complete with {} insights",
+            state.reflection_insights.len()
+        );
+
         Ok(state)
     }
-    
+
     /// Validate that an action is within bounds
     fn validate_bounds(&self, _action: &str) -> bool {
         // Override this to implement specific boundary checks
         true
     }
-    
+
     /// Record audit trail
     async fn audit_log(&self, phase: &str, details: serde_json::Value) -> anyhow::Result<()> {
         // Override this to implement specific audit logging

@@ -13,8 +13,8 @@ async fn main() -> Result<()> {
     println!("Type your commands below. Type 'quit' or 'exit' to leave.\n");
 
     // Create agent (Redis URL doesn't matter for standalone testing)
-    let redis_url = std::env::var("REDIS_URL")
-        .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    let redis_url =
+        std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
 
     let mut agent = ProjectTreeAgent::new(&redis_url).await?;
     agent.initialize().await?;

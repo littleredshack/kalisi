@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use serde_json::Value;
+use std::collections::HashMap;
 
 /// Cognitive patterns for agents (from DAA research)
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -40,10 +40,10 @@ pub struct ResourceLimits {
 impl Default for ResourceLimits {
     fn default() -> Self {
         Self {
-            max_time_ms: 5000,      // 5 seconds max per operation
-            max_memory_mb: 100,     // 100MB memory limit
-            max_cpu_percent: 25.0,  // 25% CPU max
-            max_queries: 100,       // 100 queries max per operation
+            max_time_ms: 5000,     // 5 seconds max per operation
+            max_memory_mb: 100,    // 100MB memory limit
+            max_cpu_percent: 25.0, // 25% CPU max
+            max_queries: 100,      // 100 queries max per operation
         }
     }
 }
@@ -88,7 +88,7 @@ pub enum ActivityType {
     Started,
     Stopped,
     StatusChanged,
-    
+
     /// MRAP phase activities
     MrapStarted,
     MonitorPhase,
@@ -96,23 +96,23 @@ pub enum ActivityType {
     ActPhase,
     ReflectPhase,
     MrapCompleted,
-    
+
     /// Business process activities
     ProcessStarted,
     ProcessStep,
     ProcessCompleted,
     ProcessFailed,
-    
+
     /// Communication activities
     MessageReceived,
     MessageSent,
     ResponseGenerated,
-    
+
     /// Decision activities
     DecisionMade,
     ActionTaken,
     ResultRecorded,
-    
+
     /// Custom activities (agent-specific)
     Custom(String),
 }
@@ -158,35 +158,49 @@ pub struct CentralLogEntry {
 pub trait Agent: Send + Sync {
     /// Get agent information
     fn info(&self) -> &AgentInfo;
-    
+
     /// Get the protocols this agent can handle
     fn protocols(&self) -> Vec<String>;
-    
+
     /// Initialize the agent
     async fn initialize(&mut self) -> anyhow::Result<()>;
-    
+
     /// Shutdown the agent gracefully
     async fn shutdown(&mut self) -> anyhow::Result<()>;
-    
+
     /// Check if agent can handle a specific protocol
     fn can_handle(&self, protocol: &str) -> bool {
         self.protocols().contains(&protocol.to_string())
     }
-    
+
     /// Get agent health status
     async fn health_check(&self) -> anyhow::Result<AgentStatus>;
-    
+
     /// Get agent metrics for monitoring
     async fn get_metrics(&self) -> anyhow::Result<HashMap<String, f64>>;
-    
+
     /// MANDATORY: Log agent activity (breadcrumbs everywhere)
-    async fn log_activity(&mut self, activity_type: ActivityType, details: &HashMap<String, Value>) -> anyhow::Result<()>;
-    
+    async fn log_activity(
+        &mut self,
+        activity_type: ActivityType,
+        details: &HashMap<String, Value>,
+    ) -> anyhow::Result<()>;
+
     /// MANDATORY: Log with correlation ID for tracing workflows  
-    async fn log_activity_with_correlation(&mut self, activity_type: ActivityType, details: &HashMap<String, Value>, correlation_id: &str) -> anyhow::Result<()>;
-    
+    async fn log_activity_with_correlation(
+        &mut self,
+        activity_type: ActivityType,
+        details: &HashMap<String, Value>,
+        correlation_id: &str,
+    ) -> anyhow::Result<()>;
+
     /// Helper: Log MRAP phase entry
-    async fn log_mrap_phase(&mut self, phase: &str, correlation_id: &str, details: &HashMap<String, Value>) -> anyhow::Result<()> {
+    async fn log_mrap_phase(
+        &mut self,
+        phase: &str,
+        correlation_id: &str,
+        details: &HashMap<String, Value>,
+    ) -> anyhow::Result<()> {
         let activity_type = match phase {
             "monitor" => ActivityType::MonitorPhase,
             "reason" => ActivityType::ReasonPhase,
@@ -194,14 +208,28 @@ pub trait Agent: Send + Sync {
             "reflect" => ActivityType::ReflectPhase,
             _ => ActivityType::Custom(format!("mrap_{}", phase)),
         };
-        self.log_activity_with_correlation(activity_type, details, correlation_id).await
+        self.log_activity_with_correlation(activity_type, details, correlation_id)
+            .await
     }
-    
+
     /// Helper: Log business process step
-    async fn log_process_step(&mut self, process_name: &str, step_name: &str, correlation_id: &str, details: HashMap<String, Value>) -> anyhow::Result<()> {
+    async fn log_process_step(
+        &mut self,
+        process_name: &str,
+        step_name: &str,
+        correlation_id: &str,
+        details: HashMap<String, Value>,
+    ) -> anyhow::Result<()> {
         let mut step_details = details;
-        step_details.insert("process_name".to_string(), Value::String(process_name.to_string()));
-        step_details.insert("step_name".to_string(), Value::String(step_name.to_string()));
-        self.log_activity_with_correlation(ActivityType::ProcessStep, &step_details, correlation_id).await
+        step_details.insert(
+            "process_name".to_string(),
+            Value::String(process_name.to_string()),
+        );
+        step_details.insert(
+            "step_name".to_string(),
+            Value::String(step_name.to_string()),
+        );
+        self.log_activity_with_correlation(ActivityType::ProcessStep, &step_details, correlation_id)
+            .await
     }
 }

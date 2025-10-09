@@ -1,10 +1,11 @@
 /// Angular-specific CSP fixes for financial services compliance
-/// 
+///
 /// This module provides a comprehensive solution for Angular's style injection patterns
 
 /// Generate a comprehensive Angular CSP fix script
 pub fn generate_angular_csp_fix_script(nonce: &str) -> String {
-    format!(r#"<script nonce="{}">
+    format!(
+        r#"<script nonce="{}">
 // Angular CSP Fix for Financial Services Compliance
 (function() {{
     'use strict';
@@ -144,5 +145,7 @@ pub fn generate_angular_csp_fix_script(nonce: &str) -> String {
     
     console.log('[CSP] Angular style fixes loaded with nonce:', CSP_NONCE);
 }})();
-</script>"#, nonce, nonce)
+</script>"#,
+        nonce, nonce
+    )
 }

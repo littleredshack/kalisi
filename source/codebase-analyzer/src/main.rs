@@ -1,10 +1,10 @@
+use regex::Regex;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use uuid::Uuid;
 use walkdir::WalkDir;
-use regex::Regex;
 
 #[derive(Debug, Serialize)]
 struct CodebaseGraph {
@@ -42,7 +42,7 @@ struct Analyzer {
     guid_cache: HashMap<String, String>,
     edges: Vec<GraphEdge>,
     dependency_nodes: HashMap<String, String>, // dependency name -> guid
-    workspace_deps: HashMap<String, String>, // workspace dependencies from root Cargo.toml
+    workspace_deps: HashMap<String, String>,   // workspace dependencies from root Cargo.toml
 }
 
 impl Analyzer {
@@ -75,17 +75,22 @@ impl Analyzer {
                     if let Some(eq_pos) = line.find('=') {
                         let dep_name = line[..eq_pos].trim();
                         if !dep_name.is_empty() {
-                            self.workspace_deps.insert(dep_name.to_string(), dep_name.to_string());
+                            self.workspace_deps
+                                .insert(dep_name.to_string(), dep_name.to_string());
                             // Register as a dependency node with consistent key (only if not already present)
                             if !self.dependency_nodes.contains_key(dep_name) {
-                                let dep_guid = self.get_or_create_guid(&format!("dependency::{}", dep_name));
+                                let dep_guid =
+                                    self.get_or_create_guid(&format!("dependency::{}", dep_name));
                                 self.dependency_nodes.insert(dep_name.to_string(), dep_guid);
                             }
                         }
                     }
                 }
 
-                println!("📚 Found {} workspace dependencies", self.workspace_deps.len());
+                println!(
+                    "📚 Found {} workspace dependencies",
+                    self.workspace_deps.len()
+                );
             }
         }
     }
@@ -104,15 +109,31 @@ impl Analyzer {
         let mut children = Vec::new();
 
         // Walk directory
-        for entry in WalkDir::new(path).min_depth(1).max_depth(1).into_iter().filter_map(|e| e.ok()) {
+        for entry in WalkDir::new(path)
+            .min_depth(1)
+            .max_depth(1)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
             let entry_path = entry.path();
-            let entry_name = entry_path.file_name()
+            let entry_name = entry_path
+                .file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or_default();
 
             // Skip non-source directories
-            if matches!(entry_name, "node_modules" | "target" | "dist" | ".git" |
-                       "coverage" | "__pycache__" | ".next" | ".idea" | ".vscode") {
+            if matches!(
+                entry_name,
+                "node_modules"
+                    | "target"
+                    | "dist"
+                    | ".git"
+                    | "coverage"
+                    | "__pycache__"
+                    | ".next"
+                    | ".idea"
+                    | ".vscode"
+            ) {
                 continue;
             }
 
@@ -126,7 +147,7 @@ impl Analyzer {
                     "frontend" | "client" => "frontend",
                     "backend" | "server" => "backend",
                     "crates" | "packages" => "package_group",
-                    _ => "folder"
+                    _ => "folder",
                 };
 
                 let child_node = self.analyze_directory(entry_path, entry_name, child_type);
@@ -148,7 +169,11 @@ impl Analyzer {
             name: name.to_string(),
             description: get_node_description(name, node_type),
             path: Some(path.to_string_lossy().to_string()),
-            children: if children.is_empty() { None } else { Some(children) },
+            children: if children.is_empty() {
+                None
+            } else {
+                Some(children)
+            },
         }
     }
 
@@ -162,13 +187,13 @@ impl Analyzer {
             "ts" | "tsx" => Some(self.analyze_typescript_file(path, guid, file_name)),
             "js" | "jsx" => Some(self.analyze_javascript_file(path, guid, file_name)),
             "html" => Some(self.create_simple_node(guid, "template", file_name, "HTML template")),
-            "scss" | "css" => Some(self.create_simple_node(guid, "stylesheet", file_name, "Stylesheet")),
+            "scss" | "css" => {
+                Some(self.create_simple_node(guid, "stylesheet", file_name, "Stylesheet"))
+            }
             "json" if file_name == "package.json" => {
                 self.analyze_package_json(path, guid, file_name)
-            },
-            "toml" if file_name == "Cargo.toml" => {
-                self.analyze_cargo_toml(path, guid, file_name)
-            },
+            }
+            "toml" if file_name == "Cargo.toml" => self.analyze_cargo_toml(path, guid, file_name),
             _ => None,
         }
     }
@@ -181,7 +206,8 @@ impl Analyzer {
             if let Ok(func_regex) = Regex::new(r"(?m)^\s*(pub\s+)?(async\s+)?fn\s+(\w+)") {
                 for cap in func_regex.captures_iter(&content) {
                     let func_name = cap.get(3).map_or("", |m| m.as_str());
-                    let func_guid = self.get_or_create_guid(&format!("{}::{}", path.display(), func_name));
+                    let func_guid =
+                        self.get_or_create_guid(&format!("{}::{}", path.display(), func_name));
 
                     children.push(GraphNode {
                         guid: func_guid.clone(),
@@ -198,7 +224,8 @@ impl Analyzer {
             if let Ok(struct_regex) = Regex::new(r"(?m)^\s*(pub\s+)?struct\s+(\w+)") {
                 for cap in struct_regex.captures_iter(&content) {
                     let struct_name = cap.get(2).map_or("", |m| m.as_str());
-                    let struct_guid = self.get_or_create_guid(&format!("{}::{}", path.display(), struct_name));
+                    let struct_guid =
+                        self.get_or_create_guid(&format!("{}::{}", path.display(), struct_name));
 
                     children.push(GraphNode {
                         guid: struct_guid,
@@ -225,12 +252,14 @@ impl Analyzer {
                     }
 
                     // Check if this is a known dependency
-                    let target_guid = if let Some(dep_guid) = self.dependency_nodes.get(crate_name) {
+                    let target_guid = if let Some(dep_guid) = self.dependency_nodes.get(crate_name)
+                    {
                         dep_guid.clone()
                     } else if crate_name == "std" {
                         // Ensure std is registered
                         let guid = self.get_or_create_guid("crate::std");
-                        self.dependency_nodes.insert("std".to_string(), guid.clone());
+                        self.dependency_nodes
+                            .insert("std".to_string(), guid.clone());
                         guid
                     } else if crate_name == "edt_core" || crate_name == "agent_runtime" {
                         // Internal crates - use underscores
@@ -240,7 +269,8 @@ impl Analyzer {
                         } else {
                             // Register it
                             let guid = self.get_or_create_guid(&format!("crate::{}", crate_name));
-                            self.dependency_nodes.insert(crate_name.to_string(), guid.clone());
+                            self.dependency_nodes
+                                .insert(crate_name.to_string(), guid.clone());
                             guid
                         }
                     } else {
@@ -265,7 +295,11 @@ impl Analyzer {
             name,
             description: Some("Rust source file".to_string()),
             path: Some(path.to_string_lossy().to_string()),
-            children: if children.is_empty() { None } else { Some(children) },
+            children: if children.is_empty() {
+                None
+            } else {
+                Some(children)
+            },
         }
     }
 
@@ -278,7 +312,8 @@ impl Analyzer {
                 if let Ok(comp_regex) = Regex::new(r"export\s+class\s+(\w+)") {
                     for cap in comp_regex.captures_iter(&content) {
                         let comp_name = cap.get(1).map_or("", |m| m.as_str());
-                        let comp_guid = self.get_or_create_guid(&format!("{}::{}", path.display(), comp_name));
+                        let comp_guid =
+                            self.get_or_create_guid(&format!("{}::{}", path.display(), comp_name));
 
                         children.push(GraphNode {
                             guid: comp_guid,
@@ -296,7 +331,8 @@ impl Analyzer {
             if let Ok(func_regex) = Regex::new(r"(?m)^\s*(export\s+)?(async\s+)?function\s+(\w+)") {
                 for cap in func_regex.captures_iter(&content) {
                     let func_name = cap.get(3).map_or("", |m| m.as_str());
-                    let func_guid = self.get_or_create_guid(&format!("{}::{}", path.display(), func_name));
+                    let func_guid =
+                        self.get_or_create_guid(&format!("{}::{}", path.display(), func_name));
 
                     children.push(GraphNode {
                         guid: func_guid,
@@ -317,13 +353,16 @@ impl Analyzer {
                     // Only create edges for external modules (not relative paths)
                     if !module.starts_with('.') && !module.starts_with('/') {
                         // Register as dependency node if not already registered
-                        let target_guid = if let Some(existing_guid) = self.dependency_nodes.get(module) {
-                            existing_guid.clone()
-                        } else {
-                            let new_guid = self.get_or_create_guid(&format!("dependency::{}", module));
-                            self.dependency_nodes.insert(module.to_string(), new_guid.clone());
-                            new_guid
-                        };
+                        let target_guid =
+                            if let Some(existing_guid) = self.dependency_nodes.get(module) {
+                                existing_guid.clone()
+                            } else {
+                                let new_guid =
+                                    self.get_or_create_guid(&format!("dependency::{}", module));
+                                self.dependency_nodes
+                                    .insert(module.to_string(), new_guid.clone());
+                                new_guid
+                            };
 
                         self.edges.push(GraphEdge {
                             guid: Uuid::new_v4().to_string(),
@@ -343,7 +382,11 @@ impl Analyzer {
             name,
             description: Some("TypeScript source file".to_string()),
             path: Some(path.to_string_lossy().to_string()),
-            children: if children.is_empty() { None } else { Some(children) },
+            children: if children.is_empty() {
+                None
+            } else {
+                Some(children)
+            },
         }
     }
 
@@ -352,7 +395,12 @@ impl Analyzer {
         self.analyze_typescript_file(path, guid, name)
     }
 
-    fn analyze_package_json(&mut self, path: &Path, guid: String, name: String) -> Option<GraphNode> {
+    fn analyze_package_json(
+        &mut self,
+        path: &Path,
+        guid: String,
+        name: String,
+    ) -> Option<GraphNode> {
         if let Ok(content) = fs::read_to_string(path) {
             if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
                 let package_name = json["name"].as_str().unwrap_or("unknown");
@@ -361,13 +409,16 @@ impl Analyzer {
                 if let Some(deps) = json["dependencies"].as_object() {
                     for (dep_name, _) in deps {
                         // Get or create consistent GUID for dependency
-                        let target_guid = if let Some(existing_guid) = self.dependency_nodes.get(dep_name) {
-                            existing_guid.clone()
-                        } else {
-                            let new_guid = self.get_or_create_guid(&format!("dependency::{}", dep_name));
-                            self.dependency_nodes.insert(dep_name.clone(), new_guid.clone());
-                            new_guid
-                        };
+                        let target_guid =
+                            if let Some(existing_guid) = self.dependency_nodes.get(dep_name) {
+                                existing_guid.clone()
+                            } else {
+                                let new_guid =
+                                    self.get_or_create_guid(&format!("dependency::{}", dep_name));
+                                self.dependency_nodes
+                                    .insert(dep_name.clone(), new_guid.clone());
+                                new_guid
+                            };
 
                         self.edges.push(GraphEdge {
                             guid: Uuid::new_v4().to_string(),
@@ -383,13 +434,16 @@ impl Analyzer {
                 if let Some(dev_deps) = json["devDependencies"].as_object() {
                     for (dep_name, _) in dev_deps {
                         // Get or create consistent GUID for dependency
-                        let target_guid = if let Some(existing_guid) = self.dependency_nodes.get(dep_name) {
-                            existing_guid.clone()
-                        } else {
-                            let new_guid = self.get_or_create_guid(&format!("dependency::{}", dep_name));
-                            self.dependency_nodes.insert(dep_name.clone(), new_guid.clone());
-                            new_guid
-                        };
+                        let target_guid =
+                            if let Some(existing_guid) = self.dependency_nodes.get(dep_name) {
+                                existing_guid.clone()
+                            } else {
+                                let new_guid =
+                                    self.get_or_create_guid(&format!("dependency::{}", dep_name));
+                                self.dependency_nodes
+                                    .insert(dep_name.clone(), new_guid.clone());
+                                new_guid
+                            };
 
                         self.edges.push(GraphEdge {
                             guid: Uuid::new_v4().to_string(),
@@ -451,13 +505,16 @@ impl Analyzer {
 
                         if !dep_name.is_empty() {
                             // Get or create consistent GUID for dependency
-                            let dep_guid = if let Some(existing_guid) = self.dependency_nodes.get(dep_name) {
-                                existing_guid.clone()
-                            } else {
-                                let new_guid = self.get_or_create_guid(&format!("dependency::{}", dep_name));
-                                self.dependency_nodes.insert(dep_name.to_string(), new_guid.clone());
-                                new_guid
-                            };
+                            let dep_guid =
+                                if let Some(existing_guid) = self.dependency_nodes.get(dep_name) {
+                                    existing_guid.clone()
+                                } else {
+                                    let new_guid = self
+                                        .get_or_create_guid(&format!("dependency::{}", dep_name));
+                                    self.dependency_nodes
+                                        .insert(dep_name.to_string(), new_guid.clone());
+                                    new_guid
+                                };
 
                             self.edges.push(GraphEdge {
                                 guid: Uuid::new_v4().to_string(),
@@ -483,7 +540,13 @@ impl Analyzer {
         None
     }
 
-    fn create_simple_node(&self, guid: String, node_type: &str, name: String, desc: &str) -> GraphNode {
+    fn create_simple_node(
+        &self,
+        guid: String,
+        node_type: &str,
+        name: String,
+        desc: &str,
+    ) -> GraphNode {
         GraphNode {
             guid,
             node_type: node_type.to_string(),
@@ -512,7 +575,10 @@ impl Analyzer {
         dep_nodes
     }
 
-    fn validate_and_filter_edges(&mut self, all_node_guids: &std::collections::HashSet<String>) -> Vec<GraphEdge> {
+    fn validate_and_filter_edges(
+        &mut self,
+        all_node_guids: &std::collections::HashSet<String>,
+    ) -> Vec<GraphEdge> {
         // Only keep edges where both source and target exist
         let mut valid_edges = Vec::new();
         let mut invalid_count = 0;
@@ -530,8 +596,14 @@ impl Analyzer {
         }
 
         if invalid_count > 0 {
-            println!("🔍 Filtered out {} invalid edges (nodes don't exist)", invalid_count);
-            println!("📊 Dependency nodes in map: {}", self.dependency_nodes.len());
+            println!(
+                "🔍 Filtered out {} invalid edges (nodes don't exist)",
+                invalid_count
+            );
+            println!(
+                "📊 Dependency nodes in map: {}",
+                self.dependency_nodes.len()
+            );
             println!("📊 Total nodes in graph: {}", all_node_guids.len());
 
             // Debug: Check if dependency nodes are in the graph
@@ -540,12 +612,18 @@ impl Analyzer {
                 if !all_node_guids.contains(dep_guid) {
                     dep_nodes_missing += 1;
                     if dep_nodes_missing <= 5 {
-                        println!("   ❌ Dependency '{}' GUID {} not in graph", dep_name, dep_guid);
+                        println!(
+                            "   ❌ Dependency '{}' GUID {} not in graph",
+                            dep_name, dep_guid
+                        );
                     }
                 }
             }
             if dep_nodes_missing > 0 {
-                println!("🚨 {} dependency nodes not added to graph!", dep_nodes_missing);
+                println!(
+                    "🚨 {} dependency nodes not added to graph!",
+                    dep_nodes_missing
+                );
             }
 
             if !missing_targets.is_empty() {
@@ -562,7 +640,9 @@ impl Analyzer {
 
 fn get_node_description(name: &str, node_type: &str) -> Option<String> {
     match (name, node_type) {
-        ("Kalisi", "root") => Some("EDT2 Enterprise Digital Twin - Complete Codebase Analysis".to_string()),
+        ("Kalisi", "root") => {
+            Some("EDT2 Enterprise Digital Twin - Complete Codebase Analysis".to_string())
+        }
         ("services", _) => Some("Rust microservices backend".to_string()),
         ("frontend", _) => Some("Angular 20 frontend application".to_string()),
         ("api-gateway", _) => Some("Main HTTP/HTTPS server, auth, routing".to_string()),
@@ -574,10 +654,12 @@ fn get_node_description(name: &str, node_type: &str) -> Option<String> {
 }
 
 fn main() {
-    let root_path = std::env::args().nth(1)
+    let root_path = std::env::args()
+        .nth(1)
         .unwrap_or_else(|| "/home/devuser/edt2".to_string());
-    let output_path = std::env::args().nth(2)
-        .unwrap_or_else(|| "/home/devuser/edt2/codebase-analyzer/codebase-analysis.json".to_string());
+    let output_path = std::env::args().nth(2).unwrap_or_else(|| {
+        "/home/devuser/edt2/codebase-analyzer/codebase-analysis.json".to_string()
+    });
 
     println!("🔍 Analyzing codebase at: {}", root_path);
 
@@ -587,11 +669,7 @@ fn main() {
     analyzer.load_workspace_dependencies(Path::new(&root_path));
 
     // Analyze from root
-    let mut root_node = analyzer.analyze_directory(
-        Path::new(&root_path),
-        "Kalisi",
-        "root"
-    );
+    let mut root_node = analyzer.analyze_directory(Path::new(&root_path), "Kalisi", "root");
 
     // Add dependency nodes as a separate folder
     let dep_nodes = analyzer.create_dependency_nodes();
@@ -612,7 +690,10 @@ fn main() {
             root_node.children = Some(vec![dependencies_folder]);
         }
 
-        println!("📦 Added {} dependency nodes", analyzer.dependency_nodes.len());
+        println!(
+            "📦 Added {} dependency nodes",
+            analyzer.dependency_nodes.len()
+        );
     }
 
     // Collect all node GUIDs for validation

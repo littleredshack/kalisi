@@ -71,13 +71,16 @@ impl Node {
         let mut labels = vec!["CodeModel".to_string()];
 
         // Add language label
-        labels.push(match self.language {
-            Language::Rust => "Rust",
-            Language::TypeScript => "TypeScript",
-            Language::Python => "Python",
-            Language::Multi => "Multi",
-            Language::Unknown => "Unknown",
-        }.to_string());
+        labels.push(
+            match self.language {
+                Language::Rust => "Rust",
+                Language::TypeScript => "TypeScript",
+                Language::Python => "Python",
+                Language::Multi => "Multi",
+                Language::Unknown => "Unknown",
+            }
+            .to_string(),
+        );
 
         // Add kind label
         labels.push(format!("{:?}", self.kind));
@@ -87,20 +90,32 @@ impl Node {
 
     pub fn with_location(mut self, location: Location) -> Self {
         // Regenerate GUID with location for better uniqueness
-        self.guid = Self::generate_deterministic_uuid(&self.kind, &self.name, &self.language, Some(&location));
+        self.guid = Self::generate_deterministic_uuid(
+            &self.kind,
+            &self.name,
+            &self.language,
+            Some(&location),
+        );
         self.location = Some(location);
         self
     }
 
     /// Generate a deterministic UUID v5 based on node properties
-    fn generate_deterministic_uuid(kind: &NodeKind, name: &str, language: &Language, location: Option<&Location>) -> String {
+    fn generate_deterministic_uuid(
+        kind: &NodeKind,
+        name: &str,
+        language: &Language,
+        location: Option<&Location>,
+    ) -> String {
         // Use a namespace UUID for code model (randomly generated once, hardcoded)
         let namespace = Uuid::parse_str("6ba7b810-9dad-11d1-80b4-00c04fd430c8").unwrap();
 
         // Create a unique string from node properties
         let unique_str = if let Some(loc) = location {
-            format!("{:?}::{}::{:?}::{}::{:?}::{:?}",
-                kind, name, language, loc.path, loc.start_line, loc.start_col)
+            format!(
+                "{:?}::{}::{:?}::{}::{:?}::{:?}",
+                kind, name, language, loc.path, loc.start_line, loc.start_col
+            )
         } else {
             format!("{:?}::{}::{:?}", kind, name, language)
         };
@@ -152,6 +167,37 @@ pub enum NodeKind {
     Class,
 }
 
+impl NodeKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            NodeKind::Workspace => "Workspace",
+            NodeKind::Repository => "Repository",
+            NodeKind::Package => "Package",
+            NodeKind::Module => "Module",
+            NodeKind::File => "File",
+            NodeKind::Type => "Type",
+            NodeKind::Function => "Function",
+            NodeKind::Method => "Method",
+            NodeKind::Field => "Field",
+            NodeKind::Parameter => "Parameter",
+            NodeKind::Statement => "Statement",
+            NodeKind::Line => "Line",
+            NodeKind::Import => "Import",
+            NodeKind::Export => "Export",
+            NodeKind::Constant => "Constant",
+            NodeKind::Static => "Static",
+            NodeKind::TypeAlias => "TypeAlias",
+            NodeKind::Macro => "Macro",
+            NodeKind::Trait => "Trait",
+            NodeKind::Impl => "Impl",
+            NodeKind::Enum => "Enum",
+            NodeKind::Struct => "Struct",
+            NodeKind::Interface => "Interface",
+            NodeKind::Class => "Class",
+        }
+    }
+}
+
 /// Programming language
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Language {
@@ -165,6 +211,18 @@ pub enum Language {
     Multi,
     #[serde(rename = "unknown")]
     Unknown,
+}
+
+impl Language {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Language::Rust => "rust",
+            Language::TypeScript => "typescript",
+            Language::Python => "python",
+            Language::Multi => "multi",
+            Language::Unknown => "unknown",
+        }
+    }
 }
 
 /// Source code location
@@ -411,6 +469,36 @@ pub enum EdgeType {
     ExpandsTo,
     #[serde(rename = "BORROWS")]
     Borrows,
+}
+
+impl EdgeType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            EdgeType::Contains => "CONTAINS",
+            EdgeType::BelongsTo => "BELONGS_TO",
+            EdgeType::Calls => "CALLS",
+            EdgeType::Returns => "RETURNS",
+            EdgeType::Awaits => "AWAITS",
+            EdgeType::Imports => "IMPORTS",
+            EdgeType::Exports => "EXPORTS",
+            EdgeType::Uses => "USES",
+            EdgeType::DependsOn => "DEPENDS_ON",
+            EdgeType::Implements => "IMPLEMENTS",
+            EdgeType::Extends => "EXTENDS",
+            EdgeType::Satisfies => "SATISFIES",
+            EdgeType::HasType => "HAS_TYPE",
+            EdgeType::Reads => "READS",
+            EdgeType::Writes => "WRITES",
+            EdgeType::Mutates => "MUTATES",
+            EdgeType::Tests => "TESTS",
+            EdgeType::Covers => "COVERS",
+            EdgeType::Injects => "INJECTS",
+            EdgeType::RoutesTo => "ROUTES_TO",
+            EdgeType::Binds => "BINDS",
+            EdgeType::ExpandsTo => "EXPANDS_TO",
+            EdgeType::Borrows => "BORROWS",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

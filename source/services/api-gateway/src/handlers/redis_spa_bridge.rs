@@ -8,25 +8,23 @@ use axum::{
 use futures::StreamExt;
 use redis::AsyncCommands;
 use serde_json::Value;
-use tracing::{info, error, debug};
+use tracing::{debug, error, info};
 
 use crate::state::AppState;
 
 /// Pure SPA Redis bridge - handles direct Redis communication for frontend
-pub async fn redis_spa_bridge(
-    ws: WebSocketUpgrade,
-    State(state): State<AppState>,
-) -> Response {
+pub async fn redis_spa_bridge(ws: WebSocketUpgrade, State(state): State<AppState>) -> Response {
     ws.on_upgrade(|socket| handle_spa_redis_bridge(socket, state))
 }
 
 /// Handle SPA Redis bridge WebSocket connection
 async fn handle_spa_redis_bridge(mut socket: WebSocket, _state: AppState) {
     info!("🔌 SPA Redis bridge connected");
-    
+
     // Set up Redis connections
-    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
-    
+    let redis_url =
+        std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+
     // Redis client for sending requests with error handling
     let request_client = match redis::Client::open(redis_url.as_str()) {
         Ok(client) => client,
@@ -35,7 +33,7 @@ async fn handle_spa_redis_bridge(mut socket: WebSocket, _state: AppState) {
             return;
         }
     };
-    
+
     let mut request_redis = match request_client.get_multiplexed_async_connection().await {
         Ok(conn) => conn,
         Err(e) => {
@@ -43,7 +41,7 @@ async fn handle_spa_redis_bridge(mut socket: WebSocket, _state: AppState) {
             return;
         }
     };
-    
+
     // Redis connection for reading streams and pub/sub with error handling
     let response_client = match redis::Client::open(redis_url.as_str()) {
         Ok(client) => client,
@@ -52,7 +50,7 @@ async fn handle_spa_redis_bridge(mut socket: WebSocket, _state: AppState) {
             return;
         }
     };
-    
+
     let mut response_redis = match response_client.get_multiplexed_async_connection().await {
         Ok(conn) => conn,
         Err(e) => {
@@ -60,7 +58,7 @@ async fn handle_spa_redis_bridge(mut socket: WebSocket, _state: AppState) {
             return;
         }
     };
-    
+
     // Set up pub/sub for UI state updates with error handling
     let mut response_pubsub = match response_client.get_async_pubsub().await {
         Ok(pubsub) => pubsub,
@@ -70,13 +68,16 @@ async fn handle_spa_redis_bridge(mut socket: WebSocket, _state: AppState) {
         }
     };
     let _ = response_pubsub.subscribe("ui:logs_panel").await;
-    
+
     // Create consumer group for reliable stream processing
     let consumer_group = "spa_bridge_group";
     let consumer_name = "spa_bridge_consumer";
-    
+
     // Create consumer group and stream if they don't exist
-    match response_redis.xgroup_create_mkstream::<_, _, _, String>("agent:responses", consumer_group, "0").await {
+    match response_redis
+        .xgroup_create_mkstream::<_, _, _, String>("agent:responses", consumer_group, "0")
+        .await
+    {
         Ok(_) => {
             info!("✅ Created consumer group: {}", consumer_group);
         }
@@ -89,11 +90,14 @@ async fn handle_spa_redis_bridge(mut socket: WebSocket, _state: AppState) {
             }
         }
     }
-    
-    info!("📡 SPA bridge ready with consumer group: {}", consumer_group);
-    
+
+    info!(
+        "📡 SPA bridge ready with consumer group: {}",
+        consumer_group
+    );
+
     let mut pubsub_stream = response_pubsub.on_message();
-    
+
     loop {
         tokio::select! {
             // Handle Redis streams using consumer group - proper Redis mechanics
@@ -118,15 +122,15 @@ async fn handle_spa_redis_bridge(mut socket: WebSocket, _state: AppState) {
                             for entry in stream.ids {
                                 if let Some(redis::Value::BulkString(data)) = entry.map.get("data") {
                                     if let Ok(json_str) = String::from_utf8(data.clone()) {
-                                        debug!("📤 Forwarding agent response: {}", 
+                                        debug!("📤 Forwarding agent response: {}",
                                             json_str.chars().take(100).collect::<String>());
-                                        
+
                                         let ws_message = serde_json::json!({
                                             "type": "agent_response",
                                             "channel": "agent:responses",
                                             "data": json_str
                                         });
-                                        
+
                                         if let Ok(message_text) = serde_json::to_string(&ws_message) {
                                             if let Err(e) = socket.send(Message::Text(message_text.into())).await {
                                                 // Handle broken pipe gracefully - client disconnected
@@ -158,18 +162,18 @@ async fn handle_spa_redis_bridge(mut socket: WebSocket, _state: AppState) {
                     }
                 }
             }
-            
-            // Handle Redis pub/sub (UI state updates)  
+
+            // Handle Redis pub/sub (UI state updates)
             Some(msg) = pubsub_stream.next() => {
                 if let Ok(payload) = msg.get_payload::<String>() {
                     let channel = msg.get_channel_name();
-                    
+
                     let ws_message = serde_json::json!({
                         "type": "agent_ui_state",
                         "channel": channel,
                         "data": payload
                     });
-                    
+
                     if let Ok(message_text) = serde_json::to_string(&ws_message) {
                         if let Err(e) = socket.send(Message::Text(message_text.into())).await {
                             // Handle broken pipe gracefully - client disconnected
@@ -183,13 +187,13 @@ async fn handle_spa_redis_bridge(mut socket: WebSocket, _state: AppState) {
                     }
                 }
             }
-            
+
             // Handle messages from frontend SPA
             Some(msg) = socket.recv() => {
                 match msg {
                     Ok(Message::Text(text)) => {
                         debug!("Received SPA message: {}", text);
-                        
+
                         if let Ok(spa_msg) = serde_json::from_str::<Value>(&text) {
                             match spa_msg.get("type").and_then(|t| t.as_str()) {
                                 Some("agent_request") => {
@@ -248,6 +252,6 @@ async fn handle_spa_redis_bridge(mut socket: WebSocket, _state: AppState) {
             }
         }
     }
-    
+
     info!("🔌 SPA Redis bridge disconnected");
 }

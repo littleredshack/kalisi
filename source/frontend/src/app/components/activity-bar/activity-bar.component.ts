@@ -66,6 +66,13 @@ export class ActivityBarComponent implements OnInit, OnChanges {
       isActive: false
     },
     {
+      id: 'debug',
+      icon: 'bug',
+      label: 'Debug',
+      tooltip: 'Debug Tools',
+      isActive: false
+    },
+    {
       id: 'admin',
       icon: 'cog',
       label: 'Settings',
@@ -112,6 +119,9 @@ export class ActivityBarComponent implements OnInit, OnChanges {
           break;
         case 'chat':
           item.isActive = this.chatPanelOpen;
+          break;
+        case 'debug':
+          item.isActive = this.debugPanelOpen;
           break;
         case 'admin': // Settings
           item.isActive = this.settingsPanelOpen;

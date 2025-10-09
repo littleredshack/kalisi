@@ -1,6 +1,6 @@
 use actix_cors::Cors;
 use actix_web::{middleware, web, App, HttpResponse, HttpServer};
-use neo4rs::{Graph, query};
+use neo4rs::{query, Graph};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -25,42 +25,55 @@ async fn execute_query(
     req: web::Json<QueryRequest>,
 ) -> Result<HttpResponse, actix_web::Error> {
     let query_str = &req.query;
-    
+
     // Execute the query
     let mut result = match data.graph.execute(query(query_str)).await {
         Ok(r) => r,
-        Err(e) => return Ok(HttpResponse::BadRequest().json(serde_json::json!({
-            "error": format!("Query execution failed: {}", e)
-        }))),
+        Err(e) => {
+            return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                "error": format!("Query execution failed: {}", e)
+            })))
+        }
     };
-    
+
     let mut columns: Vec<String> = Vec::new();
     let mut data_rows = Vec::new();
     let mut first_row = true;
     let mut row_count = 0;
-    
+
     // Process results
     while let Ok(Some(row)) = result.next().await {
         row_count += 1;
         let mut row_data = Vec::new();
-        
+
         // Get column names from first row by checking all possible keys
         if first_row {
             // Try to extract column names dynamically
             // First try common return aliases
             let test_keys = vec![
-                "n", "m", "r", "node", "rel", "relationship", 
-                "id(n)", "labels(n)", "n.name",
-                "label", "type", "count", 
-                "nodeCount", "relationshipCount", "relationshipType"
+                "n",
+                "m",
+                "r",
+                "node",
+                "rel",
+                "relationship",
+                "id(n)",
+                "labels(n)",
+                "n.name",
+                "label",
+                "type",
+                "count",
+                "nodeCount",
+                "relationshipCount",
+                "relationshipType",
             ];
-            
+
             for key in &test_keys {
                 if row.get::<neo4rs::BoltType>(key).is_ok() {
                     columns.push(key.to_string());
                 }
             }
-            
+
             // If no columns found, try numeric indices
             if columns.is_empty() {
                 let mut idx = 0;
@@ -69,15 +82,15 @@ async fn execute_query(
                     idx += 1;
                 }
             }
-            
+
             // If still no columns, use default
             if columns.is_empty() {
                 columns.push("result".to_string());
             }
-            
+
             first_row = false;
         }
-        
+
         // Extract values
         for col in &columns {
             // Try to get as BoltType first
@@ -88,16 +101,18 @@ async fn execute_query(
                     neo4rs::BoltType::String(s) => row_data.push(serde_json::json!(s.value)),
                     neo4rs::BoltType::Boolean(b) => row_data.push(serde_json::json!(b.value)),
                     neo4rs::BoltType::List(l) => {
-                        let list_values: Vec<_> = l.value.iter()
+                        let list_values: Vec<_> = l
+                            .value
+                            .iter()
                             .map(|v| match v {
                                 neo4rs::BoltType::String(s) => serde_json::json!(s.value),
                                 neo4rs::BoltType::Integer(i) => serde_json::json!(i.value),
-                                _ => serde_json::json!("[Complex Item]")
+                                _ => serde_json::json!("[Complex Item]"),
                             })
                             .collect();
                         row_data.push(serde_json::json!(list_values));
-                    },
-                    _ => row_data.push(serde_json::json!("[Complex Type]"))
+                    }
+                    _ => row_data.push(serde_json::json!("[Complex Type]")),
                 }
             } else if let Ok(val) = row.get::<i64>(col) {
                 row_data.push(serde_json::json!(val));
@@ -112,7 +127,7 @@ async fn execute_query(
                 row_data.push(serde_json::json!("[Unknown Type]"));
             }
         }
-        
+
         // If we still have no data, try to get the first value
         if row_data.is_empty() {
             if let Ok(val) = row.get::<neo4rs::BoltType>("result") {
@@ -121,18 +136,18 @@ async fn execute_query(
                     neo4rs::BoltType::Float(f) => row_data.push(serde_json::json!(f.value)),
                     neo4rs::BoltType::String(s) => row_data.push(serde_json::json!(s.value)),
                     neo4rs::BoltType::Boolean(b) => row_data.push(serde_json::json!(b.value)),
-                    _ => row_data.push(serde_json::json!("[Complex Type]"))
+                    _ => row_data.push(serde_json::json!("[Complex Type]")),
                 }
             } else {
                 row_data.push(serde_json::json!("[No Data]"));
             }
         }
-        
+
         data_rows.push(row_data);
     }
-    
+
     let summary = format!("Query executed successfully. {} rows returned.", row_count);
-    
+
     Ok(HttpResponse::Ok().json(QueryResult {
         columns,
         data: data_rows,
@@ -158,7 +173,8 @@ async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     dotenv::dotenv().ok();
 
-    let neo4j_uri = std::env::var("NEO4J_URI").unwrap_or_else(|_| "bolt://localhost:7687".to_string());
+    let neo4j_uri =
+        std::env::var("NEO4J_URI").unwrap_or_else(|_| "bolt://localhost:7687".to_string());
     let neo4j_user = std::env::var("NEO4J_USER").unwrap_or_else(|_| "neo4j".to_string());
     let neo4j_password = std::env::var("NEO4J_PASSWORD").expect("NEO4J_PASSWORD must be set");
 
@@ -168,7 +184,7 @@ async fn main() -> std::io::Result<()> {
     let graph = Arc::new(
         Graph::new(&neo4j_uri, &neo4j_user, &neo4j_password)
             .await
-            .expect("Failed to connect to Neo4j")
+            .expect("Failed to connect to Neo4j"),
     );
 
     let app_state = web::Data::new(AppState { graph });

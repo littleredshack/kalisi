@@ -1,18 +1,16 @@
 #![allow(dead_code)]
+use once_cell::sync::Lazy;
 /// CSP Style Hash Management for Financial Services Compliance
-/// 
+///
 /// This module provides a secure way to handle Angular Material's dynamic styles
 /// while maintaining strict CSP compliance for financial services.
-
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::sync::RwLock;
-use once_cell::sync::Lazy;
 
 /// Global registry of allowed style hashes
-static STYLE_HASH_REGISTRY: Lazy<RwLock<StyleHashRegistry>> = Lazy::new(|| {
-    RwLock::new(StyleHashRegistry::new())
-});
+static STYLE_HASH_REGISTRY: Lazy<RwLock<StyleHashRegistry>> =
+    Lazy::new(|| RwLock::new(StyleHashRegistry::new()));
 
 /// Registry for managing allowed style hashes
 #[derive(Debug, Clone)]
@@ -41,13 +39,13 @@ impl StyleHashRegistry {
             allow_material_patterns: true,
             violations: Vec::new(),
         };
-        
+
         // Pre-populate with known Angular Material style patterns
         registry.add_angular_material_hashes();
-        
+
         registry
     }
-    
+
     /// Add known Angular Material and Monaco Editor style hashes
     fn add_angular_material_hashes(&mut self) {
         // Common Angular Material inline styles (examples)
@@ -63,15 +61,15 @@ impl StyleHashRegistry {
             // Tooltip positioning
             "position: absolute; pointer-events: none; z-index: 1500;",
         ];
-        
+
         for style in known_styles {
             self.add_style_hash(style);
         }
-        
+
         // Add Monaco Editor required style hashes (extracted from CSP violations)
         self.add_monaco_editor_hashes();
     }
-    
+
     /// Add Monaco Editor required style hashes for CSP compliance
     fn add_monaco_editor_hashes(&mut self) {
         // Monaco Editor specific style hashes extracted from browser CSP violations
@@ -86,44 +84,51 @@ impl StyleHashRegistry {
             "sha256-S14u3Cd1e3lOUYJ+DNIpu4VEG9J8ZABamjGAR+xtR7I=",
             "sha256-Pqp3d3ECNXLyWsIYP2705qtqenMiubHRShIQi/oQeD4=",
         ];
-        
+
         let monaco_count = monaco_hashes.len();
-        
+
         // Add Monaco hashes directly to registry
         for hash in monaco_hashes {
             self.allowed_hashes.insert(hash.to_string());
         }
-        
-        tracing::info!("Added {} Monaco Editor style hashes to CSP registry", monaco_count);
+
+        tracing::info!(
+            "Added {} Monaco Editor style hashes to CSP registry",
+            monaco_count
+        );
     }
-    
+
     /// Calculate SHA-256 hash for a style string
     pub fn calculate_style_hash(style: &str) -> String {
         let mut hasher = Sha256::new();
         hasher.update(style.as_bytes());
         let result = hasher.finalize();
         use base64::Engine;
-        format!("sha256-{}", base64::engine::general_purpose::STANDARD.encode(result))
+        format!(
+            "sha256-{}",
+            base64::engine::general_purpose::STANDARD.encode(result)
+        )
     }
-    
+
     /// Add a style hash to the registry
     pub fn add_style_hash(&mut self, style: &str) {
         let hash = Self::calculate_style_hash(style);
         self.allowed_hashes.insert(hash);
     }
-    
+
     /// Check if a style hash is allowed
     pub fn is_hash_allowed(&self, hash: &str) -> bool {
         self.allowed_hashes.contains(hash)
     }
-    
+
     /// Get all allowed hashes for CSP header
     pub fn get_csp_hashes(&self) -> Vec<String> {
-        self.allowed_hashes.iter()
+        self.allowed_hashes
+            .iter()
             .map(|h| format!("'{}'", h))
             .collect()
     }
-    
+
     /// Record a CSP violation
     pub fn record_violation(&mut self, violation: CspViolation) {
         // Log for monitoring before moving the violation
@@ -132,14 +137,15 @@ impl StyleHashRegistry {
             violation.style_content,
             violation.source
         );
-        
+
         self.violations.push(violation);
     }
-    
+
     /// Get recent violations for analysis
     pub fn get_recent_violations(&self, limit: usize) -> Vec<&CspViolation> {
         let len = self.violations.len();
-        self.violations.iter()
+        self.violations
+            .iter()
             .skip(len.saturating_sub(limit))
             .collect()
     }
@@ -154,42 +160,42 @@ pub fn get_registry() -> &'static RwLock<StyleHashRegistry> {
 pub fn build_style_src_with_hashes(include_unsafe_hashes: bool) -> String {
     let registry = get_registry().read().unwrap();
     let mut sources = vec!["'self'".to_string()];
-    
+
     // Add external style sources
     sources.push("https://cdn.tailwindcss.com".to_string());
     sources.push("https://fonts.googleapis.com".to_string());
-    
+
     // Add all registered style hashes
     sources.extend(registry.get_csp_hashes());
-    
+
     // In development or as fallback, include 'unsafe-hashes'
     // This allows event handler attributes but not style elements
     if include_unsafe_hashes {
         sources.push("'unsafe-hashes'".to_string());
     }
-    
+
     format!("style-src {}", sources.join(" "))
 }
 
 /// Middleware to intercept and analyze Angular responses
 pub async fn analyze_angular_styles(html: &str) -> HashSet<String> {
     let mut found_styles = HashSet::new();
-    
+
     // Pattern to find inline styles in Angular components
     let style_regex = regex::Regex::new(r#"style="([^"]+)""#).unwrap();
-    
+
     for cap in style_regex.captures_iter(html) {
         if let Some(style) = cap.get(1) {
             let style_content = style.as_str();
             let hash = StyleHashRegistry::calculate_style_hash(style_content);
-            
+
             // Log discovered styles for development
             tracing::debug!("Found inline style: {} -> {}", style_content, &hash);
-            
+
             found_styles.insert(hash);
         }
     }
-    
+
     found_styles
 }
 
@@ -221,7 +227,7 @@ pub fn process_csp_violation(report: &EnhancedCspReport, user_agent: Option<Stri
                 source: report.source_file.clone().unwrap_or_default(),
                 user_agent,
             });
-            
+
             // In development, optionally auto-add new styles
             #[cfg(debug_assertions)]
             {
@@ -239,11 +245,10 @@ pub fn generate_csp_meta_tag(nonce: &str) -> String {
         "script-src 'self' 'nonce-{}' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://unpkg.com https://d3js.org",
         nonce
     );
-    
+
     format!(
         r#"<meta http-equiv="Content-Security-Policy" content="default-src 'self'; {}; {}; img-src 'self' data: https: http: https://api.qrserver.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' wss: ws:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; block-all-mixed-content; report-uri /csp-report; report-to csp-endpoint;">"#,
-        script_src,
-        style_src
+        script_src, style_src
     )
 }
 
@@ -289,7 +294,7 @@ pub fn build_style_extractor_script() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_style_hash_calculation() {
         let style = "color: red;";
@@ -297,19 +302,19 @@ mod tests {
         assert!(hash.starts_with("sha256-"));
         assert!(hash.len() > 10);
     }
-    
+
     #[test]
     fn test_registry_operations() {
         let mut registry = StyleHashRegistry::new();
         let style = "display: none;";
-        
+
         registry.add_style_hash(style);
         let hash = StyleHashRegistry::calculate_style_hash(style);
         let hash_with_prefix = format!("'{}'", hash);
-        
+
         assert!(registry.get_csp_hashes().contains(&hash_with_prefix));
     }
-    
+
     #[test]
     fn test_style_src_generation() {
         let style_src = build_style_src_with_hashes(false);

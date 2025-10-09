@@ -148,7 +148,8 @@ impl RustParser {
             .find_child_text(node, source, "field_identifier")
             .unwrap_or_else(|| "field".to_string());
 
-        let field_type = self.find_child_text(node, source, "type_identifier")
+        let field_type = self
+            .find_child_text(node, source, "type_identifier")
             .or_else(|| self.find_child_text(node, source, "primitive_type"))
             .unwrap_or_else(|| "unknown".to_string());
 
@@ -261,7 +262,9 @@ impl RustParser {
             let mut cursor = body.walk();
             for child in body.children(&mut cursor) {
                 if child.kind() == "function_item" {
-                    if let Some(method_node) = self.parse_function(&child, source, file_path, true)? {
+                    if let Some(method_node) =
+                        self.parse_function(&child, source, file_path, true)?
+                    {
                         impl_node.add_child(method_node);
                     }
                 }
@@ -343,7 +346,8 @@ impl RustParser {
                     .find_child_text(&child, source, "identifier")
                     .unwrap_or_else(|| "param".to_string());
 
-                let param_type = self.find_child_text(&child, source, "type_identifier")
+                let param_type = self
+                    .find_child_text(&child, source, "type_identifier")
                     .or_else(|| self.find_child_text(&child, source, "primitive_type"));
 
                 parameters.push(Parameter { name, param_type });
@@ -405,8 +409,6 @@ impl RustParser {
     }
 
     fn node_text(&self, node: &TsNode, source: &str) -> String {
-        node.utf8_text(source.as_bytes())
-            .unwrap_or("")
-            .to_string()
+        node.utf8_text(source.as_bytes()).unwrap_or("").to_string()
     }
 }

@@ -1,11 +1,11 @@
-use redis::aio::MultiplexedConnection;
-use serde::{Deserialize, Serialize};
-use std::process::Command;
-use std::fs::OpenOptions;
-use std::io::Write as IoWrite;
-use tracing::{info, error, warn};
 use anyhow::Result;
 use chrono::Utc;
+use redis::aio::MultiplexedConnection;
+use serde::{Deserialize, Serialize};
+use std::fs::OpenOptions;
+use std::io::Write as IoWrite;
+use std::process::Command;
+use tracing::{error, info, warn};
 
 /// Project Tree Agent Response
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -22,9 +22,9 @@ struct UserIntent {
     depth: Option<usize>,
     exclude: Vec<String>,
     path: Option<String>,
-    show_all_hidden: bool,  // Show ALL hidden files including .git
-    hide_all_hidden: bool,  // Hide ALL hidden files
-    include_files: bool,    // Show files in addition to directories
+    show_all_hidden: bool, // Show ALL hidden files including .git
+    hide_all_hidden: bool, // Hide ALL hidden files
+    include_files: bool,   // Show files in addition to directories
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -68,7 +68,8 @@ impl ProjectTreeAgent {
                 "dist".to_string(),
             ],
             conversation_history: Vec::new(),
-            unanswered_questions_file: "/workspace/source/services/agent-runtime/unanswered_questions.jsonl".to_string(),
+            unanswered_questions_file:
+                "/workspace/source/services/agent-runtime/unanswered_questions.jsonl".to_string(),
         })
     }
 
@@ -87,7 +88,8 @@ impl ProjectTreeAgent {
 
         // Check if this is clearly out of scope before parsing
         if self.is_out_of_scope(query) {
-            let reason = "Query is outside agent's bounded task (can only show directory/file trees)";
+            let reason =
+                "Query is outside agent's bounded task (can only show directory/file trees)";
             self.log_unanswered_question(query, reason).await;
 
             return Ok(ProjectTreeResponse {
@@ -103,16 +105,12 @@ impl ProjectTreeAgent {
         let intent = self.parse_intent(query);
 
         match intent.action {
-            TreeAction::ShowTree => {
-                self.execute_tree_generation(intent).await
-            }
-            TreeAction::Help => {
-                Ok(ProjectTreeResponse {
-                    tree: String::new(),
-                    message: self.get_help_message(),
-                    success: true,
-                })
-            }
+            TreeAction::ShowTree => self.execute_tree_generation(intent).await,
+            TreeAction::Help => Ok(ProjectTreeResponse {
+                tree: String::new(),
+                message: self.get_help_message(),
+                success: true,
+            }),
         }
     }
 
@@ -142,7 +140,9 @@ impl ProjectTreeAgent {
             "open file",
         ];
 
-        out_of_scope_keywords.iter().any(|keyword| query_lower.contains(keyword))
+        out_of_scope_keywords
+            .iter()
+            .any(|keyword| query_lower.contains(keyword))
     }
 
     /// Log unanswered or out-of-scope questions for future improvement
@@ -174,7 +174,10 @@ impl ProjectTreeAgent {
         let query_lower = query.to_lowercase();
 
         // Check for help requests
-        if query_lower.contains("help") || query_lower.contains("what can you") || query_lower.contains("how do") {
+        if query_lower.contains("help")
+            || query_lower.contains("what can you")
+            || query_lower.contains("how do")
+        {
             return UserIntent {
                 action: TreeAction::Help,
                 depth: None,
@@ -241,9 +244,16 @@ impl ProjectTreeAgent {
 
     /// Extract depth from user query
     fn extract_depth(&self, query: &str) -> Option<usize> {
-        if query.contains("shallow") || query.contains("top level") || query.contains("just the top") {
+        if query.contains("shallow")
+            || query.contains("top level")
+            || query.contains("just the top")
+        {
             Some(2)
-        } else if query.contains("deep") || query.contains("full") || query.contains("complete") || query.contains("everything") {
+        } else if query.contains("deep")
+            || query.contains("full")
+            || query.contains("complete")
+            || query.contains("everything")
+        {
             Some(10)
         } else if query.contains("depth") {
             // Try to extract number
@@ -264,7 +274,11 @@ impl ProjectTreeAgent {
     fn extract_exclusions(&self, query: &str) -> Vec<String> {
         let mut excludes = Vec::new();
 
-        if query.contains("exclude") || query.contains("skip") || query.contains("ignore") || query.contains("without") {
+        if query.contains("exclude")
+            || query.contains("skip")
+            || query.contains("ignore")
+            || query.contains("without")
+        {
             // Look for common patterns
             if query.contains("build") || query.contains("target") {
                 excludes.push("target".to_string());
@@ -284,7 +298,6 @@ impl ProjectTreeAgent {
 
         excludes
     }
-
 
     /// Extract path from query
     fn extract_path(&self, query: &str) -> Option<String> {
@@ -307,7 +320,16 @@ impl ProjectTreeAgent {
         info!("🌲 Generating tree: depth={}, excludes={:?}, path={:?}, show_all_hidden={}, hide_all_hidden={}, include_files={}",
               depth, intent.exclude, intent.path, intent.show_all_hidden, intent.hide_all_hidden, intent.include_files);
 
-        match self.generate_tree(depth, &intent.exclude, intent.path.as_deref(), intent.hide_all_hidden, intent.include_files).await {
+        match self
+            .generate_tree(
+                depth,
+                &intent.exclude,
+                intent.path.as_deref(),
+                intent.hide_all_hidden,
+                intent.include_files,
+            )
+            .await
+        {
             Ok(tree) => {
                 let hidden_msg = if intent.show_all_hidden {
                     ", showing all hidden files"
@@ -393,9 +415,15 @@ I can only do ONE thing: show you directory trees (and files if you want). But I
 Ask me anything about showing your project structure!"#.to_string()
     }
 
-
     /// Generate the actual tree structure
-    async fn generate_tree(&self, max_depth: usize, exclude_patterns: &[String], base_path: Option<&str>, hide_all_hidden: bool, include_files: bool) -> Result<String> {
+    async fn generate_tree(
+        &self,
+        max_depth: usize,
+        exclude_patterns: &[String],
+        base_path: Option<&str>,
+        hide_all_hidden: bool,
+        include_files: bool,
+    ) -> Result<String> {
         let work_dir = if let Some(path) = base_path {
             format!("/workspace/source/{}", path)
         } else {
@@ -475,7 +503,11 @@ Ask me anything about showing your project structure!"#.to_string()
             let full_path = format!("{}/{}", work_dir, path);
             let is_file = std::path::Path::new(&full_path).is_file();
 
-            let prefix = if is_file { "├── 📄 " } else { "├── " };
+            let prefix = if is_file {
+                "├── 📄 "
+            } else {
+                "├── "
+            };
 
             tree.push_str(&format!("{}{}{}\n", indent, prefix, name));
         }

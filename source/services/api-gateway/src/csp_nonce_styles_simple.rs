@@ -1,11 +1,12 @@
 #![allow(dead_code)]
 /// Simplified CSP Nonce-Based Style Management for Financial Services
-/// 
+///
 /// This module implements a practical nonce-based approach for Angular Material styles
 
 /// Generate style proxy script that intercepts Angular Material style mutations
 pub fn generate_style_proxy_script(nonce: &str) -> String {
-    format!(r#"<script nonce="{}">
+    format!(
+        r#"<script nonce="{}">
 // Financial Services CSP Style Proxy for Angular Material
 (function() {{
     'use strict';
@@ -141,7 +142,9 @@ pub fn generate_style_proxy_script(nonce: &str) -> String {
         console.log('[CSP] Style proxy initialized with nonce:', CSP_NONCE);
     }}
 }})();
-</script>"#, nonce, nonce)
+</script>"#,
+        nonce, nonce
+    )
 }
 
 /// Build CSP style-src directive for nonce-based approach with Monaco Editor support
@@ -157,7 +160,7 @@ pub fn build_nonce_based_style_src(_nonce: &str) -> String {
         "'sha256-S+FvvqPzTjaStAKMKQOuctE0oTGTS9/JVhXk5N1/Pn8='",
         "'sha256-S14u3Cd1e3lOUYJ+DNIpu4VEG9J8ZABamjGAR+xtR7I='",
         "'sha256-Pqp3d3ECNXLyWsIYP2705qtqenMiubHRShIQi/oQeD4='",
-        // Additional Monaco runtime hashes  
+        // Additional Monaco runtime hashes
         "'sha256-bCGe8uXkE4ndnluuyQUc97rNKxJeIM0GiFBMCz4gNCU='",
         "'sha256-PaQJlvrV1S3Y1j7S12EWq60b4CR8KDSvxM4sAv3Z0YU='",
         // More Monaco dynamic hashes
@@ -177,7 +180,7 @@ pub fn build_nonce_based_style_src(_nonce: &str) -> String {
         "'sha256-EDCEUoNnR0pVtDIqBNm1e5EMyOFk1Z7lLoZEgSMfjog='",
         "'sha256-Qb66hssXbVZlgcp1hSgrmUK6hl3neEox1fKuSppM294='",
     ];
-    
+
     format!(
         "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com"
     )

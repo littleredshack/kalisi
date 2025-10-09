@@ -1,6 +1,6 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
 
 /// User representation in the EDT system
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -15,12 +15,12 @@ pub struct User {
 /// JWT Claims for authentication
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
-    pub sub: Uuid,          // User ID
+    pub sub: Uuid, // User ID
     pub email: String,
     pub session_id: Uuid,
     pub role: String,
-    pub exp: i64,           // Expiration timestamp
-    pub iat: i64,           // Issued at timestamp
+    pub exp: i64, // Expiration timestamp
+    pub iat: i64, // Issued at timestamp
 }
 
 /// OTP (One-Time Password) data
@@ -86,14 +86,14 @@ impl<T> ApiResponse<T> {
     pub fn success(data: T) -> Self {
         ApiResponse::Success(data)
     }
-    
+
     pub fn error(message: impl Into<String>) -> Self {
         ApiResponse::Error {
             error: message.into(),
             details: None,
         }
     }
-    
+
     pub fn error_with_details(message: impl Into<String>, details: impl Into<String>) -> Self {
         ApiResponse::Error {
             error: message.into(),

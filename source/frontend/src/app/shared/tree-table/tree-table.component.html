@@ -1,0 +1,28 @@
+<ng-container *ngIf="isLoading(); else dataContent">
+  <p>Loading tree-table data…</p>
+</ng-container>
+
+<ng-template #dataContent>
+  <ng-container *ngIf="!errorMessage(); else errorState">
+    <section>
+      <h2>Tree Table Preview</h2>
+      <p>Total rows: {{ nodes().length }}</p>
+      <p>
+        Columns:
+        <span *ngFor="let column of columns(); let last = last">
+          <strong>{{ column.label }}</strong>{{ last ? '' : ', ' }}
+        </span>
+      </p>
+      <pre class="tree-table__preview">
+{{ nodes() | json }}
+      </pre>
+    </section>
+  </ng-container>
+</ng-template>
+
+<ng-template #errorState>
+  <section class="tree-table__error">
+    <h2>Failed to load tree-table data</h2>
+    <p>{{ errorMessage() }}</p>
+  </section>
+</ng-template>

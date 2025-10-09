@@ -1,5 +1,6 @@
-use neo4rs::{Graph, query};
+use neo4rs::{query, BoltNull, BoltType, Query, Graph};
 use serde_json::Value;
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub enum DatabaseError {
@@ -26,7 +27,6 @@ pub struct Neo4jSimpleClient {
 impl Neo4jSimpleClient {
     /// Create new client using neo4rs exactly as documented
     pub fn connect(uri: &str, username: &str, password: &str) -> Result<Self, DatabaseError> {
-        
         // Try different neo4rs connection patterns to find what works
         let graph = Graph::new(uri, username, password)
             .map_err(|e| DatabaseError::ConnectionError(format!("Connection failed: {}", e)))?;
@@ -35,26 +35,59 @@ impl Neo4jSimpleClient {
     }
 
     /// Execute query and return ALL data
-    pub async fn run_query(&self, query_str: &str) -> Result<Value, DatabaseError> {
-        
-        // Use neo4rs execute method to get results, not just run
-        let mut result = self.graph.execute(query(query_str)).await
+    pub async fn run_query(
+        &self,
+        query_str: &str,
+        parameters: &HashMap<String, Value>,
+    ) -> Result<Value, DatabaseError> {
+        let mut neo_query = query(query_str);
+
+        for (key, value) in parameters {
+            neo_query =
+                apply_parameter(neo_query, key, value).map_err(|e| DatabaseError::QueryError(e))?;
+        }
+
+        let mut result = self
+            .graph
+            .execute(neo_query)
+            .await
             .map_err(|e| DatabaseError::QueryError(format!("Query failed: {}", e)))?;
-        
+
         // Extract data with zero processing - direct conversion
         let mut records = Vec::new();
-        
+
         while let Ok(Some(row)) = result.next().await {
             // Use our custom schema-agnostic method
             let row_json = row.get_all_json();
             records.push(row_json);
         }
-        
-        
+
         Ok(serde_json::json!({
             "results": records,
             "count": records.len(),
             "query": query_str
         }))
     }
+}
+
+fn apply_parameter(
+    query: Query,
+    key: &str,
+    value: &Value,
+) -> Result<Query, String> {
+    Ok(match value {
+        Value::Null => query.param(key, BoltType::Null(BoltNull::default())),
+        Value::Bool(b) => query.param(key, *b),
+        Value::Number(num) => {
+            if let Some(i) = num.as_i64() {
+                query.param(key, i)
+            } else if let Some(f) = num.as_f64() {
+                query.param(key, f)
+            } else {
+                return Err(format!("Unsupported numeric parameter for key '{}'", key));
+            }
+        }
+        Value::String(s) => query.param(key, s.clone()),
+        Value::Array(_) | Value::Object(_) => query.param(key, value.to_string()),
+    })
 }

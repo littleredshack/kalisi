@@ -1,15 +1,12 @@
 use axum::{
-    extract::{State, Path, Extension},
+    extract::{Extension, Path, State},
+    http::StatusCode,
     response::IntoResponse,
     Json,
-    http::StatusCode,
 };
 use uuid::Uuid;
 
-use crate::{
-    state::AppState,
-    middleware::auth::AuthUser,
-};
+use crate::{middleware::auth::AuthUser, state::AppState};
 
 // Views functionality disabled - all endpoints return disabled message
 pub async fn list_views(

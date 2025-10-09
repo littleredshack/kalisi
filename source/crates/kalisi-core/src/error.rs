@@ -4,34 +4,34 @@ use thiserror::Error;
 pub enum Error {
     #[error("Authentication failed")]
     AuthenticationFailed,
-    
+
     #[error("Invalid token")]
     InvalidToken,
-    
+
     #[error("Token expired")]
     TokenExpired,
-    
+
     #[error("Invalid OTP")]
     InvalidOTP,
-    
+
     #[error("OTP expired")]
     OTPExpired,
-    
+
     #[error("Too many requests")]
     RateLimitExceeded,
-    
+
     #[error("Email not authorized")]
     EmailNotAuthorized,
-    
+
     #[error("Database error: {0}")]
     Database(String),
-    
+
     #[error("Redis error: {0}")]
     Redis(String),
-    
+
     #[error("Internal server error")]
     Internal,
-    
+
     #[error("Bad request: {0}")]
     BadRequest(String),
 }

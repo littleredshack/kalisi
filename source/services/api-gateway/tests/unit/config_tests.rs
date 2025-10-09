@@ -13,9 +13,9 @@ fn test_config_basic_fields() {
     env::set_var("NEO4J_DATABASE", "neo4j");
     env::set_var("MFA_REQUIRED", "false");
     env::set_var("MFA_ISSUER", "EDT2-Test");
-    
+
     let config = Config::from_env().expect("Config should load from env");
-    
+
     // Check basic fields
     assert_eq!(config.jwt_secret, "test-secret-key");
     assert_eq!(config.redis_url, "redis://localhost:6379");
@@ -26,7 +26,7 @@ fn test_config_basic_fields() {
     assert_eq!(config.neo4j_database, "neo4j");
     assert_eq!(config.mfa_required, false);
     assert_eq!(config.mfa_issuer, "EDT2-Test");
-    
+
     // Clean up
     env::remove_var("JWT_SECRET");
     env::remove_var("REDIS_URL");
@@ -51,22 +51,25 @@ fn test_config_optional_fields() {
     env::set_var("NEO4J_DATABASE", "neo4j");
     env::set_var("MFA_REQUIRED", "true");
     env::set_var("MFA_ISSUER", "EDT2-Test");
-    
+
     // Set optional fields
     env::set_var("APPROVED_EMAILS", "test1@example.com,test2@example.com");
     env::set_var("RESEND_API_KEY", "test-api-key");
     env::set_var("EMAIL_OTP_ENABLED", "true");
     env::set_var("TOTP_ONLY_MODE", "false");
-    
+
     let config = Config::from_env().expect("Config should load from env");
-    
+
     // Verify optional fields were loaded
-    assert_eq!(config.approved_emails, vec!["test1@example.com", "test2@example.com"]);
+    assert_eq!(
+        config.approved_emails,
+        vec!["test1@example.com", "test2@example.com"]
+    );
     assert_eq!(config.resend_api_key, Some("test-api-key".to_string()));
     assert_eq!(config.email_otp_enabled, true);
     assert_eq!(config.totp_only_mode, false);
     assert_eq!(config.mfa_required, true);
-    
+
     // Clean up
     env::remove_var("JWT_SECRET");
     env::remove_var("REDIS_URL");
@@ -87,11 +90,9 @@ fn test_config_optional_fields() {
 fn test_config_missing_required_field() {
     // Don't set JWT_SECRET to test error handling
     env::remove_var("JWT_SECRET");
-    
+
     // This should panic because JWT_SECRET is required
-    let result = std::panic::catch_unwind(|| {
-        Config::from_env()
-    });
-    
+    let result = std::panic::catch_unwind(|| Config::from_env());
+
     assert!(result.is_err());
 }

@@ -46,14 +46,17 @@ impl SymbolTable {
                 guid: node.guid.clone(),
                 name: node.name.clone(),
                 kind: node.kind,
-                file_path: node.location.as_ref()
+                file_path: node
+                    .location
+                    .as_ref()
                     .map(|l| l.path.clone())
                     .unwrap_or_default(),
                 fully_qualified_name: current_path.clone(),
             };
 
             // Add to exact matches
-            self.exact_matches.insert(current_path.clone(), node.guid.clone());
+            self.exact_matches
+                .insert(current_path.clone(), node.guid.clone());
 
             // Add to simple name index
             self.simple_name_index

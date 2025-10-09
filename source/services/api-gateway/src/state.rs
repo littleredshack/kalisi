@@ -27,12 +27,12 @@ impl AppState {
         // Initialize Redis connection
         let redis_client = redis::Client::open(config.redis_url.clone())?;
         let redis = redis_client.get_multiplexed_async_connection().await?;
-        
+
         // Neo4j graph database removed - using raw Bolt TCP client
-        
+
         // Initialize JWT auth
         let jwt_auth = Arc::new(JwtAuth::new(&config.jwt_secret));
-        
+
         // Initialize email service
         let email_service = Arc::new(EmailService::new(
             "smtp.resend.com".to_string(),
@@ -41,27 +41,24 @@ impl AppState {
             config.resend_api_key.clone().unwrap_or_default(),
             "EDT System <onboarding@resend.dev>".to_string(),
         ));
-        
+
         // Initialize crypto service
         let crypto_service = Arc::new(CryptoService::new());
-        
+
         // Initialize security monitor
         let security_monitor = Arc::new(RwLock::new(SecurityMonitor::new()));
-        
+
         // Initialize update channel for WebSocket
         let update_channel = UpdateChannel::new();
-        
+
         // Initialize central logger
         let redis_manager = redis::aio::ConnectionManager::new(redis_client.clone()).await?;
-        let logger = CentralLogger::new(
-            redis_manager,
-            "api-gateway".to_string()
-        );
-        
+        let logger = CentralLogger::new(redis_manager, "api-gateway".to_string());
+
         // Database manager removed - using raw Bolt TCP client
-        
+
         // Neo4j is set as default connection
-        
+
         Ok(Self {
             config: Arc::new(config),
             redis,
@@ -73,14 +70,16 @@ impl AppState {
             logger,
         })
     }
-    
+
     pub fn is_approved_email(&self, email: &str) -> bool {
         // If no emails configured, allow all (development mode)
         if self.config.approved_emails.is_empty() {
             return true;
         }
-        
-        self.config.approved_emails.iter()
+
+        self.config
+            .approved_emails
+            .iter()
             .any(|approved| approved == email)
     }
 }

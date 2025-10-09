@@ -1,19 +1,21 @@
 use axum::{
-    extract::{State, Extension},
+    extract::{Extension, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
 };
 use serde::{Deserialize, Serialize};
-use tracing::{info, error};
+use tracing::{error, info};
 use uuid::Uuid;
 
-use crate::{
-    state::AppState,
-    middleware::auth::AuthUser,
-    mfa_simple::{TotpMfa, MfaStorage, MfaSetup, UserMfaConfig},
+use crate::logging::security_events::{
+    SecurityEvent as LogSecurityEvent, SecurityEventType as LogSecurityEventType,
 };
-use crate::logging::security_events::{SecurityEvent as LogSecurityEvent, SecurityEventType as LogSecurityEventType};
+use crate::{
+    mfa_simple::{MfaSetup, MfaStorage, TotpMfa, UserMfaConfig},
+    middleware::auth::AuthUser,
+    state::AppState,
+};
 
 #[derive(Debug, Deserialize)]
 #[allow(dead_code)]
@@ -55,7 +57,7 @@ pub async fn setup_mfa(
 ) -> impl IntoResponse {
     let totp = TotpMfa::new(state.config.mfa_issuer.clone());
     let mut mfa_storage = MfaStorage::new(state.redis.clone());
-    
+
     // Check if MFA is already enabled
     match mfa_storage.get_mfa_config(user.user_id).await {
         Ok(Some(config)) if config.enabled => {
@@ -63,8 +65,9 @@ pub async fn setup_mfa(
                 StatusCode::BAD_REQUEST,
                 Json(serde_json::json!({
                     "error": "MFA is already enabled for this account"
-                }))
-            ).into_response();
+                })),
+            )
+                .into_response();
         }
         Err(e) => {
             error!("Failed to check existing MFA config: {}", e);
@@ -72,24 +75,25 @@ pub async fn setup_mfa(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({
                     "error": "Failed to check MFA status"
-                }))
-            ).into_response();
+                })),
+            )
+                .into_response();
         }
         _ => {}
     }
-    
+
     // Generate new TOTP secret
     let secret = TotpMfa::generate_secret();
     let qr_url = totp.generate_qr_url(&user.email, &secret);
     let backup_codes = TotpMfa::generate_backup_codes(8);
-    
+
     let setup = MfaSetup {
         user_id: user.user_id,
         secret: secret.clone(),
         qr_code_url: qr_url.clone(),
         backup_codes: backup_codes.clone(),
     };
-    
+
     // Store setup session temporarily
     if let Err(e) = mfa_storage.store_setup_session(user.user_id, &setup).await {
         error!("Failed to store MFA setup session: {}", e);
@@ -97,17 +101,18 @@ pub async fn setup_mfa(
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({
                 "error": "Failed to initialize MFA setup"
-            }))
-        ).into_response();
+            })),
+        )
+            .into_response();
     }
-    
+
     let response = MfaSetupResponse {
         secret: secret.clone(),
         qr_code_url: qr_url,
         backup_codes,
         manual_entry_key: secret, // For manual entry in authenticator apps
     };
-    
+
     info!("MFA setup initiated for user: {}", user.email);
     (StatusCode::OK, Json(response)).into_response()
 }
@@ -124,22 +129,24 @@ pub async fn enable_mfa(
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({
                 "error": "Invalid code format. Must be 6 digits."
-            }))
-        ).into_response();
+            })),
+        )
+            .into_response();
     }
-    
+
     if !payload.backup_acknowledged {
         return (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({
                 "error": "You must acknowledge that you have saved your backup codes"
-            }))
-        ).into_response();
+            })),
+        )
+            .into_response();
     }
-    
+
     let totp = TotpMfa::new(state.config.mfa_issuer.clone());
     let mut mfa_storage = MfaStorage::new(state.redis.clone());
-    
+
     // Get setup session
     let setup = match mfa_storage.get_setup_session(user.user_id).await {
         Ok(Some(setup)) => setup,
@@ -148,8 +155,9 @@ pub async fn enable_mfa(
                 StatusCode::BAD_REQUEST,
                 Json(serde_json::json!({
                     "error": "MFA setup session expired or not found. Please restart setup."
-                }))
-            ).into_response();
+                })),
+            )
+                .into_response();
         }
         Err(e) => {
             error!("Failed to get MFA setup session: {}", e);
@@ -157,11 +165,12 @@ pub async fn enable_mfa(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({
                     "error": "Failed to retrieve setup session"
-                }))
-            ).into_response();
+                })),
+            )
+                .into_response();
         }
     };
-    
+
     // Verify the TOTP code
     match totp.verify_totp(&setup.secret, &payload.code, 1) {
         Ok(true) => {
@@ -173,7 +182,7 @@ pub async fn enable_mfa(
                 backup_codes: setup.backup_codes,
                 created_at: chrono::Utc::now(),
             };
-            
+
             // Store MFA configuration
             if let Err(e) = mfa_storage.store_mfa_config(&config).await {
                 error!("Failed to store MFA config: {}", e);
@@ -181,38 +190,40 @@ pub async fn enable_mfa(
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(serde_json::json!({
                         "error": "Failed to enable MFA"
-                    }))
-                ).into_response();
+                    })),
+                )
+                    .into_response();
             }
-            
+
             // Clean up setup session
             let _ = mfa_storage.delete_setup_session(user.user_id).await;
-            
+
             info!("MFA enabled successfully for user: {}", user.email);
             (
                 StatusCode::OK,
                 Json(serde_json::json!({
                     "message": "MFA has been successfully enabled",
                     "backup_codes_count": config.backup_codes.len()
-                }))
-            ).into_response()
+                })),
+            )
+                .into_response()
         }
-        Ok(false) => {
-            (
-                StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({
-                    "error": "Invalid verification code. Please try again."
-                }))
-            ).into_response()
-        }
+        Ok(false) => (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "Invalid verification code. Please try again."
+            })),
+        )
+            .into_response(),
         Err(e) => {
             error!("Failed to verify TOTP code: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({
                     "error": "Failed to verify code"
-                }))
-            ).into_response()
+                })),
+            )
+                .into_response()
         }
     }
 }
@@ -229,11 +240,12 @@ pub async fn complete_mfa_login(
                 StatusCode::BAD_REQUEST,
                 Json(serde_json::json!({
                     "error": "partial_token is required"
-                }))
-            ).into_response();
+                })),
+            )
+                .into_response();
         }
     };
-    
+
     let code = match payload.get("code").and_then(|v| v.as_str()) {
         Some(code) => code,
         None => {
@@ -241,24 +253,26 @@ pub async fn complete_mfa_login(
                 StatusCode::BAD_REQUEST,
                 Json(serde_json::json!({
                     "error": "code is required"
-                }))
-            ).into_response();
+                })),
+            )
+                .into_response();
         }
     };
-    
+
     if code.len() != 6 || !code.chars().all(|c| c.is_numeric()) {
         return (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({
                 "error": "Invalid code format. Must be 6 digits."
-            }))
-        ).into_response();
+            })),
+        )
+            .into_response();
     }
-    
+
     // Get partial session data
     let partial_key = format!("partial_session:{}", partial_token);
     let mut redis = state.redis.clone();
-    
+
     let partial_data: Option<String> = match redis::cmd("GET")
         .arg(&partial_key)
         .query_async(&mut redis)
@@ -271,11 +285,12 @@ pub async fn complete_mfa_login(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({
                     "error": "Authentication error"
-                }))
-            ).into_response();
+                })),
+            )
+                .into_response();
         }
     };
-    
+
     let session_info: serde_json::Value = match partial_data {
         Some(data) => match serde_json::from_str(&data) {
             Ok(info) => info,
@@ -284,8 +299,9 @@ pub async fn complete_mfa_login(
                     StatusCode::BAD_REQUEST,
                     Json(serde_json::json!({
                         "error": "Invalid session data"
-                    }))
-                ).into_response();
+                    })),
+                )
+                    .into_response();
             }
         },
         None => {
@@ -293,11 +309,12 @@ pub async fn complete_mfa_login(
                 StatusCode::UNAUTHORIZED,
                 Json(serde_json::json!({
                     "error": "Session expired or invalid"
-                }))
-            ).into_response();
+                })),
+            )
+                .into_response();
         }
     };
-    
+
     let user_id_str = match session_info.get("user_id").and_then(|v| v.as_str()) {
         Some(id) => id,
         None => {
@@ -305,11 +322,12 @@ pub async fn complete_mfa_login(
                 StatusCode::BAD_REQUEST,
                 Json(serde_json::json!({
                     "error": "Invalid session data"
-                }))
-            ).into_response();
+                })),
+            )
+                .into_response();
         }
     };
-    
+
     let user_id = match Uuid::parse_str(user_id_str) {
         Ok(id) => id,
         Err(_) => {
@@ -317,18 +335,23 @@ pub async fn complete_mfa_login(
                 StatusCode::BAD_REQUEST,
                 Json(serde_json::json!({
                     "error": "Invalid user ID format"
-                }))
-            ).into_response();
+                })),
+            )
+                .into_response();
         }
     };
-    
+
     // Get user email from session
-    let user_email = session_info.get("email").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
-    
+    let user_email = session_info
+        .get("email")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown")
+        .to_string();
+
     // Verify TOTP code
     let totp = TotpMfa::new(state.config.mfa_issuer.clone());
     let mut mfa_storage = MfaStorage::new(state.redis.clone());
-    
+
     let config = match mfa_storage.get_mfa_config(user_id).await {
         Ok(Some(config)) if config.enabled => config,
         Ok(_) => {
@@ -336,8 +359,9 @@ pub async fn complete_mfa_login(
                 StatusCode::BAD_REQUEST,
                 Json(serde_json::json!({
                     "error": "MFA not properly configured"
-                }))
-            ).into_response();
+                })),
+            )
+                .into_response();
         }
         Err(e) => {
             error!("Failed to get MFA config: {}", e);
@@ -345,19 +369,22 @@ pub async fn complete_mfa_login(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({
                     "error": "Failed to verify MFA"
-                }))
-            ).into_response();
+                })),
+            )
+                .into_response();
         }
     };
-    
+
     // Log MFA verification attempt
-    state.logger.log_security_event(LogSecurityEvent::new(
-        LogSecurityEventType::MfaRequired,
-        Some(user_email.clone()),
-    )
-    .with_user(user_id.to_string(), Some(user_email.clone()))
-    .with_details("MFA verification attempt during login".to_string())).await;
-    
+    state
+        .logger
+        .log_security_event(
+            LogSecurityEvent::new(LogSecurityEventType::MfaRequired, Some(user_email.clone()))
+                .with_user(user_id.to_string(), Some(user_email.clone()))
+                .with_details("MFA verification attempt during login".to_string()),
+        )
+        .await;
+
     // Verify TOTP code (with development bypass)
     let code_valid = if state.config.environment == "development" && code == "123456" {
         info!("🔧 Development mode: accepting test code 123456 for complete MFA");
@@ -371,73 +398,86 @@ pub async fn complete_mfa_login(
             }
         }
     };
-    
+
     if code_valid {
-            // Log successful MFA verification
-            state.logger.log_mfa_attempt(&user_id.to_string(), &user_email, true).await;
-            
-            // TOTP verified - complete login
-            use crate::storage::{UserStorage, SessionStorage};
-            
-            let user_email = session_info.get("email").and_then(|v| v.as_str()).unwrap_or("");
-            
-            // Get user details for JWT
-            let mut user_storage = UserStorage::new(state.redis.clone());
-            let user = match user_storage.get_user_by_email(user_email).await {
-                Ok(Some(user)) => user,
-                Ok(None) => {
-                    return (
-                        StatusCode::UNAUTHORIZED,
-                        Json(serde_json::json!({
-                            "error": "User not found"
-                        }))
-                    ).into_response();
-                }
-                Err(e) => {
-                    error!("Failed to get user: {}", e);
-                    return (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(serde_json::json!({
-                            "error": "Authentication error"
-                        }))
-                    ).into_response();
-                }
-            };
-            
-            // Generate full JWT token
-            let session_id = Uuid::new_v4();
-            
-            // Log token issuance
-            state.logger.log_security_event(LogSecurityEvent::new(
-                LogSecurityEventType::TokenIssued,
-                Some(user.email.clone()),
+        // Log successful MFA verification
+        state
+            .logger
+            .log_mfa_attempt(&user_id.to_string(), &user_email, true)
+            .await;
+
+        // TOTP verified - complete login
+        use crate::storage::{SessionStorage, UserStorage};
+
+        let user_email = session_info
+            .get("email")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+
+        // Get user details for JWT
+        let mut user_storage = UserStorage::new(state.redis.clone());
+        let user = match user_storage.get_user_by_email(user_email).await {
+            Ok(Some(user)) => user,
+            Ok(None) => {
+                return (
+                    StatusCode::UNAUTHORIZED,
+                    Json(serde_json::json!({
+                        "error": "User not found"
+                    })),
+                )
+                    .into_response();
+            }
+            Err(e) => {
+                error!("Failed to get user: {}", e);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({
+                        "error": "Authentication error"
+                    })),
+                )
+                    .into_response();
+            }
+        };
+
+        // Generate full JWT token
+        let session_id = Uuid::new_v4();
+
+        // Log token issuance
+        state
+            .logger
+            .log_security_event(
+                LogSecurityEvent::new(LogSecurityEventType::TokenIssued, Some(user.email.clone()))
+                    .with_user(user.id.to_string(), Some(user.email.clone()))
+                    .with_details("JWT token issued after MFA verification".to_string()),
             )
-            .with_user(user.id.to_string(), Some(user.email.clone()))
-            .with_details("JWT token issued after MFA verification".to_string())).await;
-            
-            let token = match state.jwt_auth.generate_token(&user, session_id) {
-                Ok(token) => token,
-                Err(e) => {
-                    error!("Failed to generate token: {}", e);
-                    return (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(serde_json::json!({
-                            "error": "Failed to complete authentication"
-                        }))
-                    ).into_response();
-                }
-            };
-            
-            // Store session
-            let mut session_storage = SessionStorage::new(state.redis.clone());
-            let _ = session_storage.store_session(&session_id.to_string(), user.id, &user.email).await;
-            
-            // Clean up partial session
-            let _: Result<(), _> = redis::cmd("DEL")
-                .arg(&partial_key)
-                .query_async(&mut redis)
-                .await;
-            
+            .await;
+
+        let token = match state.jwt_auth.generate_token(&user, session_id) {
+            Ok(token) => token,
+            Err(e) => {
+                error!("Failed to generate token: {}", e);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({
+                        "error": "Failed to complete authentication"
+                    })),
+                )
+                    .into_response();
+            }
+        };
+
+        // Store session
+        let mut session_storage = SessionStorage::new(state.redis.clone());
+        let _ = session_storage
+            .store_session(&session_id.to_string(), user.id, &user.email)
+            .await;
+
+        // Clean up partial session
+        let _: Result<(), _> = redis::cmd("DEL")
+            .arg(&partial_key)
+            .query_async(&mut redis)
+            .await;
+
         info!("MFA login completed successfully for user: {}", user.email);
         (
             StatusCode::OK,
@@ -451,18 +491,23 @@ pub async fn complete_mfa_login(
                 },
                 "expires_at": (chrono::Utc::now() + chrono::Duration::hours(24)).to_rfc3339(),
                 "message": "Authentication completed successfully"
-            }))
-        ).into_response()
+            })),
+        )
+            .into_response()
     } else {
         // Log failed MFA verification
-        state.logger.log_mfa_attempt(&user_id.to_string(), &user_email, false).await;
-        
+        state
+            .logger
+            .log_mfa_attempt(&user_id.to_string(), &user_email, false)
+            .await;
+
         (
             StatusCode::UNAUTHORIZED,
             Json(serde_json::json!({
                 "error": "Invalid MFA code"
-            }))
-        ).into_response()
+            })),
+        )
+            .into_response()
     }
 }
 
@@ -477,13 +522,14 @@ pub async fn verify_mfa(
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({
                 "error": "Invalid code format. Must be 6 digits."
-            }))
-        ).into_response();
+            })),
+        )
+            .into_response();
     }
-    
+
     let totp = TotpMfa::new(state.config.mfa_issuer.clone());
     let mut mfa_storage = MfaStorage::new(state.redis.clone());
-    
+
     // Get user's MFA config
     let config = match mfa_storage.get_mfa_config(user.user_id).await {
         Ok(Some(config)) if config.enabled => config,
@@ -492,16 +538,18 @@ pub async fn verify_mfa(
                 StatusCode::BAD_REQUEST,
                 Json(serde_json::json!({
                     "error": "MFA is not enabled for this account"
-                }))
-            ).into_response();
+                })),
+            )
+                .into_response();
         }
         Ok(None) => {
             return (
                 StatusCode::BAD_REQUEST,
                 Json(serde_json::json!({
                     "error": "MFA is not configured for this account"
-                }))
-            ).into_response();
+                })),
+            )
+                .into_response();
         }
         Err(e) => {
             error!("Failed to get MFA config: {}", e);
@@ -509,11 +557,12 @@ pub async fn verify_mfa(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({
                     "error": "Failed to verify MFA"
-                }))
-            ).into_response();
+                })),
+            )
+                .into_response();
         }
     };
-    
+
     // Verify TOTP code (with development bypass)
     let code_valid = if state.config.environment == "development" && payload.code == "123456" {
         info!("🔧 Development mode: accepting test code 123456 for verify");
@@ -527,15 +576,16 @@ pub async fn verify_mfa(
             }
         }
     };
-    
+
     if code_valid {
         info!("MFA verification successful for user: {}", user.email);
         (
             StatusCode::OK,
             Json(serde_json::json!({
                 "message": "MFA verification successful"
-            }))
-        ).into_response()
+            })),
+        )
+            .into_response()
     } else {
         // TODO: Check backup codes here
         info!("MFA verification failed for user: {}", user.email);
@@ -543,8 +593,9 @@ pub async fn verify_mfa(
             StatusCode::UNAUTHORIZED,
             Json(serde_json::json!({
                 "error": "Invalid MFA code"
-            }))
-        ).into_response()
+            })),
+        )
+            .into_response()
     }
 }
 
@@ -554,7 +605,7 @@ pub async fn get_mfa_status(
     Extension(user): Extension<AuthUser>,
 ) -> impl IntoResponse {
     let mut mfa_storage = MfaStorage::new(state.redis.clone());
-    
+
     match mfa_storage.get_mfa_config(user.user_id).await {
         Ok(Some(config)) => {
             let response = MfaStatusResponse {
@@ -580,9 +631,9 @@ pub async fn get_mfa_status(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({
                     "error": "Failed to get MFA status"
-                }))
-            ).into_response()
+                })),
+            )
+                .into_response()
         }
     }
 }
-

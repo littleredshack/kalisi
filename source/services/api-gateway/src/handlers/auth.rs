@@ -1,22 +1,21 @@
+use crate::logging::security_events::{
+    SecurityEvent as LogSecurityEvent, SecurityEventType as LogSecurityEventType,
+};
+use crate::{
+    security_metrics::{SecurityEvent, SecurityEventType},
+    state::AppState,
+    storage::{OtpPurpose, OtpStorage, SessionStorage, UserStorage},
+};
 use axum::{
-    extract::{State, Json, Extension},
+    extract::{Extension, Json, State},
     http::StatusCode,
     response::IntoResponse,
 };
+use chrono::{Duration, Utc};
+use kalisi_core::{auth::generate_otp, types::ApiResponse};
 use serde::{Deserialize, Serialize};
-use kalisi_core::{
-    auth::generate_otp,
-    types::ApiResponse,
-};
+use tracing::{error, info};
 use uuid::Uuid;
-use chrono::{Utc, Duration};
-use crate::{
-    state::AppState,
-    storage::{OtpStorage, OtpPurpose, SessionStorage, UserStorage},
-    security_metrics::{SecurityEvent, SecurityEventType},
-};
-use crate::logging::security_events::{SecurityEvent as LogSecurityEvent, SecurityEventType as LogSecurityEventType};
-use tracing::{info, error};
 
 #[derive(Debug, Deserialize)]
 pub struct RequestOtpPayload {
@@ -67,44 +66,68 @@ pub async fn request_otp(
     if state.config.totp_only_mode {
         return (
             StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error("Email OTP is disabled. Please use TOTP authentication.")),
-        ).into_response();
+            Json(ApiResponse::<()>::error(
+                "Email OTP is disabled. Please use TOTP authentication.",
+            )),
+        )
+            .into_response();
     }
-    
+
     // Log OTP request
-    state.logger.log_security_event(LogSecurityEvent::new(
-        LogSecurityEventType::OtpRequest,
-        Some(payload.email.clone()),
-    ).with_details(format!("OTP requested for email: {}", payload.email))).await;
+    state
+        .logger
+        .log_security_event(
+            LogSecurityEvent::new(
+                LogSecurityEventType::OtpRequest,
+                Some(payload.email.clone()),
+            )
+            .with_details(format!("OTP requested for email: {}", payload.email)),
+        )
+        .await;
     // Validate email
     if !state.is_approved_email(&payload.email) {
         // Log failed OTP request due to unauthorized email
-        state.logger.log_security_event(LogSecurityEvent::new(
-            LogSecurityEventType::OtpFailed,
-            None,
-        )
-        .with_details(format!("Unauthorized email attempted OTP: {}", payload.email))
-        .with_severity(crate::logging::security_events::SecuritySeverity::Medium)).await;
-        
+        state
+            .logger
+            .log_security_event(
+                LogSecurityEvent::new(LogSecurityEventType::OtpFailed, None)
+                    .with_details(format!(
+                        "Unauthorized email attempted OTP: {}",
+                        payload.email
+                    ))
+                    .with_severity(crate::logging::security_events::SecuritySeverity::Medium),
+            )
+            .await;
+
         return (
             StatusCode::FORBIDDEN,
-            Json(ApiResponse::<()>::error("Email not authorized for this system")),
-        ).into_response();
+            Json(ApiResponse::<()>::error(
+                "Email not authorized for this system",
+            )),
+        )
+            .into_response();
     }
-    
+
     // Generate OTP
     let otp_code = generate_otp();
-    
+
     // Store OTP in Redis
     let redis_conn = state.redis.clone();
     let mut otp_storage = OtpStorage::new(redis_conn);
-    
-    match otp_storage.store_otp(&payload.email, &otp_code, OtpPurpose::Login).await {
+
+    match otp_storage
+        .store_otp(&payload.email, &otp_code, OtpPurpose::Login)
+        .await
+    {
         Ok(_) => {
             info!("OTP stored for email: {}", payload.email);
-            
+
             // Send OTP email
-            match state.email_service.send_otp(&payload.email, &otp_code).await {
+            match state
+                .email_service
+                .send_otp(&payload.email, &otp_code)
+                .await
+            {
                 Ok(_) => {
                     info!("OTP sent to {}", payload.email);
                 }
@@ -116,7 +139,7 @@ pub async fn request_otp(
                     }
                 }
             }
-            
+
             // Record security event for OTP request
             let security_event = SecurityEvent {
                 timestamp: Utc::now(),
@@ -126,15 +149,25 @@ pub async fn request_otp(
                 success: true,
                 details: Some("OTP requested for login".to_string()),
             };
-            state.security_monitor.write().await.record_event(security_event).await;
-            
+            state
+                .security_monitor
+                .write()
+                .await
+                .record_event(security_event)
+                .await;
+
             // Log successful OTP generation
-            state.logger.log_security_event(LogSecurityEvent::new(
-                LogSecurityEventType::OtpVerified,
-                Some(payload.email.clone()),
-            )
-            .with_details("OTP generated and stored successfully".to_string())).await;
-            
+            state
+                .logger
+                .log_security_event(
+                    LogSecurityEvent::new(
+                        LogSecurityEventType::OtpVerified,
+                        Some(payload.email.clone()),
+                    )
+                    .with_details("OTP generated and stored successfully".to_string()),
+                )
+                .await;
+
             // Prepare response
             let response = RequestOtpResponse {
                 success: true,
@@ -148,24 +181,30 @@ pub async fn request_otp(
                     None
                 },
             };
-            
+
             (StatusCode::OK, Json(response)).into_response()
         }
         Err(e) => {
             error!("Failed to store OTP: {}", e);
-            
+
             // Log OTP failure
-            state.logger.log_security_event(LogSecurityEvent::new(
-                LogSecurityEventType::OtpFailed,
-                Some(payload.email.clone()),
-            )
-            .with_details(format!("Failed to store OTP: {}", e))
-            .with_severity(crate::logging::security_events::SecuritySeverity::High)).await;
-            
+            state
+                .logger
+                .log_security_event(
+                    LogSecurityEvent::new(
+                        LogSecurityEventType::OtpFailed,
+                        Some(payload.email.clone()),
+                    )
+                    .with_details(format!("Failed to store OTP: {}", e))
+                    .with_severity(crate::logging::security_events::SecuritySeverity::High),
+                )
+                .await;
+
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ApiResponse::<()>::error("Failed to generate OTP")),
-            ).into_response()
+            )
+                .into_response()
         }
     }
 }
@@ -175,12 +214,15 @@ pub async fn verify_otp(
     Json(payload): Json<VerifyOtpPayload>,
 ) -> impl IntoResponse {
     // Log OTP verification attempt
-    state.logger.log_login_attempt(&payload.email, None, false).await;
-    
+    state
+        .logger
+        .log_login_attempt(&payload.email, None, false)
+        .await;
+
     // Verify OTP from Redis
     let redis_conn = state.redis.clone();
     let mut otp_storage = OtpStorage::new(redis_conn);
-    
+
     match otp_storage.verify_otp(&payload.email, &payload.otp).await {
         Ok(true) => {
             // OTP is valid, check if user exists in Redis
@@ -197,7 +239,7 @@ pub async fn verify_otp(
                             created_at: Utc::now(),
                             last_login: Some(Utc::now()),
                         };
-                        
+
                         match user_storage.store_user(&new_user).await {
                             Ok(_) => {
                                 info!("Auto-registered user: {}", payload.email);
@@ -208,14 +250,18 @@ pub async fn verify_otp(
                                 return (
                                     StatusCode::INTERNAL_SERVER_ERROR,
                                     Json(ApiResponse::<()>::error("Failed to create user")),
-                                ).into_response();
+                                )
+                                    .into_response();
                             }
                         }
                     } else {
                         return (
                             StatusCode::UNAUTHORIZED,
-                            Json(ApiResponse::<()>::error("Access denied. Please contact your administrator.")),
-                        ).into_response();
+                            Json(ApiResponse::<()>::error(
+                                "Access denied. Please contact your administrator.",
+                            )),
+                        )
+                            .into_response();
                     }
                 }
                 Err(e) => {
@@ -223,16 +269,17 @@ pub async fn verify_otp(
                     return (
                         StatusCode::INTERNAL_SERVER_ERROR,
                         Json(ApiResponse::<()>::error("Database error")),
-                    ).into_response();
+                    )
+                        .into_response();
                 }
             };
-            
+
             // Check if MFA is required and configured
             info!("MFA_REQUIRED config: {}", state.config.mfa_required);
             if state.config.mfa_required {
-                use crate::mfa_simple::{MfaStorage};
+                use crate::mfa_simple::MfaStorage;
                 let mut mfa_storage = MfaStorage::new(state.redis.clone());
-                
+
                 info!("Checking MFA config for user: {}", user.id);
                 match mfa_storage.get_mfa_config(user.id).await {
                     Ok(Some(mfa_config)) if mfa_config.enabled => {
@@ -246,14 +293,14 @@ pub async fn verify_otp(
                             "stage": "mfa_required",
                             "expires_at": (Utc::now() + Duration::minutes(10)).timestamp()
                         });
-                        
+
                         let _: Result<(), _> = redis::cmd("SETEX")
                             .arg(&partial_key)
                             .arg(600) // 10 minutes
                             .arg(partial_data.to_string())
                             .query_async(&mut state.redis.clone())
                             .await;
-                        
+
                         return (
                             StatusCode::OK,
                             Json(serde_json::json!({
@@ -262,7 +309,8 @@ pub async fn verify_otp(
                                 "partial_token": partial_session_id.to_string(),
                                 "message": "OTP verified. Please provide your authenticator code."
                             })),
-                        ).into_response();
+                        )
+                            .into_response();
                     }
                     Ok(None) | Ok(Some(_)) => {
                         // No MFA configured but MFA required - user needs to set up MFA
@@ -275,14 +323,14 @@ pub async fn verify_otp(
                             "stage": "mfa_setup_required",
                             "expires_at": (Utc::now() + Duration::minutes(10)).timestamp()
                         });
-                        
+
                         let _: Result<(), _> = redis::cmd("SETEX")
                             .arg(&partial_key)
                             .arg(600) // 10 minutes
                             .arg(partial_data.to_string())
                             .query_async(&mut state.redis.clone())
                             .await;
-                        
+
                         return (
                             StatusCode::OK,
                             Json(serde_json::json!({
@@ -298,11 +346,12 @@ pub async fn verify_otp(
                         return (
                             StatusCode::INTERNAL_SERVER_ERROR,
                             Json(ApiResponse::<()>::error("Authentication error")),
-                        ).into_response();
+                        )
+                            .into_response();
                     }
                 }
             }
-            
+
             // No MFA required - generate full JWT token
             let session_id = Uuid::new_v4();
             let token = match state.jwt_auth.generate_token(&user, session_id) {
@@ -312,15 +361,18 @@ pub async fn verify_otp(
                     return (
                         StatusCode::INTERNAL_SERVER_ERROR,
                         Json(ApiResponse::<()>::error("Failed to generate token")),
-                    ).into_response();
+                    )
+                        .into_response();
                 }
             };
-            
+
             // Store session in Redis
             let redis_conn = state.redis.clone();
             let mut session_storage = SessionStorage::new(redis_conn);
-            let _ = session_storage.store_session(&session_id.to_string(), user.id, &user.email).await;
-            
+            let _ = session_storage
+                .store_session(&session_id.to_string(), user.id, &user.email)
+                .await;
+
             // Record successful login event
             let security_event = SecurityEvent {
                 timestamp: Utc::now(),
@@ -330,16 +382,29 @@ pub async fn verify_otp(
                 success: true,
                 details: Some("Login successful via OTP".to_string()),
             };
-            state.security_monitor.write().await.record_event(security_event).await;
-            
+            state
+                .security_monitor
+                .write()
+                .await
+                .record_event(security_event)
+                .await;
+
             // Log successful login
-            state.logger.log_login_attempt(&user.email, None, true).await;
-            state.logger.log_security_event(LogSecurityEvent::new(
-                LogSecurityEventType::TokenIssued,
-                Some(user.email.clone()),
-            )
-            .with_details("JWT token issued after OTP verification".to_string())).await;
-            
+            state
+                .logger
+                .log_login_attempt(&user.email, None, true)
+                .await;
+            state
+                .logger
+                .log_security_event(
+                    LogSecurityEvent::new(
+                        LogSecurityEventType::TokenIssued,
+                        Some(user.email.clone()),
+                    )
+                    .with_details("JWT token issued after OTP verification".to_string()),
+                )
+                .await;
+
             let response = VerifyOtpResponse {
                 success: true,
                 token,
@@ -350,7 +415,7 @@ pub async fn verify_otp(
                 },
                 expires_at: (Utc::now() + Duration::hours(24)).to_rfc3339(),
             };
-            
+
             (StatusCode::OK, Json(response)).into_response()
         }
         Ok(false) => {
@@ -363,36 +428,53 @@ pub async fn verify_otp(
                 success: false,
                 details: Some("Invalid or expired OTP".to_string()),
             };
-            state.security_monitor.write().await.record_event(security_event).await;
-            
+            state
+                .security_monitor
+                .write()
+                .await
+                .record_event(security_event)
+                .await;
+
             // Log failed OTP verification
-            state.logger.log_security_event(LogSecurityEvent::new(
-                LogSecurityEventType::OtpFailed,
-                Some(payload.email.clone()),
-            )
-            .with_details("Invalid or expired OTP".to_string())
-            .with_severity(crate::logging::security_events::SecuritySeverity::Medium)).await;
-            
+            state
+                .logger
+                .log_security_event(
+                    LogSecurityEvent::new(
+                        LogSecurityEventType::OtpFailed,
+                        Some(payload.email.clone()),
+                    )
+                    .with_details("Invalid or expired OTP".to_string())
+                    .with_severity(crate::logging::security_events::SecuritySeverity::Medium),
+                )
+                .await;
+
             (
                 StatusCode::UNAUTHORIZED,
                 Json(ApiResponse::<()>::error("Invalid or expired OTP")),
-            ).into_response()
+            )
+                .into_response()
         }
         Err(e) => {
             error!("Failed to verify OTP: {}", e);
-            
+
             // Log OTP verification error
-            state.logger.log_security_event(LogSecurityEvent::new(
-                LogSecurityEventType::OtpFailed,
-                Some(payload.email.clone()),
-            )
-            .with_details(format!("OTP verification error: {}", e))
-            .with_severity(crate::logging::security_events::SecuritySeverity::High)).await;
-            
+            state
+                .logger
+                .log_security_event(
+                    LogSecurityEvent::new(
+                        LogSecurityEventType::OtpFailed,
+                        Some(payload.email.clone()),
+                    )
+                    .with_details(format!("OTP verification error: {}", e))
+                    .with_severity(crate::logging::security_events::SecuritySeverity::High),
+                )
+                .await;
+
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ApiResponse::<()>::error("Failed to verify OTP")),
-            ).into_response()
+            )
+                .into_response()
         }
     }
 }
@@ -403,26 +485,46 @@ pub async fn direct_login(
     Json(payload): Json<DirectLoginPayload>,
 ) -> impl IntoResponse {
     // Log direct login attempt
-    state.logger.log_security_event(LogSecurityEvent::new(
-        LogSecurityEventType::LoginAttempt,
-        Some(payload.email.clone()),
-    ).with_details(format!("Direct TOTP login requested for email: {}", payload.email))).await;
-    
+    state
+        .logger
+        .log_security_event(
+            LogSecurityEvent::new(
+                LogSecurityEventType::LoginAttempt,
+                Some(payload.email.clone()),
+            )
+            .with_details(format!(
+                "Direct TOTP login requested for email: {}",
+                payload.email
+            )),
+        )
+        .await;
+
     // Validate email
     if !state.is_approved_email(&payload.email) {
-        state.logger.log_security_event(LogSecurityEvent::new(
-            LogSecurityEventType::LoginFailure,
-            Some(payload.email.clone()),
-        )
-        .with_details(format!("Unauthorized email attempted direct login: {}", payload.email))
-        .with_severity(crate::logging::security_events::SecuritySeverity::Medium)).await;
-        
+        state
+            .logger
+            .log_security_event(
+                LogSecurityEvent::new(
+                    LogSecurityEventType::LoginFailure,
+                    Some(payload.email.clone()),
+                )
+                .with_details(format!(
+                    "Unauthorized email attempted direct login: {}",
+                    payload.email
+                ))
+                .with_severity(crate::logging::security_events::SecuritySeverity::Medium),
+            )
+            .await;
+
         return (
             StatusCode::FORBIDDEN,
-            Json(ApiResponse::<()>::error("Email not authorized for this system")),
-        ).into_response();
+            Json(ApiResponse::<()>::error(
+                "Email not authorized for this system",
+            )),
+        )
+            .into_response();
     }
-    
+
     // Check if user exists, if not auto-register
     let mut user_storage = UserStorage::new(state.redis.clone());
     let user = match user_storage.get_user_by_email(&payload.email).await {
@@ -436,7 +538,7 @@ pub async fn direct_login(
                 created_at: Utc::now(),
                 last_login: Some(Utc::now()),
             };
-            
+
             match user_storage.store_user(&new_user).await {
                 Ok(_) => {
                     info!("Auto-registered user for TOTP-only auth: {}", payload.email);
@@ -447,7 +549,8 @@ pub async fn direct_login(
                     return (
                         StatusCode::INTERNAL_SERVER_ERROR,
                         Json(ApiResponse::<()>::error("Failed to register user")),
-                    ).into_response()
+                    )
+                        .into_response();
                 }
             }
         }
@@ -456,29 +559,34 @@ pub async fn direct_login(
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ApiResponse::<()>::error("Database error")),
-            ).into_response()
+            )
+                .into_response();
         }
     };
-    
+
     // Check if user has MFA already set up
-    use crate::mfa_simple::{MfaStorage};
+    use crate::mfa_simple::MfaStorage;
     let mut mfa_storage = MfaStorage::new(state.redis.clone());
     let has_mfa_setup = match mfa_storage.get_mfa_config(user.id).await {
         Ok(Some(config)) => config.enabled,
         _ => false,
     };
-    
+
     // Generate partial token for MFA setup/verification
     let partial_session_id = Uuid::new_v4();
     let partial_key = format!("partial_session:{}", partial_session_id);
-    let stage = if has_mfa_setup { "mfa_required" } else { "mfa_setup_required" };
+    let stage = if has_mfa_setup {
+        "mfa_required"
+    } else {
+        "mfa_setup_required"
+    };
     let partial_data = serde_json::json!({
         "user_id": user.id,
         "email": user.email,
         "stage": stage,
         "expires_at": (Utc::now() + Duration::minutes(10)).timestamp()
     });
-    
+
     // Store partial session in Redis
     let mut redis = state.redis.clone();
     if let Err(e) = redis::cmd("SET")
@@ -492,10 +600,13 @@ pub async fn direct_login(
         error!("Failed to store partial session: {}", e);
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error("Failed to store authentication session")),
-        ).into_response()
+            Json(ApiResponse::<()>::error(
+                "Failed to store authentication session",
+            )),
+        )
+            .into_response();
     }
-    
+
     #[derive(Serialize)]
     struct DirectLoginResponse {
         success: bool,
@@ -505,23 +616,30 @@ pub async fn direct_login(
         email: String,
         requires_mfa_setup: bool,
     }
-    
+
     let response = DirectLoginResponse {
         success: true,
-        message: if has_mfa_setup { "Please provide your authenticator code" } else { "Please proceed to MFA setup" }.to_string(),
+        message: if has_mfa_setup {
+            "Please provide your authenticator code"
+        } else {
+            "Please proceed to MFA setup"
+        }
+        .to_string(),
         partial_token: partial_session_id.to_string(),
         user_id: user.id.to_string(),
         email: user.email.clone(),
         requires_mfa_setup: !has_mfa_setup,
     };
-    
+
     // Log successful partial authentication
-    state.logger.log_security_event(LogSecurityEvent::new(
-        LogSecurityEventType::TokenIssued,
-        Some(user.email.clone()),
-    )
-    .with_details("Direct login successful, awaiting TOTP verification".to_string())).await;
-    
+    state
+        .logger
+        .log_security_event(
+            LogSecurityEvent::new(LogSecurityEventType::TokenIssued, Some(user.email.clone()))
+                .with_details("Direct login successful, awaiting TOTP verification".to_string()),
+        )
+        .await;
+
     (StatusCode::OK, Json(response)).into_response()
 }
 
@@ -532,11 +650,14 @@ pub async fn logout(
     // Delete session from Redis
     let redis_conn = state.redis.clone();
     let mut session_storage = SessionStorage::new(redis_conn);
-    
-    match session_storage.delete_session(&auth_user.session_id.to_string()).await {
+
+    match session_storage
+        .delete_session(&auth_user.session_id.to_string())
+        .await
+    {
         Ok(_) => {
             info!("User {} logged out successfully", auth_user.email);
-            
+
             // Record logout event
             let security_event = SecurityEvent {
                 timestamp: Utc::now(),
@@ -546,21 +667,37 @@ pub async fn logout(
                 success: true,
                 details: Some("User logged out".to_string()),
             };
-            state.security_monitor.write().await.record_event(security_event).await;
-            
+            state
+                .security_monitor
+                .write()
+                .await
+                .record_event(security_event)
+                .await;
+
             // Log logout
-            state.logger.log_security_event(LogSecurityEvent::new(
-                LogSecurityEventType::TokenRevoked,
-                Some(auth_user.email.clone()),
+            state
+                .logger
+                .log_security_event(
+                    LogSecurityEvent::new(
+                        LogSecurityEventType::TokenRevoked,
+                        Some(auth_user.email.clone()),
+                    )
+                    .with_details("User logged out, session deleted".to_string()),
+                )
+                .await;
+
+            (
+                StatusCode::OK,
+                Json(ApiResponse::success("Logged out successfully")),
             )
-            .with_details("User logged out, session deleted".to_string())).await;
-            
-            (StatusCode::OK, Json(ApiResponse::success("Logged out successfully")))
         }
         Err(e) => {
             error!("Failed to delete session: {}", e);
             // Return success anyway - session will expire
-            (StatusCode::OK, Json(ApiResponse::success("Logged out successfully")))
+            (
+                StatusCode::OK,
+                Json(ApiResponse::success("Logged out successfully")),
+            )
         }
     }
 }

@@ -1,12 +1,12 @@
-use axum::{
-    Router,
-    routing::{get, post},
-};
-use tower_http::cors::{CorsLayer, Any};
-use crate::state::AppState;
 use crate::handlers::auth;
 use crate::middleware::auth::auth_middleware;
+use crate::state::AppState;
 use crate::websocket::websocket_handler;
+use axum::{
+    routing::{get, post},
+    Router,
+};
+use tower_http::cors::{Any, CorsLayer};
 
 pub fn create_routes(state: AppState) -> Router {
     // Public routes
@@ -16,7 +16,7 @@ pub fn create_routes(state: AppState) -> Router {
         .route("/ws", get(websocket_handler))
         // All other functionality removed - use unified endpoint
         ;
-    
+
     // Protected routes
     let protected_routes = Router::new()
         .route("/auth/logout", post(auth::logout))
@@ -26,7 +26,7 @@ pub fn create_routes(state: AppState) -> Router {
             state.clone(),
             auth_middleware,
         ));
-    
+
     // Combine routes
     Router::new()
         .merge(public_routes)
@@ -35,7 +35,7 @@ pub fn create_routes(state: AppState) -> Router {
             CorsLayer::new()
                 .allow_origin(Any)
                 .allow_methods(Any)
-                .allow_headers(Any)
+                .allow_headers(Any),
         )
         .with_state(state)
 }

@@ -80,9 +80,7 @@ impl TypeScriptEdgeExtractor {
     }
 
     fn node_text(&self, node: &TsNode, source: &str) -> String {
-        node.utf8_text(source.as_bytes())
-            .unwrap_or("")
-            .to_string()
+        node.utf8_text(source.as_bytes()).unwrap_or("").to_string()
     }
 }
 
@@ -101,16 +99,53 @@ impl EdgeExtractor for TypeScriptEdgeExtractor {
             .ok_or_else(|| anyhow::anyhow!("Failed to parse TypeScript file"))?;
 
         let root = tree.root_node();
-        let file_path = &file_node.location.as_ref()
+        let file_path = &file_node
+            .location
+            .as_ref()
             .map(|l| l.path.clone())
             .unwrap_or_default();
 
         // Walk the tree looking for different edge types
-        self.walk_for_calls(&root, source, file_node, file_path, symbol_table, &mut edges)?;
-        self.walk_for_imports(&root, source, file_node, file_path, symbol_table, &mut edges)?;
-        self.walk_for_implements(&root, source, file_node, file_path, symbol_table, &mut edges)?;
-        self.walk_for_extends(&root, source, file_node, file_path, symbol_table, &mut edges)?;
-        self.walk_for_awaits(&root, source, file_node, file_path, symbol_table, &mut edges)?;
+        self.walk_for_calls(
+            &root,
+            source,
+            file_node,
+            file_path,
+            symbol_table,
+            &mut edges,
+        )?;
+        self.walk_for_imports(
+            &root,
+            source,
+            file_node,
+            file_path,
+            symbol_table,
+            &mut edges,
+        )?;
+        self.walk_for_implements(
+            &root,
+            source,
+            file_node,
+            file_path,
+            symbol_table,
+            &mut edges,
+        )?;
+        self.walk_for_extends(
+            &root,
+            source,
+            file_node,
+            file_path,
+            symbol_table,
+            &mut edges,
+        )?;
+        self.walk_for_awaits(
+            &root,
+            source,
+            file_node,
+            file_path,
+            symbol_table,
+            &mut edges,
+        )?;
 
         Ok(edges)
     }
@@ -131,29 +166,30 @@ impl TypeScriptEdgeExtractor {
             // Extract the callee name
             if let Some(callee_name) = self.extract_callee_name(node, source) {
                 // Resolve callee to GUID
-                if let Some(callee_guid) = symbol_table.resolve_with_context(&callee_name, file_path) {
+                if let Some(callee_guid) =
+                    symbol_table.resolve_with_context(&callee_name, file_path)
+                {
                     // Find the containing function (caller)
                     let call_site_offset = node.start_byte();
-                    if let Some(caller_guid) = self.find_containing_function(file_node, call_site_offset) {
+                    if let Some(caller_guid) =
+                        self.find_containing_function(file_node, call_site_offset)
+                    {
                         // Check if call is inside conditional
                         let is_conditional = self.is_inside_conditional(node);
 
                         // Create CALLS edge
-                        let edge = Edge::new(
-                            EdgeType::Calls,
-                            caller_guid,
-                            callee_guid,
-                        ).with_metadata(EdgeMetadata {
-                            location: Some(EdgeLocation {
-                                file: file_path.to_string(),
-                                line: node.start_position().row + 1,
-                                col: Some(node.start_position().column),
-                            }),
-                            is_async: None,
-                            is_conditional: Some(is_conditional),
-                            count: None,
-                            call_type: Some(CallType::Direct),
-                        });
+                        let edge = Edge::new(EdgeType::Calls, caller_guid, callee_guid)
+                            .with_metadata(EdgeMetadata {
+                                location: Some(EdgeLocation {
+                                    file: file_path.to_string(),
+                                    line: node.start_position().row + 1,
+                                    col: Some(node.start_position().column),
+                                }),
+                                is_async: None,
+                                is_conditional: Some(is_conditional),
+                                count: None,
+                                call_type: Some(CallType::Direct),
+                            });
 
                         edges.push(edge);
                     }
@@ -196,14 +232,17 @@ impl TypeScriptEdgeExtractor {
                                         EdgeType::Imports,
                                         file_node.guid.clone(),
                                         imported_guid,
-                                    ).with_metadata(EdgeMetadata {
-                                        location: Some(EdgeLocation {
-                                            file: file_path.to_string(),
-                                            line: node.start_position().row + 1,
-                                            col: Some(node.start_position().column),
-                                        }),
-                                        ..Default::default()
-                                    });
+                                    )
+                                    .with_metadata(
+                                        EdgeMetadata {
+                                            location: Some(EdgeLocation {
+                                                file: file_path.to_string(),
+                                                line: node.start_position().row + 1,
+                                                col: Some(node.start_position().column),
+                                            }),
+                                            ..Default::default()
+                                        },
+                                    );
                                     edges.push(edge);
                                 }
                             }
@@ -213,12 +252,15 @@ impl TypeScriptEdgeExtractor {
                                 for named_child in import_child.children(&mut named_cursor) {
                                     if named_child.kind() == "import_specifier" {
                                         let imported_name = self.node_text(&named_child, source);
-                                        if let Some(imported_guid) = symbol_table.resolve(&imported_name) {
+                                        if let Some(imported_guid) =
+                                            symbol_table.resolve(&imported_name)
+                                        {
                                             let edge = Edge::new(
                                                 EdgeType::Imports,
                                                 file_node.guid.clone(),
                                                 imported_guid,
-                                            ).with_metadata(EdgeMetadata {
+                                            )
+                                            .with_metadata(EdgeMetadata {
                                                 location: Some(EdgeLocation {
                                                     file: file_path.to_string(),
                                                     line: node.start_position().row + 1,
@@ -289,21 +331,20 @@ impl TypeScriptEdgeExtractor {
 
             // Create IMPLEMENTS edges
             if let Some(class_name) = class_name {
-                if let Some(class_guid) = symbol_table.resolve_with_context(&class_name, file_path) {
+                if let Some(class_guid) = symbol_table.resolve_with_context(&class_name, file_path)
+                {
                     for interface_name in implements {
                         if let Some(interface_guid) = symbol_table.resolve(&interface_name) {
-                            let edge = Edge::new(
-                                EdgeType::Implements,
-                                class_guid.clone(),
-                                interface_guid,
-                            ).with_metadata(EdgeMetadata {
-                                location: Some(EdgeLocation {
-                                    file: file_path.to_string(),
-                                    line: node.start_position().row + 1,
-                                    col: Some(node.start_position().column),
-                                }),
-                                ..Default::default()
-                            });
+                            let edge =
+                                Edge::new(EdgeType::Implements, class_guid.clone(), interface_guid)
+                                    .with_metadata(EdgeMetadata {
+                                        location: Some(EdgeLocation {
+                                            file: file_path.to_string(),
+                                            line: node.start_position().row + 1,
+                                            col: Some(node.start_position().column),
+                                        }),
+                                        ..Default::default()
+                                    });
                             edges.push(edge);
                         }
                     }
@@ -349,7 +390,9 @@ impl TypeScriptEdgeExtractor {
                             if heritage_child.kind() == "extends_clause" {
                                 let mut extends_cursor = heritage_child.walk();
                                 for extends_child in heritage_child.children(&mut extends_cursor) {
-                                    if extends_child.kind() == "type_identifier" || extends_child.kind() == "identifier" {
+                                    if extends_child.kind() == "type_identifier"
+                                        || extends_child.kind() == "identifier"
+                                    {
                                         extends = Some(self.node_text(&extends_child, source));
                                         break;
                                     }
@@ -367,18 +410,16 @@ impl TypeScriptEdgeExtractor {
                     symbol_table.resolve_with_context(&class_name, file_path),
                     symbol_table.resolve(&parent_name),
                 ) {
-                    let edge = Edge::new(
-                        EdgeType::Extends,
-                        class_guid,
-                        parent_guid,
-                    ).with_metadata(EdgeMetadata {
-                        location: Some(EdgeLocation {
-                            file: file_path.to_string(),
-                            line: node.start_position().row + 1,
-                            col: Some(node.start_position().column),
-                        }),
-                        ..Default::default()
-                    });
+                    let edge = Edge::new(EdgeType::Extends, class_guid, parent_guid).with_metadata(
+                        EdgeMetadata {
+                            location: Some(EdgeLocation {
+                                file: file_path.to_string(),
+                                line: node.start_position().row + 1,
+                                col: Some(node.start_position().column),
+                            }),
+                            ..Default::default()
+                        },
+                    );
                     edges.push(edge);
                 }
             }
@@ -411,29 +452,30 @@ impl TypeScriptEdgeExtractor {
                     // Extract the callee name
                     if let Some(callee_name) = self.extract_callee_name(&child, source) {
                         // Resolve callee to GUID
-                        if let Some(callee_guid) = symbol_table.resolve_with_context(&callee_name, file_path) {
+                        if let Some(callee_guid) =
+                            symbol_table.resolve_with_context(&callee_name, file_path)
+                        {
                             // Find the containing function (caller)
                             let await_site_offset = node.start_byte();
-                            if let Some(caller_guid) = self.find_containing_function(file_node, await_site_offset) {
+                            if let Some(caller_guid) =
+                                self.find_containing_function(file_node, await_site_offset)
+                            {
                                 // Check if await is inside conditional
                                 let is_conditional = self.is_inside_conditional(node);
 
                                 // Create AWAITS edge
-                                let edge = Edge::new(
-                                    EdgeType::Awaits,
-                                    caller_guid,
-                                    callee_guid,
-                                ).with_metadata(EdgeMetadata {
-                                    location: Some(EdgeLocation {
-                                        file: file_path.to_string(),
-                                        line: node.start_position().row + 1,
-                                        col: Some(node.start_position().column),
-                                    }),
-                                    is_async: Some(true),
-                                    is_conditional: Some(is_conditional),
-                                    call_type: Some(CallType::AsyncAwait),
-                                    count: None,
-                                });
+                                let edge = Edge::new(EdgeType::Awaits, caller_guid, callee_guid)
+                                    .with_metadata(EdgeMetadata {
+                                        location: Some(EdgeLocation {
+                                            file: file_path.to_string(),
+                                            line: node.start_position().row + 1,
+                                            col: Some(node.start_position().column),
+                                        }),
+                                        is_async: Some(true),
+                                        is_conditional: Some(is_conditional),
+                                        call_type: Some(CallType::AsyncAwait),
+                                        count: None,
+                                    });
 
                                 edges.push(edge);
                             }

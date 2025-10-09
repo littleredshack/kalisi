@@ -1,6 +1,14 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
+import {
+  TreeTableColumn,
+  TreeTableNode,
+  TreeTableQueryResult,
+  TreeTableValue,
+} from '../../shared/tree-table/tree-table.types';
+import { TreeTableLayoutResult } from '../../shared/tree-table/tree-table-layout-engine';
+
 // Simple entity model without renderer dependency
 interface EntityModel {
   id: string;
@@ -39,6 +47,92 @@ export class Neo4jDataService {
   constructor(
     private http: HttpClient
   ) {}
+
+  private static readonly TREE_TABLE_QUERY_TEMPLATE = `
+CALL {
+  MATCH (n:CodeElement)
+  WHERE n.import_batch IS NOT NULL
+  WITH n
+  ORDER BY n.updatedAt DESC
+  RETURN n.import_batch AS latestBatch
+  LIMIT 1
+}
+WITH {BATCH_EXPR} AS batchId,
+     [
+       { key: 'calls', label: 'Calls', valueType: 'integer', allowAggregation: true, isDefault: true },
+       { key: 'descendants', label: 'Descendants', valueType: 'integer', allowAggregation: true }
+     ] AS columns
+CALL {
+  WITH batchId
+  MATCH (root:CodeElement {import_batch: batchId})
+  WHERE root.parent_guid IS NULL
+  MATCH path = (root)-[:HAS_CHILD*0..]->(node:CodeElement {import_batch: batchId})
+  WITH batchId, node, length(path) AS depth
+  OPTIONAL MATCH (node)<-[:HAS_CHILD]-(parent:CodeElement {import_batch: batchId})
+  OPTIONAL MATCH (node)-[callRel:CALLS]->(:CodeElement {import_batch: batchId})
+  WITH batchId, node, depth, parent, count(callRel) AS callCount
+  OPTIONAL MATCH (node)-[:HAS_CHILD*1..]->(descendant:CodeElement {import_batch: batchId})
+  WITH batchId, node, depth, parent, callCount, count(DISTINCT descendant) AS descendantCount
+  RETURN collect({
+    guid: node.guid,
+    parentGuid: parent.guid,
+    label: node.name,
+    kind: node.kind,
+    language: node.language,
+    depth: depth,
+    values: {
+      calls: { raw: callCount, formatted: toString(callCount) },
+      descendants: { raw: descendantCount, formatted: toString(descendantCount) }
+    },
+    tags: node.labels,
+    metadataJson: node.metadata_json,
+    batchId: node.import_batch
+  }) AS nodes
+}
+RETURN {
+  columns: columns,
+  nodes: nodes,
+  batchId: batchId,
+  generatedAt: toString(datetime())
+} AS result
+`;
+
+  /**
+   * Fetch the flattened tree-table data in the canonical format consumed by
+   * the TreeTable layout/renderer stack. If no batch id is supplied we use
+   * the most recent import.
+   */
+  async fetchTreeTable(batchId?: string): Promise<TreeTableLayoutResult> {
+    interface UnifiedCypherResponse {
+      success: boolean;
+      data?: { results?: Array<Record<string, unknown>> };
+      message: string;
+    }
+
+    const query = Neo4jDataService.buildTreeTableQuery(batchId);
+    console.log('[TreeTable] Executing query:', query);
+
+    const response = await firstValueFrom(
+      this.http.post<UnifiedCypherResponse>('/v0/cypher/unified', {
+        query,
+        parameters: {},
+      }),
+    );
+
+    if (!response.success || !response.data?.results?.length) {
+      console.error('[TreeTable] Unified endpoint error', response);
+      throw new Error(
+        `TreeTable query failed: ${response.message || 'No data returned'}`,
+      );
+    }
+
+    const row = response.data.results[0] as { result?: TreeTableQueryResult };
+    if (!row?.result) {
+      throw new Error('TreeTable query did not return a result payload');
+    }
+
+    return this.normaliseTreeTableResult(row.result);
+  }
 
   // ViewNode API methods for FR-030 using existing cypher endpoint
   async getAllViewNodes(): Promise<any[]> {
@@ -192,7 +286,7 @@ export class Neo4jDataService {
 
 
   // Dynamic converter: raw Neo4j nodes/edges -> EntityModel format for canvas
-  private convertToEntityModels(rawNodes: any[], rawEdges: any[]): {entities: EntityModel[], relationships: GraphRelationship[]} {
+private convertToEntityModels(rawNodes: any[], rawEdges: any[]): {entities: EntityModel[], relationships: GraphRelationship[]} {
     const entities: EntityModel[] = [];
     const relationships: GraphRelationship[] = [];
 
@@ -314,6 +408,94 @@ export class Neo4jDataService {
       console.log('❌ DYNAMIC ERROR:', error);
       return this.createEmptyState(viewType, `Error: ${error}`);
     }
+  }
+
+  private normaliseTreeTableResult(result: TreeTableQueryResult): TreeTableLayoutResult {
+    const columns = result.columns.map((column) => this.normaliseTreeTableColumn(column));
+    const nodes = result.nodes.map((node) => this.normaliseTreeTableNode(node));
+
+    return {
+      columns,
+      nodes,
+      batchId: result.batchId,
+      generatedAt: result.generatedAt,
+    };
+  }
+
+  private normaliseTreeTableColumn(column: TreeTableColumn): TreeTableColumn {
+    return {
+      key: column.key,
+      label: column.label,
+      valueType: column.valueType,
+      description: column.description,
+      isDefault: column.isDefault,
+      allowAggregation: column.allowAggregation,
+    };
+  }
+
+  private normaliseTreeTableNode(node: TreeTableNode): TreeTableNode {
+    return {
+      guid: node.guid,
+      parentGuid: node.parentGuid ?? null,
+      label: node.label,
+      kind: node.kind,
+      language: node.language,
+      depth: node.depth,
+      position: node.position,
+      batchId: node.batchId,
+      tags: node.tags ?? [],
+      metadataJson: this.parseTreeTableMetadata(node.metadataJson),
+      values: this.normaliseTreeTableValueMap(node.values),
+      aggregates: node.aggregates
+        ? this.normaliseTreeTableValueMap(node.aggregates)
+        : undefined,
+    };
+  }
+
+  private normaliseTreeTableValueMap(
+    values: Record<string, TreeTableValue | undefined>,
+  ): Record<string, TreeTableValue | undefined> {
+    return Object.entries(values ?? {}).reduce(
+      (acc, [key, value]) => ({
+        ...acc,
+        [key]: value
+          ? {
+              raw: value.raw,
+              formatted: value.formatted,
+              meta: value.meta,
+            }
+          : undefined,
+      }),
+      {} as Record<string, TreeTableValue | undefined>,
+    );
+  }
+
+  private parseTreeTableMetadata(
+    metadata: Record<string, unknown> | string | undefined,
+  ): Record<string, unknown> | undefined {
+    if (metadata && typeof metadata === 'object') {
+      return metadata;
+    }
+
+    if (typeof metadata === 'string' && metadata.trim().length > 0) {
+      try {
+        return JSON.parse(metadata);
+      } catch (error) {
+        console.warn('[Neo4jDataService] Failed to parse metadata JSON', {
+          metadata,
+          error,
+        });
+      }
+    }
+
+    return undefined;
+  }
+
+  private static buildTreeTableQuery(batchId?: string): string {
+    const expression = batchId
+      ? `'${batchId.replace(/\\/g, '\\').replace(/'/g, "\\'")}'`
+      : 'latestBatch';
+    return Neo4jDataService.TREE_TABLE_QUERY_TEMPLATE.replace('{BATCH_EXPR}', expression);
   }
 
   private createEmptyState(viewType: string, message: string): {entities: EntityModel[], relationships: GraphRelationship[]} {

@@ -1,48 +1,49 @@
+use crate::middleware::security_headers::CspNonce;
 use axum::{
     extract::Request,
     http::HeaderValue,
     response::{Html, IntoResponse},
 };
-use crate::middleware::security_headers::CspNonce;
 
 /// Serve MFA setup page with CSP nonce injection
 pub async fn mfa_setup_page(request: Request) -> impl IntoResponse {
     let nonce = CspNonce::from_request(&request).unwrap_or_else(|| "fallback-nonce".to_string());
-    
+
     let html_content = generate_mfa_setup_html(&nonce);
-    
+
     let mut response = Html(html_content).into_response();
-    
+
     // Set content type explicitly
     response.headers_mut().insert(
         "content-type",
         HeaderValue::from_static("text/html; charset=utf-8"),
     );
-    
+
     response
 }
 
 /// Serve MFA reset page with CSP nonce injection
 pub async fn mfa_reset_page(request: Request) -> impl IntoResponse {
     let nonce = CspNonce::from_request(&request).unwrap_or_else(|| "fallback-nonce".to_string());
-    
+
     let html_content = generate_mfa_reset_html(&nonce);
-    
+
     let mut response = Html(html_content).into_response();
-    
+
     // Set content type explicitly
     response.headers_mut().insert(
         "content-type",
         HeaderValue::from_static("text/html; charset=utf-8"),
     );
-    
+
     response
 }
 
 // All dashboard functionality removed - only MFA templates remain
 
 fn generate_mfa_setup_html(nonce: &str) -> String {
-    format!(r#"<!DOCTYPE html>
+    format!(
+        r#"<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -67,11 +68,14 @@ fn generate_mfa_setup_html(nonce: &str) -> String {
         </div>
     </div>
 </body>
-</html>"#, nonce)
+</html>"#,
+        nonce
+    )
 }
 
 fn generate_mfa_reset_html(nonce: &str) -> String {
-    format!(r#"<!DOCTYPE html>
+    format!(
+        r#"<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -95,5 +99,7 @@ fn generate_mfa_reset_html(nonce: &str) -> String {
         </div>
     </div>
 </body>
-</html>"#, nonce)
+</html>"#,
+        nonce
+    )
 }

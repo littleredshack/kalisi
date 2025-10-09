@@ -11,4 +11,4 @@ mod integration;
 
 // Re-export commonly used test utilities
 #[cfg(test)]
-pub use fixtures::{TestFixtures, mocks};
+pub use fixtures::{mocks, TestFixtures};

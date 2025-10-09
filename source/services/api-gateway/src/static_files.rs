@@ -13,11 +13,11 @@ static STATIC_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/static");
 /// Serve static files from the embedded directory
 pub async fn serve_static(path: &str) -> impl IntoResponse {
     let path = path.trim_start_matches('/');
-    
+
     match STATIC_DIR.get_file(path) {
         Some(file) => {
             let mime_type = from_path(path).first_or_octet_stream();
-            
+
             Response::builder()
                 .status(StatusCode::OK)
                 .header(header::CONTENT_TYPE, mime_type.as_ref())
@@ -37,4 +37,3 @@ pub async fn serve_static(path: &str) -> impl IntoResponse {
         }
     }
 }
-

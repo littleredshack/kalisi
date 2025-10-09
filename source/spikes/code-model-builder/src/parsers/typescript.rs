@@ -73,7 +73,9 @@ impl TypeScriptParser {
                     }
                 }
                 "method_definition" => {
-                    if let Some(method_node) = self.parse_function(&child, source, file_path, true)? {
+                    if let Some(method_node) =
+                        self.parse_function(&child, source, file_path, true)?
+                    {
                         parent.add_child(method_node);
                     }
                 }
@@ -131,7 +133,9 @@ impl TypeScriptParser {
             for child in body.children(&mut cursor) {
                 match child.kind() {
                     "method_definition" => {
-                        if let Some(method_node) = self.parse_function(&child, source, file_path, true)? {
+                        if let Some(method_node) =
+                            self.parse_function(&child, source, file_path, true)?
+                        {
                             class_node.add_child(method_node);
                         }
                     }
@@ -155,7 +159,8 @@ impl TypeScriptParser {
             .unwrap_or_else(|| "field".to_string());
 
         let visibility = if self.has_child(node, "accessibility_modifier") {
-            let vis_text = self.find_child_text(node, source, "accessibility_modifier")
+            let vis_text = self
+                .find_child_text(node, source, "accessibility_modifier")
                 .unwrap_or_else(|| "public".to_string());
             match vis_text.as_str() {
                 "private" => Visibility::Private,
@@ -176,7 +181,12 @@ impl TypeScriptParser {
         Ok(Some(field_node))
     }
 
-    fn parse_interface(&self, node: &TsNode, source: &str, file_path: &str) -> Result<Option<Node>> {
+    fn parse_interface(
+        &self,
+        node: &TsNode,
+        source: &str,
+        file_path: &str,
+    ) -> Result<Option<Node>> {
         let name = self
             .find_child_text(node, source, "type_identifier")
             .unwrap_or_else(|| "UnnamedInterface".to_string());
@@ -264,7 +274,12 @@ impl TypeScriptParser {
         Ok(Some(const_node))
     }
 
-    fn parse_type_alias(&self, node: &TsNode, source: &str, file_path: &str) -> Result<Option<Node>> {
+    fn parse_type_alias(
+        &self,
+        node: &TsNode,
+        source: &str,
+        file_path: &str,
+    ) -> Result<Option<Node>> {
         let name = self
             .find_child_text(node, source, "type_identifier")
             .unwrap_or_else(|| "type".to_string());
@@ -346,8 +361,6 @@ impl TypeScriptParser {
     }
 
     fn node_text(&self, node: &TsNode, source: &str) -> String {
-        node.utf8_text(source.as_bytes())
-            .unwrap_or("")
-            .to_string()
+        node.utf8_text(source.as_bytes()).unwrap_or("").to_string()
     }
 }

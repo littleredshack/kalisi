@@ -1,12 +1,9 @@
-use actix_web::{test, web, App, http::StatusCode};
 use actix_files as fs;
-use edt_gateway::{
-    state::AppState,
-    storage::Storage,
-};
+use actix_web::{http::StatusCode, test, web, App};
+use edt_gateway::{state::AppState, storage::Storage};
+use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use std::path::Path;
 
 async fn setup_test_app() -> App<
     impl actix_web::dev::ServiceFactory<
@@ -17,19 +14,19 @@ async fn setup_test_app() -> App<
         InitError = (),
     >,
 > {
-    let storage = Storage::new_test().await.expect("Failed to create test storage");
+    let storage = Storage::new_test()
+        .await
+        .expect("Failed to create test storage");
     let state = web::Data::new(AppState {
         storage: Arc::new(RwLock::new(storage)),
         neo4j_client: None,
     });
 
-    App::new()
-        .app_data(state)
-        .service(
-            fs::Files::new("/static", "./static")
-                .use_last_modified(true)
-                .use_etag(true)
-        )
+    App::new().app_data(state).service(
+        fs::Files::new("/static", "./static")
+            .use_last_modified(true)
+            .use_etag(true),
+    )
 }
 
 #[actix_web::test]
@@ -48,12 +45,12 @@ async fn test_static_css_file_serving() {
         .to_request();
 
     let resp = test::call_service(&app, req).await;
-    
+
     // File might not exist in test environment
     if resp.status() == StatusCode::OK {
         let headers = resp.headers();
         assert_eq!(headers.get("Content-Type").unwrap(), "text/css");
-        
+
         // Check caching headers
         assert!(headers.contains_key("ETag"));
         assert!(headers.contains_key("Last-Modified"));
@@ -79,10 +76,13 @@ async fn test_static_js_file_serving() {
         .to_request();
 
     let resp = test::call_service(&app, req).await;
-    
+
     if resp.status() == StatusCode::OK {
         let headers = resp.headers();
-        assert_eq!(headers.get("Content-Type").unwrap(), "application/javascript");
+        assert_eq!(
+            headers.get("Content-Type").unwrap(),
+            "application/javascript"
+        );
     } else {
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
@@ -97,7 +97,7 @@ async fn test_static_image_serving() {
         .to_request();
 
     let resp = test::call_service(&app, req).await;
-    
+
     if resp.status() == StatusCode::OK {
         let headers = resp.headers();
         assert_eq!(headers.get("Content-Type").unwrap(), "image/png");
@@ -146,10 +146,10 @@ async fn test_conditional_requests() {
         .to_request();
 
     let resp = test::call_service(&app, req).await;
-    
+
     if resp.status() == StatusCode::OK {
         let etag = resp.headers().get("ETag").cloned();
-        
+
         if let Some(etag_value) = etag {
             // Second request with If-None-Match
             let req2 = test::TestRequest::get()
@@ -189,12 +189,10 @@ async fn test_mime_type_detection() {
         }
         std::fs::write(&file_path, "test").ok();
 
-        let req = test::TestRequest::get()
-            .uri(path)
-            .to_request();
+        let req = test::TestRequest::get().uri(path).to_request();
 
         let resp = test::call_service(&app, req).await;
-        
+
         if resp.status() == StatusCode::OK {
             let headers = resp.headers();
             if let Some(content_type) = headers.get("Content-Type") {

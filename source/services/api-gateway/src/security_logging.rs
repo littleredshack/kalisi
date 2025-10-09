@@ -1,7 +1,7 @@
-use serde_json::json;
-use tracing::{error, info, warn};
 use chrono::Utc;
+use serde_json::json;
 use std::net::IpAddr;
+use tracing::{error, info, warn};
 
 /// Security event types for comprehensive audit logging
 #[derive(Debug, Clone)]
@@ -19,16 +19,17 @@ pub enum SecurityEventType {
 impl SecurityEventType {
     fn severity(&self) -> &'static str {
         match self {
-            SecurityEventType::AuthFailure | 
-            SecurityEventType::UnauthorizedAccess | 
-            SecurityEventType::SuspiciousActivity => "HIGH",
-            
-            SecurityEventType::PrivilegedOperation | 
-            SecurityEventType::ConfigurationChange => "MEDIUM",
-            
-            SecurityEventType::AuthSuccess | 
-            SecurityEventType::DataAccess | 
-            SecurityEventType::SessionActivity => "INFO",
+            SecurityEventType::AuthFailure
+            | SecurityEventType::UnauthorizedAccess
+            | SecurityEventType::SuspiciousActivity => "HIGH",
+
+            SecurityEventType::PrivilegedOperation | SecurityEventType::ConfigurationChange => {
+                "MEDIUM"
+            }
+
+            SecurityEventType::AuthSuccess
+            | SecurityEventType::DataAccess
+            | SecurityEventType::SessionActivity => "INFO",
         }
     }
 }
@@ -81,11 +82,11 @@ impl SecurityLogger {
     fn handle_critical_event(log_entry: &serde_json::Value) {
         // In production, this would trigger:
         // - SIEM alerts
-        // - Incident response workflows  
+        // - Incident response workflows
         // - Real-time notifications to security team
-        
+
         error!(target: "critical_security", "CRITICAL SECURITY EVENT: {}", log_entry);
-        
+
         // TODO: Implement in production:
         // - Send alert to monitoring system
         // - Trigger automatic containment if needed
@@ -198,7 +199,7 @@ impl SecurityLogger {
             if parts.len() == 2 {
                 let username = parts[0];
                 let domain = parts[1];
-                
+
                 // Partially mask username for privacy
                 if username.len() > 2 {
                     format!("{}***@{}", &username[..2], domain)
@@ -234,9 +235,7 @@ impl SecurityLogger {
 #[macro_export]
 macro_rules! log_auth_success {
     ($email:expr, $ip:expr, $method:expr) => {
-        crate::security_logging::SecurityLogger::log_auth_attempt(
-            true, $email, $ip, $method, None
-        );
+        crate::security_logging::SecurityLogger::log_auth_attempt(true, $email, $ip, $method, None);
     };
 }
 
@@ -244,7 +243,11 @@ macro_rules! log_auth_success {
 macro_rules! log_auth_failure {
     ($email:expr, $ip:expr, $method:expr, $reason:expr) => {
         crate::security_logging::SecurityLogger::log_auth_attempt(
-            false, $email, $ip, $method, Some($reason)
+            false,
+            $email,
+            $ip,
+            $method,
+            Some($reason),
         );
     };
 }
@@ -253,7 +256,10 @@ macro_rules! log_auth_failure {
 macro_rules! log_suspicious {
     ($desc:expr, $ip:expr, $score:expr, $indicators:expr) => {
         crate::security_logging::SecurityLogger::log_suspicious_activity(
-            $desc, $ip, $score, $indicators
+            $desc,
+            $ip,
+            $score,
+            $indicators,
         );
     };
 }
@@ -269,10 +275,7 @@ mod tests {
             SecurityLogger::sanitize_email("john.doe@example.com"),
             "jo***@example.com"
         );
-        assert_eq!(
-            SecurityLogger::sanitize_email("a@test.com"),
-            "***@test.com"
-        );
+        assert_eq!(SecurityLogger::sanitize_email("a@test.com"), "***@test.com");
         assert_eq!(
             SecurityLogger::sanitize_email("invalid_email"),
             "invalid_format"
@@ -289,14 +292,8 @@ mod tests {
     #[test]
     fn test_security_logging() {
         let ip = Some(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1)));
-        
-        SecurityLogger::log_auth_attempt(
-            true,
-            "test@example.com",
-            ip,
-            "otp",
-            None,
-        );
+
+        SecurityLogger::log_auth_attempt(true, "test@example.com", ip, "otp", None);
 
         SecurityLogger::log_suspicious_activity(
             "Multiple failed login attempts",

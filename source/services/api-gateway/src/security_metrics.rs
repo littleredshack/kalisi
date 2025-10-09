@@ -12,19 +12,19 @@ pub struct SecurityMetrics {
     pub successful_logins: u64,
     pub failed_logins: u64,
     pub active_sessions: u32,
-    
+
     // Real-time activity
     pub recent_events: VecDeque<SecurityEvent>,
-    
+
     // System health
     pub mfa_enabled: bool,
     pub security_score: f32,
     pub last_security_check: DateTime<Utc>,
-    
+
     // Threat indicators
     pub suspicious_activities: u32,
     pub blocked_requests: u64,
-    
+
     // Geographic data (lightweight)
     pub access_locations: HashMap<String, u32>, // country -> count
 }
@@ -81,11 +81,11 @@ impl SecurityMonitor {
             max_events: 100, // Keep last 100 events for lightweight operation
         }
     }
-    
+
     /// Record a security event
     pub async fn record_event(&self, event: SecurityEvent) {
         let mut metrics = self.metrics.write().await;
-        
+
         // Update counters based on event type
         match &event.event_type {
             SecurityEventType::Login => {
@@ -108,32 +108,32 @@ impl SecurityMonitor {
             }
             _ => {}
         }
-        
+
         // Add to recent events (FIFO)
         metrics.recent_events.push_back(event);
         if metrics.recent_events.len() > self.max_events {
             metrics.recent_events.pop_front();
         }
     }
-    
+
     /// Get current metrics snapshot
     pub async fn get_metrics(&self) -> SecurityMetrics {
         self.metrics.read().await.clone()
     }
-    
+
     /// Update security score based on current configuration
     #[allow(dead_code)]
     pub async fn update_security_score(&self) {
         let mut metrics = self.metrics.write().await;
-        
+
         // Simple scoring based on security features
         let mut score = 5.0f32; // Base score
-        
+
         // MFA adds 2 points
         if metrics.mfa_enabled {
             score += 2.0;
         }
-        
+
         // Low failed login ratio adds 1 point
         if metrics.total_login_attempts > 0 {
             let failure_rate = metrics.failed_logins as f32 / metrics.total_login_attempts as f32;
@@ -141,39 +141,39 @@ impl SecurityMonitor {
                 score += 1.0;
             }
         }
-        
+
         // No suspicious activities adds 1 point
         if metrics.suspicious_activities == 0 {
             score += 1.0;
         }
-        
+
         // Recent security check adds 0.5 points
-        if Utc::now().signed_duration_since(metrics.last_security_check).num_hours() < 24 {
+        if Utc::now()
+            .signed_duration_since(metrics.last_security_check)
+            .num_hours()
+            < 24
+        {
             score += 0.5;
         }
-        
+
         metrics.security_score = score.min(10.0);
         metrics.last_security_check = Utc::now();
     }
-    
+
     /// Get real-time dashboard data
     pub async fn get_dashboard_data(&self) -> serde_json::Value {
         let metrics = self.get_metrics().await;
-        
+
         // Calculate additional real-time stats
         let login_success_rate = if metrics.total_login_attempts > 0 {
             (metrics.successful_logins as f32 / metrics.total_login_attempts as f32 * 100.0) as u32
         } else {
             100
         };
-        
+
         // Get last 10 events for the activity feed
-        let recent_events: Vec<_> = metrics.recent_events
-            .iter()
-            .rev()
-            .take(10)
-            .collect();
-        
+        let recent_events: Vec<_> = metrics.recent_events.iter().rev().take(10).collect();
+
         serde_json::json!({
             "overview": {
                 "security_score": metrics.security_score,

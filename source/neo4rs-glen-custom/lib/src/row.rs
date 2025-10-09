@@ -170,39 +170,41 @@ impl Row {
     /// Get all attributes as JSON without knowing column names (schema-agnostic)
     pub fn get_all_json(&self) -> serde_json::Value {
         let mut map = serde_json::Map::new();
-        
+
         // Manually iterate through BoltMap and convert each key-value pair
         for (bolt_key, bolt_value) in &self.attributes.value {
             let key = bolt_key.value.clone();
             let value = self.convert_bolt_to_json(bolt_value);
             map.insert(key, value);
         }
-        
+
         serde_json::Value::Object(map)
     }
 
     /// Convert BOLT values to proper JSON (matches frontend parser output)
     fn convert_bolt_to_json(&self, bolt_value: &crate::types::BoltType) -> serde_json::Value {
         use crate::types::BoltType;
-        
+
         match bolt_value {
             BoltType::String(s) => serde_json::Value::String(s.value.clone()),
             BoltType::Integer(i) => serde_json::Value::Number(serde_json::Number::from(i.value)),
-            BoltType::Float(f) => serde_json::Value::Number(serde_json::Number::from_f64(f.value).unwrap_or(serde_json::Number::from(0))),
+            BoltType::Float(f) => serde_json::Value::Number(
+                serde_json::Number::from_f64(f.value).unwrap_or(serde_json::Number::from(0)),
+            ),
             BoltType::Boolean(b) => serde_json::Value::Bool(b.value),
             BoltType::Null(_) => serde_json::Value::Null,
-            
+
             BoltType::Node(node) => {
                 // Match frontend extractNodeData() format exactly
                 let mut properties = serde_json::Map::new();
-                
+
                 // Extract all properties from BoltMap
                 for (prop_key, prop_value) in &node.properties.value {
                     let prop_name = prop_key.value.clone();
                     let prop_json = self.convert_bolt_to_json(prop_value);
                     properties.insert(prop_name, prop_json);
                 }
-                
+
                 // Create node object matching frontend format
                 serde_json::json!({
                     "neo4jId": node.id.value,
@@ -210,19 +212,19 @@ impl Row {
                     "labels": self.convert_bolt_list_to_json(&node.labels),
                     "properties": serde_json::Value::Object(properties)
                 })
-            },
-            
+            }
+
             BoltType::Relation(rel) => {
                 // Match frontend extractRelationshipData() format exactly
                 let mut properties = serde_json::Map::new();
-                
+
                 // Extract all properties from BoltMap
                 for (prop_key, prop_value) in &rel.properties.value {
                     let prop_name = prop_key.value.clone();
                     let prop_json = self.convert_bolt_to_json(prop_value);
                     properties.insert(prop_name, prop_json);
                 }
-                
+
                 serde_json::json!({
                     "neo4jId": rel.id.value,
                     "GUID": properties.get("GUID").cloned(),
@@ -233,23 +235,25 @@ impl Row {
                     "endNodeId": rel.end_node_id.value,
                     "properties": serde_json::Value::Object(properties)
                 })
-            },
-            
+            }
+
             BoltType::List(list) => self.convert_bolt_list_to_json(list),
             BoltType::Map(map) => self.convert_bolt_map_to_json(map),
-            
+
             // Handle datetime and other types as strings for now
-            _ => serde_json::Value::String(format!("{:?}", bolt_value))
+            _ => serde_json::Value::String(format!("{:?}", bolt_value)),
         }
     }
-    
+
     fn convert_bolt_list_to_json(&self, list: &crate::types::BoltList) -> serde_json::Value {
-        let items: Vec<serde_json::Value> = list.value.iter()
+        let items: Vec<serde_json::Value> = list
+            .value
+            .iter()
             .map(|item| self.convert_bolt_to_json(item))
             .collect();
         serde_json::Value::Array(items)
     }
-    
+
     fn convert_bolt_map_to_json(&self, map: &crate::types::BoltMap) -> serde_json::Value {
         let mut json_map = serde_json::Map::new();
         for (key, value) in &map.value {
@@ -260,7 +264,11 @@ impl Row {
 
     /// Get all column names dynamically
     pub fn get_column_names(&self) -> Vec<String> {
-        self.attributes.value.keys().map(|k| k.value.clone()).collect()
+        self.attributes
+            .value
+            .keys()
+            .map(|k| k.value.clone())
+            .collect()
     }
 
     pub fn to<'this, T>(&'this self) -> Result<T, DeError>

@@ -1,12 +1,12 @@
-use redis::aio::MultiplexedConnection;
-use serde::{Deserialize, Serialize};
-use std::process::Command;
-use std::fs::OpenOptions;
-use std::io::Write as IoWrite;
-use tracing::{info, error, warn};
 use anyhow::Result;
 use chrono::Utc;
+use redis::aio::MultiplexedConnection;
 use reqwest::Client;
+use serde::{Deserialize, Serialize};
+use std::fs::OpenOptions;
+use std::io::Write as IoWrite;
+use std::process::Command;
+use tracing::{error, info, warn};
 
 /// Project Tree Agent Response
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -23,9 +23,9 @@ struct UserIntent {
     depth: Option<usize>,
     exclude: Vec<String>,
     path: Option<String>,
-    show_all_hidden: bool,  // Show ALL hidden files including .git
-    hide_all_hidden: bool,  // Hide ALL hidden files
-    include_files: bool,    // Show files in addition to directories
+    show_all_hidden: bool, // Show ALL hidden files including .git
+    hide_all_hidden: bool, // Hide ALL hidden files
+    include_files: bool,   // Show files in addition to directories
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -117,7 +117,8 @@ impl ProjectTreeAgent {
                 "dist".to_string(),
             ],
             conversation_history: Vec::new(),
-            unanswered_questions_file: "/workspace/source/agents/project-tree-agent/unanswered_questions.jsonl".to_string(),
+            unanswered_questions_file:
+                "/workspace/source/agents/project-tree-agent/unanswered_questions.jsonl".to_string(),
             http_client: Client::new(),
             claude_api_key,
             claude_api_url,
@@ -140,7 +141,8 @@ impl ProjectTreeAgent {
 
         // Check if this is clearly out of scope before parsing
         if self.is_out_of_scope(query) {
-            let reason = "Query is outside agent's bounded task (can only show directory/file trees)";
+            let reason =
+                "Query is outside agent's bounded task (can only show directory/file trees)";
             self.log_unanswered_question(query, reason).await;
 
             return Ok(ProjectTreeResponse {
@@ -156,16 +158,12 @@ impl ProjectTreeAgent {
         let intent = self.parse_intent(query).await?;
 
         match intent.action {
-            TreeAction::ShowTree => {
-                self.execute_tree_generation(intent).await
-            }
-            TreeAction::Help => {
-                Ok(ProjectTreeResponse {
-                    tree: String::new(),
-                    message: self.get_help_message(),
-                    success: true,
-                })
-            }
+            TreeAction::ShowTree => self.execute_tree_generation(intent).await,
+            TreeAction::Help => Ok(ProjectTreeResponse {
+                tree: String::new(),
+                message: self.get_help_message(),
+                success: true,
+            }),
         }
     }
 
@@ -175,33 +173,14 @@ impl ProjectTreeAgent {
 
         // Keywords that indicate out-of-scope requests
         let out_of_scope_keywords = [
-            "create ",
-            "delete ",
-            "modify ",
-            "edit ",
-            "write ",
-            "remove ",
-            "rename ",
-            "move ",
-            "copy ",
-            "run ",
-            "execute",
-            "compile",
-            "build ",
-            "install",
-            "deploy",
-            "commit",
-            "push ",
-            "search ",
-            "find ",
-            "grep",
-            "read ",
-            "open ",
-            "analyze",
-            "count",
+            "create ", "delete ", "modify ", "edit ", "write ", "remove ", "rename ", "move ",
+            "copy ", "run ", "execute", "compile", "build ", "install", "deploy", "commit",
+            "push ", "search ", "find ", "grep", "read ", "open ", "analyze", "count",
         ];
 
-        out_of_scope_keywords.iter().any(|keyword| query_lower.contains(keyword))
+        out_of_scope_keywords
+            .iter()
+            .any(|keyword| query_lower.contains(keyword))
     }
 
     /// Log unanswered or out-of-scope questions for future improvement
@@ -317,7 +296,6 @@ Example queries:
         })
     }
 
-
     /// Execute the tree generation with parsed intent
     async fn execute_tree_generation(&self, intent: UserIntent) -> Result<ProjectTreeResponse> {
         let depth = intent.depth.unwrap_or(3);
@@ -325,7 +303,16 @@ Example queries:
         info!("🌲 Generating tree: depth={}, excludes={:?}, path={:?}, show_all_hidden={}, hide_all_hidden={}, include_files={}",
               depth, intent.exclude, intent.path, intent.show_all_hidden, intent.hide_all_hidden, intent.include_files);
 
-        match self.generate_tree(depth, &intent.exclude, intent.path.as_deref(), intent.hide_all_hidden, intent.include_files).await {
+        match self
+            .generate_tree(
+                depth,
+                &intent.exclude,
+                intent.path.as_deref(),
+                intent.hide_all_hidden,
+                intent.include_files,
+            )
+            .await
+        {
             Ok(tree) => {
                 let hidden_msg = if intent.show_all_hidden {
                     ", showing all hidden files"
@@ -411,9 +398,15 @@ I can only do ONE thing: show you directory trees (and files if you want). But I
 Ask me anything about showing your project structure!"#.to_string()
     }
 
-
     /// Generate the actual tree structure
-    async fn generate_tree(&self, max_depth: usize, exclude_patterns: &[String], base_path: Option<&str>, hide_all_hidden: bool, include_files: bool) -> Result<String> {
+    async fn generate_tree(
+        &self,
+        max_depth: usize,
+        exclude_patterns: &[String],
+        base_path: Option<&str>,
+        hide_all_hidden: bool,
+        include_files: bool,
+    ) -> Result<String> {
         let work_dir = if let Some(path) = base_path {
             format!("/workspace/source/{}", path)
         } else {
@@ -493,7 +486,11 @@ Ask me anything about showing your project structure!"#.to_string()
             let full_path = format!("{}/{}", work_dir, path);
             let is_file = std::path::Path::new(&full_path).is_file();
 
-            let prefix = if is_file { "├── 📄 " } else { "├── " };
+            let prefix = if is_file {
+                "├── 📄 "
+            } else {
+                "├── "
+            };
 
             tree.push_str(&format!("{}{}{}\n", indent, prefix, name));
         }
