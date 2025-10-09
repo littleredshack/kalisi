@@ -183,10 +183,20 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       // Store the viewNode for createEngineWithData to use
       this.selectedViewNode = viewNode;
 
-      // Execute ViewNode query
+      if (viewNode.layout_engine === 'tree-table') {
+        console.log('🌳 DEBUG: Loading tree-table data for ViewNode:', viewNode.name);
+        const treeTableData = await this.neo4jDataService.fetchTreeTable(viewNode.batchId || viewNode.import_batch);
+        this.rawViewNodeData = {
+          entities: [{ treeTableData }],
+          relationships: []
+        } as any;
+        this.createEngineWithData();
+        return;
+      }
+
+      // Execute ViewNode query for canvas-based views
       console.log('🔍 DEBUG: Executing ViewNode query for:', viewNode.name);
       const result = await this.neo4jDataService.executeViewNodeQuery(viewNode);
-      console.log('🔍 DEBUG: Query result:', {entityCount: result.entities.length, hasEntities: result.entities.length > 0});
 
 
       if (result.entities.length > 0) {

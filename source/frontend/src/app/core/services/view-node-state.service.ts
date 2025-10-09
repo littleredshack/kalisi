@@ -92,9 +92,10 @@ export class ViewNodeStateService {
           return this.viewNodes$.value.map(viewNode => ({
             id: viewNode.id,
             label: viewNode.name,
-            viewType: 'modular-canvas',
+            viewType: viewNode.renderer || viewNode.viewType || 'modular-canvas',
             summary: viewNode.name,
-            detail: `Loading ${viewNode.name} data from database`
+            detail: viewNode.detail || `Loading ${viewNode.name} data from database`,
+            nested: false
           }));
         }
       })
@@ -124,9 +125,9 @@ export class ViewNodeStateService {
           const viewItem: LibraryItem = {
             id: viewNode.id,
             label: viewNode.name,
-            viewType: 'modular-canvas',
-            summary: viewNode.name,
-            detail: `Loading ${viewNode.name} data from database`,
+            viewType: viewNode.renderer || viewNode.viewType || 'modular-canvas',
+            summary: viewNode.summary || viewNode.name,
+            detail: viewNode.detail || `Loading ${viewNode.name} data from database`,
             nested: true
           };
           items.push(viewItem);

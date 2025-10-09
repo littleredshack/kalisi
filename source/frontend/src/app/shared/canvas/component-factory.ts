@@ -5,6 +5,8 @@ import { FlatGraphLayoutEngine } from '../layouts/flat-graph-layout';
 import { ComposableFlatRenderer } from '../composable/renderers/composable-flat-renderer';
 import { ComposableHierarchicalRenderer } from '../composable/renderers/composable-hierarchical-renderer';
 import { ComposableContainmentOrthogonalRenderer } from '../composable/renderers/composable-containment-orthogonal-renderer';
+import { ComposableTreeTableRenderer } from '../composable/renderers/composable-tree-table-renderer';
+import { TreeTableLayoutEngine } from '../layouts/tree-table-layout';
 
 // New composable services
 import { LayoutEngineAdapter } from './layout-adapter';
@@ -36,6 +38,9 @@ export class LayoutEngineFactory {
       case 'flat-graph':
         // Use FlatGraphLayoutEngine with FlatGraphLayoutStrategy for uniform 120x80 nodes
         return new FlatGraphLayoutEngine();
+
+      case 'tree-table':
+        return new TreeTableLayoutEngine();
 
       default:
         console.warn(`Unknown layout engine type: ${layoutEngineType}, using default grid layout`);
@@ -71,6 +76,10 @@ export class RendererFactory {
       case 'composable-containment-orthogonal':
         console.log('🎨 DEBUG: Creating ComposableContainmentOrthogonalRenderer');
         return new ComposableContainmentOrthogonalRenderer();
+
+      case 'tree-table':
+        console.log('🎨 DEBUG: Creating ComposableTreeTableRenderer');
+        return new ComposableTreeTableRenderer();
 
       default:
         console.warn(`[RendererFactory] Unknown renderer type: ${rendererType}, using default composable-flat renderer`);
