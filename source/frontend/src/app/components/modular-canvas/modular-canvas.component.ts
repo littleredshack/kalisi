@@ -185,7 +185,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
 
       if (viewNode.layout_engine === 'tree-table') {
         console.log('🌳 DEBUG: Loading tree-table data for ViewNode:', viewNode.name);
-        const treeTableData = await this.neo4jDataService.fetchTreeTable(viewNode.batchId || viewNode.import_batch);
+        const treeTableData = await this.neo4jDataService.fetchTreeTable(viewNode);
         this.rawViewNodeData = {
           entities: [{ treeTableData }],
           relationships: []

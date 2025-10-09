@@ -47,75 +47,28 @@ export class Neo4jDataService {
   constructor(
     private http: HttpClient
   ) {}
-
-  private static readonly TREE_TABLE_QUERY_TEMPLATE = `
-CALL {
-  MATCH (n:CodeElement)
-  WHERE n.import_batch IS NOT NULL
-  WITH n
-  ORDER BY n.updatedAt DESC
-  RETURN n.import_batch AS latestBatch
-  LIMIT 1
-}
-WITH {BATCH_EXPR} AS batchId,
-     [
-       { key: 'calls', label: 'Calls', valueType: 'integer', allowAggregation: true, isDefault: true },
-       { key: 'descendants', label: 'Descendants', valueType: 'integer', allowAggregation: true }
-     ] AS columns
-CALL {
-  WITH batchId
-  MATCH (root:CodeElement {import_batch: batchId})
-  WHERE root.parent_guid IS NULL
-  MATCH path = (root)-[:HAS_CHILD*0..]->(node:CodeElement {import_batch: batchId})
-  WITH batchId, node, length(path) AS depth
-  OPTIONAL MATCH (node)<-[:HAS_CHILD]-(parent:CodeElement {import_batch: batchId})
-  OPTIONAL MATCH (node)-[callRel:CALLS]->(:CodeElement {import_batch: batchId})
-  WITH batchId, node, depth, parent, count(callRel) AS callCount
-  OPTIONAL MATCH (node)-[:HAS_CHILD*1..]->(descendant:CodeElement {import_batch: batchId})
-  WITH batchId, node, depth, parent, callCount, count(DISTINCT descendant) AS descendantCount
-  RETURN collect({
-    guid: node.guid,
-    parentGuid: parent.guid,
-    label: node.name,
-    kind: node.kind,
-    language: node.language,
-    depth: depth,
-    values: {
-      calls: { raw: callCount, formatted: toString(callCount) },
-      descendants: { raw: descendantCount, formatted: toString(descendantCount) }
-    },
-    tags: node.labels,
-    metadataJson: node.metadata_json,
-    batchId: node.import_batch
-  }) AS nodes
-}
-RETURN {
-  columns: columns,
-  nodes: nodes,
-  batchId: batchId,
-  generatedAt: toString(datetime())
-} AS result
-`;
-
   /**
    * Fetch the flattened tree-table data in the canonical format consumed by
    * the TreeTable layout/renderer stack. If no batch id is supplied we use
    * the most recent import.
    */
-  async fetchTreeTable(batchId?: string): Promise<TreeTableLayoutResult> {
+  async fetchTreeTable(viewNode?: { id?: string; batchId?: string; import_batch?: string }): Promise<TreeTableLayoutResult> {
     interface UnifiedCypherResponse {
       success: boolean;
       data?: { results?: Array<Record<string, unknown>> };
       message: string;
     }
 
-    const query = Neo4jDataService.buildTreeTableQuery(batchId);
-    console.log('[TreeTable] Executing query:', query);
+    const batchId = viewNode?.batchId ?? viewNode?.import_batch ?? null;
+    const viewNodeId = viewNode?.id ?? 'tree-table-view';
+
+    const query = await this.getTreeTableQuery(viewNodeId, batchId);
+    console.log('[TreeTable] Executing query:', query.query);
 
     const response = await firstValueFrom(
       this.http.post<UnifiedCypherResponse>('/v0/cypher/unified', {
-        query,
-        parameters: {},
+        query: query.query,
+        parameters: query.parameters,
       }),
     );
 
@@ -491,11 +444,31 @@ private convertToEntityModels(rawNodes: any[], rawEdges: any[]): {entities: Enti
     return undefined;
   }
 
-  private static buildTreeTableQuery(batchId?: string): string {
-    const expression = batchId
-      ? `'${batchId.replace(/\\/g, '\\').replace(/'/g, "\\'")}'`
-      : 'latestBatch';
-    return Neo4jDataService.TREE_TABLE_QUERY_TEMPLATE.replace('{BATCH_EXPR}', expression);
+  private async getTreeTableQuery(viewNodeId: string, batchId: string | null): Promise<{ query: string; parameters: Record<string, unknown> }> {
+    const result: any = await firstValueFrom(
+      this.http.post('/v0/cypher/unified', {
+        query: `
+          MATCH (view:ViewNode {id: $viewNodeId})
+          OPTIONAL MATCH (view)<-[:HAS_VIEWNODE]-(set:SetNode)-[:HAS_QUERYNODE]->(qn:QueryNode)
+          RETURN qn.cypherQuery AS query
+        `,
+        parameters: { viewNodeId }
+      })
+    );
+
+    if (!result.success || !result.data?.results?.length) {
+      throw new Error('TreeTable QueryNode is missing or failed to load');
+    }
+
+    const rawQuery = result.data.results[0].query;
+    if (!rawQuery || typeof rawQuery !== 'string' || !rawQuery.trim()) {
+      throw new Error('TreeTable QueryNode contains no cypherQuery text');
+    }
+
+    return {
+      query: rawQuery,
+      parameters: { batchId }
+    };
   }
 
   private createEmptyState(viewType: string, message: string): {entities: EntityModel[], relationships: GraphRelationship[]} {
