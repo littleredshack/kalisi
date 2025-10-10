@@ -63,11 +63,11 @@ export class DynamicLayoutService {
     }
 
     if (mutation.type === 'collapse' && mutation.nodeGuid) {
-      this.handleCollapseMutation(mutation);
+      this.handleCollapseMutation(mutation.canvasId, mutation);
     }
   }
 
-  private handleCollapseMutation(mutation: CanvasMutation): void {
+  private handleCollapseMutation(canvasId: string, mutation: CanvasMutation): void {
     const reflowBehavior = this.viewNodeStateService.getReflowBehaviorValue();
     if (reflowBehavior !== 'dynamic') {
       return;
@@ -79,7 +79,7 @@ export class DynamicLayoutService {
       return;
     }
 
-    const currentState = this.canvasViewStateService.currentState;
+    const currentState = this.canvasViewStateService.getCurrentState(canvasId);
     if (!currentState) {
       console.warn('[DynamicLayout] collapse mutation received with no current canvas state');
       return;
@@ -122,7 +122,7 @@ export class DynamicLayoutService {
       positionAfter: contextAfter ? { x: contextAfter.node.x, y: contextAfter.node.y } : undefined
     });
 
-    this.canvasViewStateService.publishFromLayout(draft, {
+    this.canvasViewStateService.publishFromLayout(canvasId, draft, {
       type: 'layout',
       nodeGuid,
       payload: {

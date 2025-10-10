@@ -13,6 +13,7 @@ export type CanvasMutationType =
   | 'camera';
 
 export interface CanvasMutation {
+  canvasId: string;
   type: CanvasMutationType;
   source: 'engine' | 'layout' | 'external';
   nodeGuid?: string;
@@ -31,28 +32,28 @@ export interface CanvasMutation {
   providedIn: 'root'
 })
 export class CanvasViewStateService {
-  private stateVersion = 0;
-  private readonly stateSubject = new BehaviorSubject<CanvasData | null>(null);
+  private readonly stateSubjects = new Map<string, BehaviorSubject<CanvasData | null>>();
+  private readonly stateVersions = new Map<string, number>();
   private readonly mutationSubject = new Subject<CanvasMutation>();
-
-  get canvasData$(): Observable<CanvasData | null> {
-    return this.stateSubject.asObservable();
-  }
 
   get mutations$(): Observable<CanvasMutation> {
     return this.mutationSubject.asObservable();
   }
 
-  get currentState(): CanvasData | null {
-    return this.stateSubject.value;
+  getCanvasData$(canvasId: string): Observable<CanvasData | null> {
+    return this.ensureSubject(canvasId).asObservable();
+  }
+
+  getCurrentState(canvasId: string): CanvasData | null {
+    return this.ensureSubject(canvasId).value;
   }
 
   /**
    * Replace the entire canvas state (initial load or external import).
    */
-  initialize(data: CanvasData, source: CanvasMutation['source'] = 'engine'): void {
+  initialize(canvasId: string, data: CanvasData, source: CanvasMutation['source'] = 'engine'): void {
     const clone = this.deepClone(data);
-    this.pushState(clone, { type: 'initialize', source });
+    this.pushState(canvasId, clone, { type: 'initialize', source });
   }
 
   /**
@@ -60,36 +61,52 @@ export class CanvasViewStateService {
    * Consumers should submit fully mutated data; the service clones it to
    * decouple future local mutations from observers.
    */
-  publishFromEngine(data: CanvasData, mutation: Omit<CanvasMutation, 'source' | 'version'>): void {
+  publishFromEngine(
+    canvasId: string,
+    data: CanvasData,
+    mutation: Omit<CanvasMutation, 'source' | 'version' | 'canvasId'>
+  ): void {
     const clone = this.deepClone(data);
-    this.pushState(clone, { ...mutation, source: 'engine' });
+    this.pushState(canvasId, clone, { ...mutation, source: 'engine' });
   }
 
   /**
    * Publish an updated canvas snapshot originating from an automatic layout pass.
    */
-  publishFromLayout(data: CanvasData, mutation: Omit<CanvasMutation, 'source' | 'version'>): void {
+  publishFromLayout(
+    canvasId: string,
+    data: CanvasData,
+    mutation: Omit<CanvasMutation, 'source' | 'version' | 'canvasId'>
+  ): void {
     const clone = this.deepClone(data);
-    this.pushState(clone, { ...mutation, source: 'layout' });
+    this.pushState(canvasId, clone, { ...mutation, source: 'layout' });
   }
 
   /**
    * Publish an update originating outside the engine/layout loop (e.g. persistence restore).
    */
-  publishExternal(data: CanvasData, mutation: Omit<CanvasMutation, 'source' | 'version'>): void {
+  publishExternal(
+    canvasId: string,
+    data: CanvasData,
+    mutation: Omit<CanvasMutation, 'source' | 'version' | 'canvasId'>
+  ): void {
     const clone = this.deepClone(data);
-    this.pushState(clone, { ...mutation, source: 'external' });
+    this.pushState(canvasId, clone, { ...mutation, source: 'external' });
   }
 
-  updateCamera(camera: { x: number; y: number; zoom: number }, source: CanvasMutation['source'] = 'engine'): void {
-    const current = this.currentState;
+  updateCamera(
+    canvasId: string,
+    camera: { x: number; y: number; zoom: number },
+    source: CanvasMutation['source'] = 'engine'
+  ): void {
+    const current = this.getCurrentState(canvasId);
     if (!current) {
       return;
     }
 
     const draft = this.deepClone(current);
     draft.camera = { ...camera };
-    this.pushState(draft, {
+    this.pushState(canvasId, draft, {
       type: 'camera',
       source
     });
@@ -100,12 +117,13 @@ export class CanvasViewStateService {
    * applies the mutation, and emits the result.
    */
   updateNodePosition(
+    canvasId: string,
     nodeGuid: string,
     position: { x: number; y: number },
     options?: { userLocked?: boolean },
     source: CanvasMutation['source'] = 'engine'
   ): void {
-    const current = this.currentState;
+    const current = this.getCurrentState(canvasId);
     if (!current) return;
 
     const draft = this.deepClone(current);
@@ -122,25 +140,38 @@ export class CanvasViewStateService {
       (node as any)._userLocked = true;
     }
 
-    this.pushState(draft, {
+    this.pushState(canvasId, draft, {
       type: 'position',
       nodeGuid,
       source
     });
   }
 
-  private pushState(nextState: CanvasData, mutation: Omit<CanvasMutation, 'version'>): void {
-    this.stateVersion += 1;
+  private ensureSubject(canvasId: string): BehaviorSubject<CanvasData | null> {
+    let subject = this.stateSubjects.get(canvasId);
+    if (!subject) {
+      subject = new BehaviorSubject<CanvasData | null>(null);
+      this.stateSubjects.set(canvasId, subject);
+      this.stateVersions.set(canvasId, 0);
+    }
+    return subject;
+  }
+
+  private pushState(canvasId: string, nextState: CanvasData, mutation: Omit<CanvasMutation, 'version' | 'canvasId'>): void {
+    const subject = this.ensureSubject(canvasId);
+    const nextVersion = (this.stateVersions.get(canvasId) ?? 0) + 1;
+    this.stateVersions.set(canvasId, nextVersion);
     const snapshot: CanvasData = {
       ...nextState,
       originalEdges:
         nextState.originalEdges || nextState.edges.filter(e => !e.id.startsWith('inherited-'))
     };
 
-    this.stateSubject.next(snapshot);
+    subject.next(snapshot);
     this.mutationSubject.next({
       ...mutation,
-      version: this.stateVersion
+      version: nextVersion,
+      canvasId
     });
   }
 

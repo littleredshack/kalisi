@@ -42,7 +42,6 @@ export class LayoutEngineAdapter implements ILayoutEngine {
 
     return {
       nodes: hierarchicalNodes,
-      // Layout adapter doesn't calculate camera - leave undefined for default
       camera: undefined
     };
   }

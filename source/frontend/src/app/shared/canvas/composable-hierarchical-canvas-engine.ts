@@ -33,17 +33,20 @@ export class ComposableHierarchicalCanvasEngine {
   private canvasStateSubscription?: Subscription;
   private suppressStateSync = false;
   private applyingExternalState = false;
+  private readonly canvasId: string;
 
   constructor(
     canvas: HTMLCanvasElement,
     renderer: IRenderer,
     layoutEngine: ILayoutEngine,
-    initialData: CanvasData
+    initialData: CanvasData,
+    canvasId: string
   ) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d')!;
     this.renderer = renderer;
     this.layoutEngine = layoutEngine;
+    this.canvasId = canvasId;
     this.data = { 
       ...initialData,
       originalEdges: initialData.originalEdges || initialData.edges.filter(e => !e.id.startsWith('inherited-'))
@@ -113,7 +116,7 @@ export class ComposableHierarchicalCanvasEngine {
     this.canvasViewStateService = canvasViewStateService;
     this.canvasStateSubscription?.unsubscribe();
     this.canvasStateSubscription = this.canvasViewStateService
-      .canvasData$
+      .getCanvasData$(this.canvasId)
       .subscribe(state => {
         if (!state) return;
         if (this.suppressStateSync) {
@@ -159,7 +162,22 @@ export class ComposableHierarchicalCanvasEngine {
    * Collapse all nodes to a specific depth level
    */
   collapseToLevel(targetLevel: number): void {
-    this.applyCollapseToLevel(this.data.nodes, 0, targetLevel);
+    const roots = this.data.nodes;
+    this.applyCollapseToLevel(roots, 0, targetLevel);
+
+    if (targetLevel > 0) {
+      roots.forEach(root => {
+        root.collapsed = false;
+        root.visible = true;
+        if (root.children && root.children.length > 0) {
+          root.children.forEach(child => {
+            child.visible = true;
+            child.collapsed = true;
+            this.hideAllDescendants(child);
+          });
+        }
+      });
+    }
 
     // After collapse, ensure parent containers are properly sized for remaining visible children
     this.data.nodes.forEach(rootNode => {
@@ -462,6 +480,7 @@ export class ComposableHierarchicalCanvasEngine {
     const camera = this.cameraSystem.getCamera();
     this.renderer.render(this.ctx, this.data.nodes, this.data.edges, camera);
 
+
     // Render selection if any
     if (this.selectedNode) {
       const worldPos = this.selectedNodeWorldPos || this.getAbsolutePosition(this.selectedNode);
@@ -628,7 +647,7 @@ export class ComposableHierarchicalCanvasEngine {
     }
     this.data.camera = this.cameraSystem.getCamera();
     this.suppressStateSync = true;
-    this.canvasViewStateService.publishFromEngine(this.data, {
+    this.canvasViewStateService.publishFromEngine(this.canvasId, this.data, {
       type,
       nodeGuid,
       payload
@@ -642,7 +661,7 @@ export class ComposableHierarchicalCanvasEngine {
     const camera = this.cameraSystem.getCamera();
     this.data.camera = camera;
     this.suppressStateSync = true;
-    this.canvasViewStateService.updateCamera(camera, 'engine');
+    this.canvasViewStateService.updateCamera(this.canvasId, camera, 'engine');
   }
 
   // Drag operations - FIXED COORDINATE SYSTEM BUG

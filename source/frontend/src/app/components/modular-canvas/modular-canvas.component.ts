@@ -60,6 +60,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   selectedViewNode: any | null = null;
   private pendingViewNodeLayout: CanvasData | null = null;
   private rawViewNodeData: {entities: any[], relationships: any[]} | null = null;
+  private canvasId = 'modular-canvas';
 
   // Level selector state
   availableLevels: number[] = [];
@@ -173,6 +174,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       }
       // Store the viewNode for createEngineWithData to use
       this.selectedViewNode = viewNode;
+      this.canvasId = viewNode.id || 'modular-canvas';
 
       if (viewNode.layout_engine === 'tree-table') {
         const treeTableData = await this.neo4jDataService.fetchTreeTable(viewNode);
@@ -247,7 +249,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       this.normaliseCanvasData(layout);
       // Apply layout directly to engine if it exists, otherwise store for later
       if (this.engine) {
-        this.canvasViewStateService.initialize(layout, 'external');
+        this.canvasViewStateService.initialize(this.canvasId, layout, 'external');
         this.engine.setData(layout);
       } else {
         // Engine not ready yet, store temporarily for createEngineWithData
@@ -479,10 +481,10 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     // Always use ComposableHierarchicalCanvasEngine
     if (this.data) {
       this.normaliseCanvasData(this.data);
-      this.canvasViewStateService.initialize(this.data, 'engine');
+      this.canvasViewStateService.initialize(this.canvasId, this.data!, 'engine');
     }
 
-    this.engine = new ComposableHierarchicalCanvasEngine(canvas, renderer, layoutEngine, this.data!);
+    this.engine = new ComposableHierarchicalCanvasEngine(canvas, renderer, layoutEngine, this.data!, this.canvasId);
 
     // Inject services for dynamic layout behavior
     this.engine.setServices(this.viewNodeState, this.dynamicLayoutService);
@@ -501,7 +503,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
 
     // Apply pending ViewNode layout if available - NO localStorage usage
     if (this.pendingViewNodeLayout) {
-      this.canvasViewStateService.initialize(this.pendingViewNodeLayout, 'external');
+      this.canvasViewStateService.initialize(this.canvasId, this.pendingViewNodeLayout, 'external');
       this.engine.setData(this.pendingViewNodeLayout);
       this.pendingViewNodeLayout = null;
     }
@@ -550,7 +552,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     try {
       const newData = JSON.parse(target.value);
       if (this.engine) {
-        this.canvasViewStateService.initialize(newData, 'external');
+        this.canvasViewStateService.initialize(this.canvasId, newData, 'external');
         this.engine.setData(newData);
       }
     } catch (error) {
