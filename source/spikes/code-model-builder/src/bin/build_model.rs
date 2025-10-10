@@ -8,8 +8,9 @@ use std::{
 use anyhow::{anyhow, Context, Result};
 use clap::{Parser, ValueEnum};
 use code_model_builder::{
-    flatten_code_model, CodeModel, EdgeExtractor, FlattenedModel, Language, Node, NodeKind,
-    RustEdgeExtractor, RustParser, SymbolTable, TypeScriptEdgeExtractor, TypeScriptParser,
+    flatten_code_model, CodeModel, EdgeExtractor, FlattenedModel, Language, Location, Node,
+    NodeKind, RustEdgeExtractor, RustParser, SymbolTable, TypeScriptEdgeExtractor,
+    TypeScriptParser,
 };
 use neo4rs::{query, BoltNull, BoltType, ConfigBuilder, Graph};
 use tracing::{info, warn};
@@ -197,7 +198,10 @@ fn build_model(repo_root: &Path) -> Result<CodeModel> {
         };
 
         match result {
-            Ok(file_node) => repo_node.add_child(file_node),
+            Ok(file_node) => {
+                let parent = ensure_directory_hierarchy(&mut repo_node, &relative_path);
+                parent.add_child(file_node);
+            }
             Err(err) => warn!("Parse error in {}: {err}", relative_path),
         }
     }
@@ -270,6 +274,51 @@ fn should_skip(path: &Path) -> bool {
         || path_str.contains("/node_modules/")
         || path_str.contains("/dist/")
         || path_str.contains("/.git/")
+}
+
+fn ensure_directory_hierarchy<'a>(root: &'a mut Node, relative_path: &str) -> &'a mut Node {
+    let path = Path::new(relative_path);
+    let mut current = root;
+
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            let mut accumulated = PathBuf::new();
+
+            for component in parent.components() {
+                if let std::path::Component::Normal(segment_os) = component {
+                    let segment = segment_os.to_string_lossy().to_string();
+                    accumulated.push(&segment);
+
+                    let existing_index = current.children.iter().position(|child| {
+                        child.kind == NodeKind::Directory && child.name == segment
+                    });
+
+                    current = if let Some(idx) = existing_index {
+                        current.children.get_mut(idx).unwrap()
+                    } else {
+                        let location = Location {
+                            path: accumulated.to_string_lossy().to_string(),
+                            start_line: None,
+                            start_col: None,
+                            end_line: None,
+                            end_col: None,
+                            byte_start: None,
+                            byte_end: None,
+                        };
+
+                        let dir_node =
+                            Node::new(NodeKind::Directory, segment.clone(), Language::Multi)
+                                .with_location(location);
+
+                        current.add_child(dir_node);
+                        current.children.last_mut().unwrap()
+                    };
+                }
+            }
+        }
+    }
+
+    current
 }
 
 fn find_file_node<'a>(node: &'a Node, target_path: &str) -> Option<&'a Node> {

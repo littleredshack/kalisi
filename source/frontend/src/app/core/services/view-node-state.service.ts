@@ -17,7 +17,7 @@ export type CollapseBehavior = 'full-size' | 'shrink';
 export type ReflowBehavior = 'static' | 'dynamic';
 
 export interface NodeVisibilityState {
-  nodeId: string;
+  nodeGuid: string;
   visible: boolean;
   collapsed: boolean;
   childrenStates?: Map<string, NodeVisibilityState>;
@@ -284,36 +284,55 @@ export class ViewNodeStateService {
   /**
    * Save current node visibility state before collapsing
    */
-  saveNodeVisibilityState(nodeId: string, node: any): void {
+  saveNodeVisibilityState(nodeGuid: string, node: any): void {
+    if (!nodeGuid) {
+      console.warn('[ViewNodeStateService] Attempted to save node state without a GUID', node);
+      return;
+    }
     const state = this.captureNodeState(node);
+    if (!state) {
+      return;
+    }
     const currentStates = this.nodeVisibilityStates$.value;
-    currentStates.set(nodeId, state);
+    currentStates.set(nodeGuid, state);
     this.nodeVisibilityStates$.next(currentStates);
   }
 
   /**
    * Restore previously saved node visibility state
    */
-  restoreNodeVisibilityState(nodeId: string): NodeVisibilityState | null {
+  restoreNodeVisibilityState(nodeGuid: string): NodeVisibilityState | null {
     const currentStates = this.nodeVisibilityStates$.value;
-    return currentStates.get(nodeId) || null;
+    return currentStates.get(nodeGuid) || null;
   }
 
   /**
    * Capture complete state of node and all descendants
    */
-  private captureNodeState(node: any): NodeVisibilityState {
+  private captureNodeState(node: any): NodeVisibilityState | null {
+    const nodeGuid = node?.GUID;
+    if (!nodeGuid) {
+      console.warn('[ViewNodeStateService] Skipping node state capture because node lacks a GUID', node);
+      return null;
+    }
     const childrenStates = new Map<string, NodeVisibilityState>();
 
     if (node.children && node.children.length > 0) {
       node.children.forEach((child: any) => {
+        const childGuid = child?.GUID;
+        if (!childGuid) {
+          console.warn('[ViewNodeStateService] Child node missing GUID during state capture', child);
+          return;
+        }
         const childState = this.captureNodeState(child);
-        childrenStates.set(child.GUID || child.id, childState);
+        if (childState) {
+          childrenStates.set(childGuid, childState);
+        }
       });
     }
 
     return {
-      nodeId: node.GUID || node.id,
+      nodeGuid,
       visible: node.visible !== false,
       collapsed: node.collapsed || false,
       childrenStates: childrenStates.size > 0 ? childrenStates : undefined
@@ -343,4 +362,5 @@ export class ViewNodeStateService {
     const newBehavior = current === 'static' ? 'dynamic' : 'static';
     this.setReflowBehavior(newBehavior);
   }
+
 }

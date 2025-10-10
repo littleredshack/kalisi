@@ -88,6 +88,8 @@ export class ComposableContainmentOrthogonalRenderer extends BaseRenderer {
    * Calculate orthogonal waypoints for edges - from flat renderer
    */
   private calculateWaypointsForEdges(edges: Edge[], nodes: HierarchicalNode[]): void {
+    const useSimpleRouting = nodes.length > 600 || edges.length > 800;
+
     edges.forEach(edge => {
       // Use fromGUID/toGUID if available, otherwise fall back to from/to
       const fromId = edge.fromGUID || edge.from;
@@ -102,6 +104,20 @@ export class ComposableContainmentOrthogonalRenderer extends BaseRenderer {
       // Get absolute positions for nodes (important for hierarchical nodes)
       const fromBounds = this.getAbsoluteNodeBounds(fromNode, nodes);
       const toBounds = this.getAbsoluteNodeBounds(toNode, nodes);
+
+      if (useSimpleRouting) {
+        const fromCenter = {
+          x: fromBounds.x + fromBounds.width / 2,
+          y: fromBounds.y + fromBounds.height / 2
+        };
+        const toCenter = {
+          x: toBounds.x + toBounds.width / 2,
+          y: toBounds.y + toBounds.height / 2
+        };
+
+        edge.waypoints = [fromCenter, toCenter];
+        return;
+      }
 
 
       // Get obstacles (all nodes except source and target)
@@ -362,5 +378,9 @@ export class ComposableContainmentOrthogonalRenderer extends BaseRenderer {
     }
 
     return false;
+  }
+
+  override renderSelection(ctx: CanvasRenderingContext2D, node: HierarchicalNode, camera: Camera): void {
+    // Selection outline rendered by the canvas engine for accurate positioning.
   }
 }

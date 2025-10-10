@@ -11,6 +11,7 @@ import { HierarchicalNode, Edge, CanvasData, Camera } from '../../shared/canvas/
 import { GridLayoutEngine } from '../../shared/layouts/grid-layout';
 import { ComponentFactory } from '../../shared/canvas/component-factory';
 import { CanvasControlService, CanvasController, CameraInfo } from '../../core/services/canvas-control.service';
+import { CanvasViewStateService } from '../../shared/canvas/state/canvas-view-state.service';
 
 @Component({
   selector: 'app-modular-canvas',
@@ -70,7 +71,8 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     private dynamicLayoutService: DynamicLayoutService,
     private messageService: MessageService,
     private http: HttpClient,
-    private canvasControlService: CanvasControlService
+    private canvasControlService: CanvasControlService,
+    private canvasViewStateService: CanvasViewStateService
   ) {
     // Engine-only mode - no reactive effects
   }
@@ -92,6 +94,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     // No automatic saving - layout persistence handled by explicit Save button
     // Unregister from control service
     this.canvasControlService.unregisterCanvas();
+    this.engine?.destroy();
   }
 
   async ngOnInit(): Promise<void> {
@@ -115,7 +118,6 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       
       if (selectedEntityId && this.isViewNodeId(selectedEntityId)) {
         // ViewNode data loading is handled separately in setViewNode()
-        console.log('🔷 ViewNode detected, skipping initial engine creation');
         this.data = this.createDefaultData(); // Temporary data
         return; // Exit early, don't create engine yet
       } else {
@@ -159,11 +161,9 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
 
   // FR-030: Load data from ViewNode and recreate engine
   private async loadViewNodeData(viewNodeId: string): Promise<void> {
-    console.log('🔍 DEBUG: loadViewNodeData called with viewNodeId:', viewNodeId);
     try {
       // Get all ViewNodes and find the one we need
       const viewNodes = await this.neo4jDataService.getAllViewNodes();
-      console.log('🔍 DEBUG: Found ViewNodes:', viewNodes.map(vn => ({id: vn.id, name: vn.name, renderer: vn.renderer, layout_engine: vn.layout_engine})));
       const viewNode = viewNodes.find(vn => vn.id === viewNodeId);
 
 
@@ -171,20 +171,10 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
         console.error('🔍 DEBUG: ViewNode not found for id:', viewNodeId);
         return;
       }
-      console.log('🔍 DEBUG: Selected ViewNode:', {
-        id: viewNode.id,
-        name: viewNode.name,
-        renderer: viewNode.renderer,
-        layout_engine: viewNode.layout_engine,
-        hasLayout: !!viewNode.layout,
-        queryId: viewNode.queryId
-      });
-
       // Store the viewNode for createEngineWithData to use
       this.selectedViewNode = viewNode;
 
       if (viewNode.layout_engine === 'tree-table') {
-        console.log('🌳 DEBUG: Loading tree-table data for ViewNode:', viewNode.name);
         const treeTableData = await this.neo4jDataService.fetchTreeTable(viewNode);
         this.rawViewNodeData = {
           entities: [{ treeTableData }],
@@ -195,7 +185,6 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       }
 
       // Execute ViewNode query for canvas-based views
-      console.log('🔍 DEBUG: Executing ViewNode query for:', viewNode.name);
       const result = await this.neo4jDataService.executeViewNodeQuery(viewNode);
 
 
@@ -208,6 +197,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
           try {
             const savedLayoutData = JSON.parse(viewNode.layout);
             if (savedLayoutData.nodes && savedLayoutData.nodes.length > 0) {
+              this.normaliseCanvasData(savedLayoutData);
               this.data = savedLayoutData;
               this.rawViewNodeData = null; // Don't process with strategy
             } else {
@@ -228,12 +218,10 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
         try {
           this.viewNodeState.setCollapseBehavior(autoLayoutState.collapseBehavior);
           this.viewNodeState.setReflowBehavior(autoLayoutState.reflowBehavior);
-          console.log('🔄 Restored Auto Layout state from database:', autoLayoutState);
         } catch (error) {
           // Use defaults if parsing fails
           this.viewNodeState.setCollapseBehavior('full-size');
           this.viewNodeState.setReflowBehavior('static');
-          console.log('⚠️ Failed to parse autoLayoutSettings, using defaults');
         }
         
         // Create engine with ViewNode data
@@ -256,14 +244,14 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   private applyViewNodeLayout(layoutJson: string): void {
     try {
       const layout = JSON.parse(layoutJson);
+      this.normaliseCanvasData(layout);
       // Apply layout directly to engine if it exists, otherwise store for later
       if (this.engine) {
+        this.canvasViewStateService.initialize(layout, 'external');
         this.engine.setData(layout);
-        console.log('📐 ViewNode layout applied directly to engine');
       } else {
         // Engine not ready yet, store temporarily for createEngineWithData
         this.pendingViewNodeLayout = layout;
-        console.log('📐 ViewNode layout stored for engine creation');
       }
     } catch (error) {
       console.error('Failed to apply ViewNode layout:', error);
@@ -283,6 +271,9 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
         // Find entity by name to get GUID
         const entity = neo4jData.entities.find(e => e.name === node.id);
         if (entity) {
+          if (!node.GUID) {
+            node.GUID = entity.id;
+          }
           nodeMap.set(entity.id, node);
         }
         addToMap(node.children);
@@ -308,18 +299,19 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
             },
             ...rel
           };
-          console.log('🔄 CREATING EDGE:', rel.type, 'label:', rel.label, 'full edge obj:', edgeObj);
           edges.push(edgeObj);
         }
       }
     });
 
-    return {
+    const data: CanvasData = {
       nodes: rootNodes,
       edges,
       originalEdges: edges,
       camera: layoutResult.camera
     };
+
+    return this.normaliseCanvasData(data);
   }
 
   private createDefaultData(): CanvasData {
@@ -337,7 +329,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       }
     ];
 
-    return {
+    const data: CanvasData = {
       nodes: [
         {
           id: "Node 1",
@@ -427,6 +419,8 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       edges: defaultEdges,
       originalEdges: defaultEdges
     };
+
+    return this.normaliseCanvasData(data);
   }
 
   private createEngineWithData(): void {
@@ -468,29 +462,46 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     
     // If we have raw ViewNode data, process it with the selected layout engine
     if (this.rawViewNodeData && this.selectedViewNode) {
-      const processedData = this.convertDataWithLayoutEngine(this.rawViewNodeData, layoutEngine);
+      const viewportBounds = {
+        width: canvas.width,
+        height: canvas.height,
+      };
+      if (layoutEngine && 'setViewportBounds' in layoutEngine) {
+        (layoutEngine as any).setViewportBounds(viewportBounds);
+      }
+      const processedData = this.convertDataWithLayoutEngine(
+        this.rawViewNodeData,
+        layoutEngine
+      );
       this.data = processedData;
     }
     
     // Always use ComposableHierarchicalCanvasEngine
-    console.log('🎮 DEBUG: Creating engine with data:', {
-      hasData: !!this.data,
-      nodeCount: this.data?.nodes?.length,
-      edgeCount: this.data?.edges?.length,
-      renderer: renderer.constructor.name,
-      layoutEngine: layoutEngine.constructor.name
-    });
+    if (this.data) {
+      this.normaliseCanvasData(this.data);
+      this.canvasViewStateService.initialize(this.data, 'engine');
+    }
+
     this.engine = new ComposableHierarchicalCanvasEngine(canvas, renderer, layoutEngine, this.data!);
-    console.log('🎮 DEBUG: Engine created successfully');
 
     // Inject services for dynamic layout behavior
     this.engine.setServices(this.viewNodeState, this.dynamicLayoutService);
+    this.engine.setCanvasViewStateService(this.canvasViewStateService);
+
+    const defaultCollapseLevel = this.selectedViewNode?.defaultCollapseLevel;
+    const hasSavedLayout = !!this.selectedViewNode?.layout;
+    if (this.engine && typeof defaultCollapseLevel === 'number' && !hasSavedLayout) {
+      this.engine.collapseToLevel(defaultCollapseLevel);
+    }
+
+    this.centerOnInitialNode();
 
     // Update available levels for the dropdown
     this.updateAvailableLevels();
 
     // Apply pending ViewNode layout if available - NO localStorage usage
     if (this.pendingViewNodeLayout) {
+      this.canvasViewStateService.initialize(this.pendingViewNodeLayout, 'external');
       this.engine.setData(this.pendingViewNodeLayout);
       this.pendingViewNodeLayout = null;
     }
@@ -539,6 +550,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     try {
       const newData = JSON.parse(target.value);
       if (this.engine) {
+        this.canvasViewStateService.initialize(newData, 'external');
         this.engine.setData(newData);
       }
     } catch (error) {
@@ -572,10 +584,6 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
             reflowBehavior: this.viewNodeState.getReflowBehaviorValue()
           };
           const autoLayoutJson = JSON.stringify(autoLayoutSettings);
-
-          console.log('💾 Saving ViewNode layout to database:', this.selectedViewNode.name);
-          console.log('📊 Layout data:', layoutJson.substring(0, 200) + '...');
-          console.log('🔧 Auto Layout settings:', autoLayoutJson);
 
           // Update ViewNode layout in Neo4j using cypher endpoint
           const updateQuery = `
@@ -666,7 +674,6 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   updateAvailableLevels(): void {
     if (this.engine) {
       this.availableLevels = this.engine.getAvailableDepthLevels();
-      console.log('📊 Available hierarchy levels:', this.availableLevels);
       // Notify the control service of available levels
       this.canvasControlService.updateAvailableLevels(this.availableLevels);
     }
@@ -677,7 +684,6 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     const selectedLevel = parseInt(target.value);
 
     if (!isNaN(selectedLevel) && this.engine) {
-      console.log('📊 Collapsing to level:', selectedLevel);
       this.engine.collapseToLevel(selectedLevel);
 
       this.messageService.add({
@@ -705,7 +711,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   
   // Double-click detection for fold/unfold
   private lastClickTime = 0;
-  private lastClickNode: string | null = null;
+  private lastClickNodeGuid: string | null = null;
 
   onMouseDown(event: MouseEvent): void {
     if (!this.engine) return;
@@ -738,19 +744,21 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     const currentTime = Date.now();
     const clickedNode = this.engine.selectNode(worldX, worldY);
 
-    if (clickedNode && this.lastClickNode === clickedNode.id && currentTime - this.lastClickTime < 300) {
+    const clickedGuid = clickedNode?.GUID;
+
+    if (clickedGuid && this.lastClickNodeGuid === clickedGuid && currentTime - this.lastClickTime < 300) {
       // Double-click detected - toggle fold/unfold in engine directly using GUID
-      const nodeIdentifier = clickedNode.GUID || clickedNode.id;
-      this.engine.toggleNodeCollapsed(nodeIdentifier);
+      this.engine.toggleNodeCollapsed(clickedGuid);
+      this.updateCameraInfo();
 
       this.lastClickTime = 0; // Reset to prevent triple-click
-      this.lastClickNode = null;
+      this.lastClickNodeGuid = null;
       return;
     }
 
     // Update click tracking
     this.lastClickTime = currentTime;
-    this.lastClickNode = clickedNode?.id || null;
+    this.lastClickNodeGuid = clickedGuid || null;
 
     // Try to start dragging a node (pass both world and screen coordinates)
     const draggedNode = this.engine.startDrag(worldX, worldY, screenX, screenY);
@@ -857,29 +865,28 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     this.engineDataChanged.emit();
   }
 
+  private centerOnInitialNode(): void {
+    if (!this.engine || !this.data?.nodes?.length) {
+      return;
+    }
+
+    const rootNode = this.data.nodes[0];
+    this.engine.centerOnNode(rootNode);
+    this.updateCameraInfo();
+  }
+
   // Process raw ViewNode data with dynamically selected layout strategy
   private convertDataWithLayoutEngine(rawData: {entities: any[], relationships: any[]}, layoutEngine: any): CanvasData {
-    console.log('🔄 DEBUG: convertDataWithLayoutEngine called with:', {
-      entityCount: rawData.entities.length,
-      relationshipCount: rawData.relationships.length,
-      layoutEngineType: layoutEngine.constructor.name,
-      hasLayoutStrategy: !!layoutEngine.layoutStrategy
-    });
-
     // Check if this is the new adapter (doesn't have layoutStrategy) or old engine
     if (layoutEngine.layoutStrategy) {
       // Old layout engine path
-      console.log('🔄 DEBUG: Using old layout engine path with strategy:', layoutEngine.layoutStrategy.constructor.name);
       const strategy = layoutEngine.layoutStrategy;
       const canvasData = strategy.processEntities(rawData.entities, rawData.relationships);
-      console.log('🔄 DEBUG: Processed data:', {nodeCount: canvasData.nodes.length, edgeCount: canvasData.edges.length});
       return canvasData;
     } else {
       // New adapter path - use applyLayout and construct CanvasData
-      console.log('🔄 DEBUG: Using new adapter path');
       const layoutResult = layoutEngine.applyLayout(rawData.entities, rawData.relationships);
       const nodes = layoutResult.nodes;
-      console.log('🔄 DEBUG: Layout applied, nodes:', {count: nodes.length, sample: nodes.slice(0, 2)});
 
       // Build a map from entity IDs to HierarchicalNodes (including nested children)
       const nodeMap = new Map<string, HierarchicalNode>();
@@ -930,14 +937,92 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
         camera: layoutResult.camera
       };
 
-      console.log('🔄 DEBUG: Final CanvasData:', {
-        nodeCount: nodes.length,
-        edgeCount: edges.length,
-        firstNode: nodes[0]
-      });
-
-      return canvasData;
+      return this.normaliseCanvasData(canvasData);
     }
+  }
+
+  private normaliseCanvasData(data: CanvasData): CanvasData {
+    if (!data) {
+      return data;
+    }
+
+    const nodesByGuid = new Map<string, HierarchicalNode>();
+    const nodesById = new Map<string, HierarchicalNode>();
+
+    const ensureNode = (node: HierarchicalNode) => {
+      const nodeAny = node as any;
+      if (!node.GUID && nodeAny.guid) {
+        node.GUID = nodeAny.guid;
+      }
+      if (nodeAny.guid !== undefined) {
+        delete nodeAny.guid;
+      }
+      if (!node.GUID) {
+        node.GUID = this.generateGuid();
+      }
+      nodesByGuid.set(node.GUID, node);
+      nodesById.set(node.id, node);
+      if (!node.children) {
+        node.children = [];
+      }
+      node.children.forEach(ensureNode);
+    };
+
+    data.nodes = data.nodes || [];
+    data.nodes.forEach(ensureNode);
+
+    const ensureEdge = (edge: Edge) => {
+      const edgeAny = edge as any;
+      if (edgeAny.guid && !edgeAny.GUID) {
+        edgeAny.GUID = edgeAny.guid;
+      }
+      if (edgeAny.guid !== undefined) {
+        delete edgeAny.guid;
+      }
+
+      const sourceNode = this.resolveEdgeNode(edge.fromGUID ?? edge.from, nodesByGuid, nodesById);
+      if (sourceNode?.GUID) {
+        edge.fromGUID = sourceNode.GUID;
+        edge.from = sourceNode.GUID;
+      }
+
+      const targetNode = this.resolveEdgeNode(edge.toGUID ?? edge.to, nodesByGuid, nodesById);
+      if (targetNode?.GUID) {
+        edge.toGUID = targetNode.GUID;
+        edge.to = targetNode.GUID;
+      }
+    };
+
+    data.edges = data.edges || [];
+    data.edges.forEach(ensureEdge);
+
+    if (!data.originalEdges || data.originalEdges.length === 0) {
+      data.originalEdges = [...data.edges];
+    } else {
+      data.originalEdges.forEach(ensureEdge);
+    }
+
+    return data;
+  }
+
+  private resolveEdgeNode(
+    identifier: string | undefined,
+    nodesByGuid: Map<string, HierarchicalNode>,
+    nodesById: Map<string, HierarchicalNode>
+  ): HierarchicalNode | undefined {
+    if (!identifier) return undefined;
+    return nodesByGuid.get(identifier) ?? nodesById.get(identifier);
+  }
+
+  private generateGuid(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = Math.random() * 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
   }
 
   // Public methods for CanvasController interface

@@ -1,10 +1,12 @@
 import { HierarchicalNode, Edge, CanvasData, Camera, Point, InteractionEvent } from './types';
+import { CanvasViewStateService, CanvasMutationType } from './state/canvas-view-state.service';
 import { CameraSystem } from './camera';
 import { IRenderer } from './renderer';
 import { ILayoutEngine } from './layout';
 import { NodeVisibilityState } from '../../core/services/view-node-state.service';
 import { ViewNodeStateService } from '../../core/services/view-node-state.service';
 import { DynamicLayoutService } from '../../core/services/dynamic-layout.service';
+import { Subscription } from 'rxjs';
 
 export class ComposableHierarchicalCanvasEngine {
   private canvas: HTMLCanvasElement;
@@ -22,10 +24,15 @@ export class ComposableHierarchicalCanvasEngine {
   
   // Interaction state
   private selectedNode: HierarchicalNode | null = null;
+  private selectedNodeWorldPos: Point | null = null;
   private isDragging = false;
   private isResizing = false;
   private resizeHandle = '';
   private dragOffset: Point = { x: 0, y: 0 };
+  private canvasViewStateService?: CanvasViewStateService;
+  private canvasStateSubscription?: Subscription;
+  private suppressStateSync = false;
+  private applyingExternalState = false;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -41,6 +48,7 @@ export class ComposableHierarchicalCanvasEngine {
       ...initialData,
       originalEdges: initialData.originalEdges || initialData.edges.filter(e => !e.id.startsWith('inherited-'))
     };
+    this.normaliseCanvasData(this.data);
     
     this.cameraSystem = new CameraSystem(canvas.width, canvas.height);
     if (initialData.camera) {
@@ -56,12 +64,17 @@ export class ComposableHierarchicalCanvasEngine {
       ...data,
       originalEdges: data.originalEdges || data.edges.filter(e => !e.id.startsWith('inherited-'))
     };
+    this.normaliseCanvasData(this.data);
     
     if (data.camera) {
       this.cameraSystem.setCamera(data.camera);
     }
     this.render();
     this.onDataChanged?.(this.data);
+    if (this.selectedNode) {
+      this.selectedNodeWorldPos = this.getAbsolutePosition(this.selectedNode);
+    }
+    this.publishState('replace');
   }
 
   getData(): CanvasData {
@@ -94,6 +107,22 @@ export class ComposableHierarchicalCanvasEngine {
   setServices(viewNodeStateService: ViewNodeStateService, dynamicLayoutService: DynamicLayoutService): void {
     this.viewNodeStateService = viewNodeStateService;
     this.dynamicLayoutService = dynamicLayoutService;
+  }
+
+  setCanvasViewStateService(canvasViewStateService: CanvasViewStateService): void {
+    this.canvasViewStateService = canvasViewStateService;
+    this.canvasStateSubscription?.unsubscribe();
+    this.canvasStateSubscription = this.canvasViewStateService
+      .canvasData$
+      .subscribe(state => {
+        if (!state) return;
+        if (this.suppressStateSync) {
+          // Skip the immediate round-trip after publishing local mutations.
+          this.suppressStateSync = false;
+          return;
+        }
+        this.applyExternalState(state);
+      });
   }
 
   /**
@@ -151,14 +180,6 @@ export class ComposableHierarchicalCanvasEngine {
 
         rootNode.height = requiredHeight;
 
-        console.log('📊 Container resized for collapsed children:', {
-          container: rootNode.text,
-          visibleChildren: visibleChildren.length,
-          gridDimensions: { nodesPerRow: actualNodesPerRow, rows: rows },
-          newHeight: rootNode.height
-        });
-
-
         // Reposition children to fit within the resized container
         if (this.dynamicLayoutService) {
           const containerBounds = { width: rootNode.width, height: rootNode.height };
@@ -168,7 +189,7 @@ export class ComposableHierarchicalCanvasEngine {
           };
 
 
-          this.dynamicLayoutService.reflowContainer(rootNode.children, containerBounds, viewportBounds);
+          this.dynamicLayoutService.reflowContainer(rootNode.children, containerBounds, viewportBounds, rootNode);
         }
       }
     });
@@ -178,6 +199,7 @@ export class ComposableHierarchicalCanvasEngine {
 
     this.render();
     this.notifyDataChanged();
+    this.publishState('collapse');
   }
 
   /**
@@ -266,8 +288,12 @@ export class ComposableHierarchicalCanvasEngine {
   private restoreNodeStateRecursively(node: HierarchicalNode, savedState: any): void {
     if (node.children && node.children.length > 0 && savedState.childrenStates) {
       node.children.forEach(child => {
-        const childId = child.GUID || child.id;
-        const childSavedState = savedState.childrenStates.get(childId);
+        const childGuid = child.GUID;
+        if (!childGuid) {
+          console.warn('Missing GUID for child while restoring node state', { child });
+          return;
+        }
+        const childSavedState = savedState.childrenStates.get(childGuid);
 
         if (childSavedState) {
           child.visible = childSavedState.visible;
@@ -328,17 +354,27 @@ export class ComposableHierarchicalCanvasEngine {
   }
 
   // FOLD/UNFOLD WITH EDGE INHERITANCE
-  toggleNodeCollapsed(nodeId: string): void {
-    const node = this.findNodeById(nodeId);
+  toggleNodeCollapsed(nodeGuid: string): void {
+    if (!nodeGuid) {
+      console.warn('toggleNodeCollapsed called without a GUID');
+      return;
+    }
+    const node = this.findNodeByGUID(nodeGuid);
     if (!node) return;
 
     if (node.collapsed) {
       // Unfold: restore previous state if available, otherwise show immediate children
       node.collapsed = false;
+      const lockedPosition = (node as any)._lockedPosition;
+      if (lockedPosition) {
+        node.x = lockedPosition.x;
+        node.y = lockedPosition.y;
+        (node as any)._userLocked = true;
+      }
 
       if (this.viewNodeStateService) {
         // Try to restore previous state
-        const savedState = this.viewNodeStateService.restoreNodeVisibilityState(nodeId);
+        const savedState = this.viewNodeStateService.restoreNodeVisibilityState(nodeGuid);
         if (savedState) {
           this.restoreNodeStateRecursively(node, savedState);
         } else {
@@ -361,8 +397,9 @@ export class ComposableHierarchicalCanvasEngine {
       }
     } else {
       // Fold: save current state first, then hide children
+      (node as any)._lockedPosition = { x: node.x, y: node.y };
       if (this.viewNodeStateService) {
-        this.viewNodeStateService.saveNodeVisibilityState(nodeId, node);
+        this.viewNodeStateService.saveNodeVisibilityState(nodeGuid, node);
       }
 
       node.collapsed = true;
@@ -375,51 +412,21 @@ export class ComposableHierarchicalCanvasEngine {
       }
     }
 
-    // Apply dynamic reflow if enabled
-    if (this.viewNodeStateService && this.dynamicLayoutService) {
-      const collapseBehavior = this.viewNodeStateService.getCollapseBehaviorValue();
-      const reflowBehavior = this.viewNodeStateService.getReflowBehaviorValue();
-
-
-      if (reflowBehavior === 'dynamic') {
-        // Find the actual parent container and sibling nodes at ANY level
-        const parentNode = this.findParentOfNode(nodeId);
-        let siblingNodes: HierarchicalNode[];
-
-
-        // Get viewport dimensions as constraints
-        const viewportBounds = {
-          width: this.canvas.width / this.cameraSystem.getCamera().zoom,
-          height: this.canvas.height / this.cameraSystem.getCamera().zoom
-        };
-
-        if (parentNode) {
-          // Node has a parent - reflow within parent's children
-          siblingNodes = parentNode.children;
-          // Use smaller of parent or viewport dimensions to prevent spreading beyond screen
-          const containerBounds = {
-            width: Math.min(parentNode.width, viewportBounds.width * 0.9), // Use 90% of viewport
-            height: Math.min(parentNode.height, viewportBounds.height * 0.9)
-          };
-          this.dynamicLayoutService.reflowSiblings(siblingNodes, nodeId, collapseBehavior, containerBounds, viewportBounds);
-        } else {
-          // Node is at top level - use viewport as primary constraint
-          siblingNodes = this.data.nodes;
-          const containerBounds = {
-            width: viewportBounds.width * 0.9, // Use 90% of viewport width
-            height: viewportBounds.height * 0.9
-          };
-          this.dynamicLayoutService.reflowSiblings(siblingNodes, nodeId, collapseBehavior, containerBounds, viewportBounds);
-        }
-      }
-    }
-
     // Recompute edges with inheritance - use original edges as base
     this.data.edges = this.computeEdgesWithInheritance(this.data.originalEdges);
 
     // Re-render and notify
     this.render();
     this.onDataChanged?.(this.data);
+    if (this.selectedNode) {
+      this.selectedNodeWorldPos = this.getAbsolutePosition(this.selectedNode);
+    }
+    this.publishState('collapse', nodeGuid, {
+      viewportBounds: {
+        width: this.canvas.width / this.cameraSystem.getCamera().zoom,
+        height: this.canvas.height / this.cameraSystem.getCamera().zoom
+      }
+    });
   }
 
   // COPIED DESCENDANT VISIBILITY MANAGEMENT FROM STORE
@@ -457,10 +464,34 @@ export class ComposableHierarchicalCanvasEngine {
 
     // Render selection if any
     if (this.selectedNode) {
-      // Pass the correct absolute position to the renderer
-      const worldPos = this.getAbsolutePosition(this.selectedNode);
+      const worldPos = this.selectedNodeWorldPos || this.getAbsolutePosition(this.selectedNode);
       this.renderSelectionAtPosition(this.selectedNode, worldPos, camera);
     }
+  }
+
+  centerOnNode(node: HierarchicalNode): void {
+    const camera = this.cameraSystem.getCamera();
+    const zoom = camera.zoom || 1;
+    const worldPos = this.getAbsolutePosition(node);
+
+    const collapseBehavior = this.viewNodeStateService?.getCollapseBehaviorValue?.() ?? 'full-size';
+    const shouldShrink =
+      collapseBehavior === 'shrink' && node.collapsed && node.children && node.children.length > 0;
+    const width = shouldShrink ? 180 : node.width;
+    const height = shouldShrink ? 60 : node.height;
+
+    const canvasWorldWidth = this.canvas.width / zoom;
+    const canvasWorldHeight = this.canvas.height / zoom;
+
+    camera.x = worldPos.x + width / 2 - canvasWorldWidth / 2;
+    camera.y = worldPos.y + height / 2 - canvasWorldHeight / 2;
+
+    this.cameraSystem.setCamera(camera);
+    if (this.selectedNode === node) {
+      this.selectedNodeWorldPos = worldPos;
+    }
+    this.render();
+    this.publishCameraState();
   }
 
   // Camera operations
@@ -471,6 +502,7 @@ export class ComposableHierarchicalCanvasEngine {
   setCamera(camera: Camera): void {
     this.cameraSystem.setCamera(camera);
     this.render();
+    this.publishCameraState('camera');
   }
 
   pan(deltaX: number, deltaY: number): void {
@@ -481,11 +513,13 @@ export class ComposableHierarchicalCanvasEngine {
     this.cameraSystem.updatePan(deltaX, deltaY);
     this.cameraSystem.stopPan();
     this.render();
+    this.publishCameraState();
   }
 
   zoom(screenX: number, screenY: number, zoomDelta: number): void {
     this.cameraSystem.zoom(screenX, screenY, zoomDelta);
     this.render();
+    this.publishCameraState();
   }
 
   zoomToLevel(level: number): void {
@@ -493,6 +527,7 @@ export class ComposableHierarchicalCanvasEngine {
     camera.zoom = Math.max(0.1, Math.min(5.0, level));
     this.cameraSystem.setCamera(camera);
     this.render();
+    this.publishCameraState();
   }
 
   zoomAtCenter(delta: number): void {
@@ -509,6 +544,7 @@ export class ComposableHierarchicalCanvasEngine {
 
     this.cameraSystem.setCamera(camera);
     this.render();
+    this.publishCameraState();
   }
 
   // Selection operations
@@ -520,10 +556,12 @@ export class ComposableHierarchicalCanvasEngine {
 
     if (result) {
       this.selectedNode = result.node;
+      this.selectedNodeWorldPos = result.worldPosition;
       result.node.selected = true;
       this.onSelectionChanged?.(this.selectedNode);
     } else {
       this.selectedNode = null;
+      this.selectedNodeWorldPos = null;
       this.onSelectionChanged?.(null);
     }
 
@@ -534,6 +572,7 @@ export class ComposableHierarchicalCanvasEngine {
   clearSelection(): void {
     this.clearAllSelection();
     this.selectedNode = null;
+    this.selectedNodeWorldPos = null;
     this.onSelectionChanged?.(null);
     this.render();
   }
@@ -565,6 +604,46 @@ export class ComposableHierarchicalCanvasEngine {
       camera: this.cameraSystem.getCamera()
     });
   }
+  private applyExternalState(state: CanvasData): void {
+    this.applyingExternalState = true;
+    this.data = {
+      ...state,
+      originalEdges: state.originalEdges || state.edges.filter(edge => !edge.id.startsWith('inherited-'))
+    };
+    this.normaliseCanvasData(this.data);
+    if (state.camera) {
+      this.cameraSystem.setCamera(state.camera);
+    }
+    this.data.camera = this.cameraSystem.getCamera();
+    if (this.selectedNode) {
+      this.selectedNodeWorldPos = this.getAbsolutePosition(this.selectedNode);
+    }
+    this.render();
+    this.applyingExternalState = false;
+  }
+
+  private publishState(type: CanvasMutationType, nodeGuid?: string, payload?: Record<string, unknown>): void {
+    if (!this.canvasViewStateService || this.applyingExternalState) {
+      return;
+    }
+    this.data.camera = this.cameraSystem.getCamera();
+    this.suppressStateSync = true;
+    this.canvasViewStateService.publishFromEngine(this.data, {
+      type,
+      nodeGuid,
+      payload
+    });
+  }
+
+  private publishCameraState(source: CanvasMutationType | 'camera' = 'camera'): void {
+    if (!this.canvasViewStateService) {
+      return;
+    }
+    const camera = this.cameraSystem.getCamera();
+    this.data.camera = camera;
+    this.suppressStateSync = true;
+    this.canvasViewStateService.updateCamera(camera, 'engine');
+  }
 
   // Drag operations - FIXED COORDINATE SYSTEM BUG
   startDrag(worldX: number, worldY: number, screenX: number, screenY: number): HierarchicalNode | null {
@@ -573,14 +652,14 @@ export class ComposableHierarchicalCanvasEngine {
     if (result) {
       this.clearAllSelection();
       this.selectedNode = result.node;
+      this.selectedNodeWorldPos = result.worldPosition;
       this.isDragging = true;
       result.node.selected = true;
       result.node.dragging = true;
-      
-      // FIXED: Calculate drag offset in world coordinates consistently
-      const absolutePos = this.getAbsolutePosition(result.node);
+
+      const absolutePos = result.worldPosition ?? this.getAbsolutePosition(result.node);
       this.dragOffset = {
-        x: worldX - absolutePos.x,  // Both in world coordinates now
+        x: worldX - absolutePos.x,
         y: worldY - absolutePos.y
       };
       
@@ -594,23 +673,28 @@ export class ComposableHierarchicalCanvasEngine {
 
   updateDrag(worldX: number, worldY: number): boolean {
     if (!this.isDragging || !this.selectedNode) return false;
-    
-    // Calculate new position accounting for drag offset
+
     const newWorldX = worldX - this.dragOffset.x;
     const newWorldY = worldY - this.dragOffset.y;
-    
-    // COPIED EXACT DRAG LOGIC FROM ORIGINAL MONOLITHIC SYSTEM
-    // Convert back to relative coordinates
+
     const parentPos = this.getParentAbsolutePosition(this.selectedNode);
     const newRelativeX = newWorldX - parentPos.x;
     const newRelativeY = newWorldY - parentPos.y;
     
     // Apply movement constraints
     const constrainedPosition = this.applyMovementConstraints(this.selectedNode, newRelativeX, newRelativeY);
-    
+
     this.selectedNode.x = constrainedPosition.x;
     this.selectedNode.y = constrainedPosition.y;
-    
+
+    (this.selectedNode as any)._lockedPosition = {
+      x: this.selectedNode.x,
+      y: this.selectedNode.y
+    };
+    (this.selectedNode as any)._userLocked = true;
+
+    this.selectedNodeWorldPos = this.getAbsolutePosition(this.selectedNode);
+
     this.render();
     this.notifyDataChanged();
     return true;
@@ -621,6 +705,8 @@ export class ComposableHierarchicalCanvasEngine {
       this.selectedNode.dragging = false;
     }
     this.isDragging = false;
+    const nodeGuid = this.selectedNode?.GUID;
+    this.publishState('position', nodeGuid);
     this.notifyDataChanged();
   }
 
@@ -630,6 +716,7 @@ export class ComposableHierarchicalCanvasEngine {
     node.y = newY;
     this.render();
     this.notifyDataChanged();
+    this.publishState('position', node.GUID);
   }
 
   resizeNode(node: HierarchicalNode, newWidth: number, newHeight: number): void {
@@ -637,21 +724,12 @@ export class ComposableHierarchicalCanvasEngine {
     node.height = newHeight;
     this.render();
     this.notifyDataChanged();
+    this.publishState('resize', node.GUID);
   }
 
   // Utility methods
   private getAbsolutePosition(targetNode: HierarchicalNode): Point {
-    const getPath = (nodes: HierarchicalNode[], target: HierarchicalNode, currentPath: HierarchicalNode[] = []): HierarchicalNode[] | null => {
-      for (const node of nodes) {
-        const path = [...currentPath, node];
-        if (node.GUID === target.GUID || node.id === target.id) return path;
-        const found = getPath(node.children, target, path);
-        if (found) return found;
-      }
-      return null;
-    };
-    
-    const path = getPath(this.data.nodes, targetNode);
+    const path = this.getNodePath(targetNode);
     if (path) {
       let x = 0, y = 0;
       path.forEach(node => {
@@ -664,17 +742,31 @@ export class ComposableHierarchicalCanvasEngine {
   }
 
   private findParentNode(targetNode: HierarchicalNode): HierarchicalNode | null {
-    const findParent = (nodes: HierarchicalNode[], target: HierarchicalNode): HierarchicalNode | null => {
+    const matchesTarget = (candidate: HierarchicalNode): boolean => {
+      if (candidate === targetNode) {
+        return true;
+      }
+      if (targetNode.GUID && candidate.GUID === targetNode.GUID) {
+        return true;
+      }
+      return false;
+    };
+
+    const findParent = (nodes: HierarchicalNode[]): HierarchicalNode | null => {
       for (const node of nodes) {
-        if (node.children.includes(target)) {
+        const childList = node.children ?? [];
+        if (childList.some(matchesTarget)) {
           return node;
         }
-        const found = findParent(node.children, target);
-        if (found) return found;
+        const found = findParent(childList);
+        if (found) {
+          return found;
+        }
       }
       return null;
     };
-    return findParent(this.data.nodes, targetNode);
+
+    return findParent(this.data.nodes);
   }
 
   // COPIED EXACT MISSING UTILITY METHODS FROM WORKING MONOLITHIC SYSTEM
@@ -689,16 +781,36 @@ export class ComposableHierarchicalCanvasEngine {
   }
 
   private getNodePath(targetNode: HierarchicalNode): HierarchicalNode[] | null {
-    const findPath = (nodes: HierarchicalNode[], target: HierarchicalNode, currentPath: HierarchicalNode[] = []): HierarchicalNode[] | null => {
+    const targetGuid = targetNode.GUID;
+
+    const matchesTarget = (node: HierarchicalNode): boolean => {
+      if (node === targetNode) {
+        return true;
+      }
+      if (targetGuid && node.GUID === targetGuid) {
+        return true;
+      }
+      return false;
+    };
+
+    const traverse = (
+      nodes: HierarchicalNode[],
+      currentPath: HierarchicalNode[] = []
+    ): HierarchicalNode[] | null => {
       for (const node of nodes) {
         const path = [...currentPath, node];
-        if (node.GUID === target.GUID || node.id === target.id) return path;
-        const found = findPath(node.children, target, path);
-        if (found) return found;
+        if (matchesTarget(node)) {
+          return path;
+        }
+        const found = traverse(node.children ?? [], path);
+        if (found) {
+          return found;
+        }
       }
       return null;
     };
-    return findPath(this.data.nodes, targetNode);
+
+    return traverse(this.data.nodes);
   }
 
   private getAbsolutePositionFromPath(path: HierarchicalNode[]): Point {
@@ -711,15 +823,22 @@ export class ComposableHierarchicalCanvasEngine {
   }
 
   private renderSelectionAtPosition(node: HierarchicalNode, worldPos: Point, camera: Camera): void {
+    if (this.selectedNode === node) {
+      this.selectedNodeWorldPos = worldPos;
+    }
     // ORANGE L-CORNER SELECTION INDICATORS
     // Convert world position to screen coordinates for selection rendering
     const screenX = (worldPos.x - camera.x) * camera.zoom;
     const screenY = (worldPos.y - camera.y) * camera.zoom;
 
     // Get effective size based on collapse behavior from renderer
-    const bounds = this.renderer.getNodeBounds(node);
-    const screenWidth = bounds.width * camera.zoom;
-    const screenHeight = bounds.height * camera.zoom;
+    const collapseBehavior = this.viewNodeStateService?.getCollapseBehaviorValue?.() ?? 'full-size';
+    const shouldShrink =
+      collapseBehavior === 'shrink' && node.collapsed && node.children && node.children.length > 0;
+    const width = shouldShrink ? 180 : node.width;
+    const height = shouldShrink ? 60 : node.height;
+    const screenWidth = width * camera.zoom;
+    const screenHeight = height * camera.zoom;
 
     // Draw orange L-corner handles (fixed screen pixels, not scaled by zoom)
     this.drawLCornerHandles(screenX, screenY, screenWidth, screenHeight);
@@ -877,18 +996,19 @@ export class ComposableHierarchicalCanvasEngine {
 
     // Reflow children if this container was resized and has children
     if (node.children && node.children.length > 0 && this.dynamicLayoutService) {
-      console.log('🔄 Container resized, reflowing children:', {
-        container: node.text,
-        newSize: { width: node.width, height: node.height },
-        childCount: node.children.length
-      });
-
       const containerBounds = { width: node.width, height: node.height };
-      this.dynamicLayoutService.reflowContainer(node.children, containerBounds);
+      this.dynamicLayoutService.reflowContainer(node.children, containerBounds, undefined, node);
+    }
+
+    if (this.selectedNode === node) {
+      this.selectedNodeWorldPos = this.getAbsolutePosition(node);
     }
 
     this.render();
     this.notifyDataChanged();
+    if (node.GUID) {
+      this.publishState('resize', node.GUID);
+    }
   }
 
   // COPIED EXACT CONSTRAINT METHODS FROM WORKING MONOLITHIC SYSTEM
@@ -902,9 +1022,13 @@ export class ComposableHierarchicalCanvasEngine {
 
     const padding = 10;
 
+    const headerOffset = parent && parent.children && parent.children.length > 0
+      ? Math.max(20, Math.min(parent.height * 0.2, 80))
+      : 0;
+
     // Calculate bounds within parent (in relative coordinates)
     const minX = padding;
-    const minY = padding;
+    const minY = headerOffset + padding;
     const maxX = parent.width - node.width - padding;
     const maxY = parent.height - node.height - padding;
 
@@ -1109,20 +1233,6 @@ export class ComposableHierarchicalCanvasEngine {
     return this.findVisibleAncestor(parent.GUID, visibilityMap);
   }
 
-  private findParentOfNode(nodeId: string): HierarchicalNode | null {
-    const findParentRecursive = (nodes: HierarchicalNode[]): HierarchicalNode | null => {
-      for (const node of nodes) {
-        if (node.children.some(child => child.GUID === nodeId || child.id === nodeId)) {
-          return node;
-        }
-        const foundInChildren = findParentRecursive(node.children);
-        if (foundInChildren) return foundInChildren;
-      }
-      return null;
-    };
-    return findParentRecursive(this.data.nodes);
-  }
-
   private findParentOfNodeByGUID(nodeGUID: string): HierarchicalNode | null {
     const findParentRecursive = (nodes: HierarchicalNode[]): HierarchicalNode | null => {
       for (const node of nodes) {
@@ -1138,6 +1248,9 @@ export class ComposableHierarchicalCanvasEngine {
   }
 
   private findNodeByGUID(nodeGUID: string): HierarchicalNode | null {
+    if (!nodeGUID) {
+      return null;
+    }
     const findRecursive = (nodes: HierarchicalNode[]): HierarchicalNode | null => {
       for (const node of nodes) {
         if (node.GUID === nodeGUID) return node;
@@ -1147,6 +1260,88 @@ export class ComposableHierarchicalCanvasEngine {
       return null;
     };
     return findRecursive(this.data.nodes);
+  }
+
+  private normaliseCanvasData(data: CanvasData): void {
+    if (!data) {
+      return;
+    }
+
+    const nodesByGuid = new Map<string, HierarchicalNode>();
+    const nodesById = new Map<string, HierarchicalNode>();
+
+    const ensureNode = (node: HierarchicalNode) => {
+      const nodeAny = node as any;
+      if (!node.GUID && nodeAny.guid) {
+        node.GUID = nodeAny.guid;
+      }
+      if (nodeAny.guid !== undefined) {
+        delete nodeAny.guid;
+      }
+      if (!node.GUID) {
+        node.GUID = this.generateGuid();
+      }
+      nodesByGuid.set(node.GUID, node);
+      nodesById.set(node.id, node);
+      if (!node.children) {
+        node.children = [];
+      }
+      node.children.forEach(ensureNode);
+    };
+
+    data.nodes = data.nodes || [];
+    data.nodes.forEach(ensureNode);
+
+    const ensureEdge = (edge: Edge) => {
+      const edgeAny = edge as any;
+      if (edgeAny.guid && !edgeAny.GUID) {
+        edgeAny.GUID = edgeAny.guid;
+      }
+      if (edgeAny.guid !== undefined) {
+        delete edgeAny.guid;
+      }
+
+      const sourceNode = this.resolveEdgeNode(edge.fromGUID ?? edge.from, nodesByGuid, nodesById);
+      if (sourceNode?.GUID) {
+        edge.fromGUID = sourceNode.GUID;
+        edge.from = sourceNode.GUID;
+      }
+
+      const targetNode = this.resolveEdgeNode(edge.toGUID ?? edge.to, nodesByGuid, nodesById);
+      if (targetNode?.GUID) {
+        edge.toGUID = targetNode.GUID;
+        edge.to = targetNode.GUID;
+      }
+    };
+
+    data.edges = data.edges || [];
+    data.edges.forEach(ensureEdge);
+
+    if (!data.originalEdges || data.originalEdges.length === 0) {
+      data.originalEdges = [...data.edges];
+    } else {
+      data.originalEdges.forEach(ensureEdge);
+    }
+  }
+
+  private resolveEdgeNode(
+    identifier: string | undefined,
+    nodesByGuid: Map<string, HierarchicalNode>,
+    nodesById: Map<string, HierarchicalNode>
+  ): HierarchicalNode | undefined {
+    if (!identifier) return undefined;
+    return nodesByGuid.get(identifier) ?? nodesById.get(identifier);
+  }
+
+  private generateGuid(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = Math.random() * 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
   }
 
   private getAllNodesFlat(): HierarchicalNode[] {
@@ -1163,18 +1358,8 @@ export class ComposableHierarchicalCanvasEngine {
     return allNodes;
   }
 
-  // Removed - originalEdges now part of data model
-
-  private findNodeById(nodeId: string): HierarchicalNode | null {
-    const findRecursive = (nodes: HierarchicalNode[]): HierarchicalNode | null => {
-      for (const node of nodes) {
-        // Use GUID first, fallback to id for backward compatibility
-        if (node.GUID === nodeId || node.id === nodeId) return node;
-        const foundInChildren = findRecursive(node.children);
-        if (foundInChildren) return foundInChildren;
-      }
-      return null;
-    };
-    return findRecursive(this.data.nodes);
+  destroy(): void {
+    this.canvasStateSubscription?.unsubscribe();
   }
+
 }

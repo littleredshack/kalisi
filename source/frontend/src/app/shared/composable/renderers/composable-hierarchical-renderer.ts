@@ -109,7 +109,7 @@ export class ComposableHierarchicalRenderer extends BaseRenderer {
         }
 
         // Then test this node using primitive hit test
-        if (HierarchicalNodePrimitive.hitTest(node, parentX, parentY, worldX, worldY)) {
+        if (HierarchicalNodePrimitive.hitTest(node, parentX, parentY, worldX, worldY, 'full-size')) {
           return {
             node,
             worldPosition: { x: parentX + node.x, y: parentY + node.y },
@@ -142,23 +142,6 @@ export class ComposableHierarchicalRenderer extends BaseRenderer {
    * Render selection for hierarchical node
    */
   override renderSelection(ctx: CanvasRenderingContext2D, node: HierarchicalNode, camera: Camera): void {
-    // For simplicity, assume root-level selection (no parent offset)
-    // In practice, we'd need the full parent path for accurate positioning
-    const screenX = (node.x - camera.x) * camera.zoom;
-    const screenY = (node.y - camera.y) * camera.zoom;
-    const screenWidth = node.width * camera.zoom;
-    const screenHeight = node.height * camera.zoom;
-
-    // Draw selection outline (EXACT same styling as ComposableFlatRenderer)
-    ctx.strokeStyle = '#6ea8fe';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([5 * camera.zoom, 5 * camera.zoom]);
-
-    // Draw with same corner radius as nodes (8 * camera.zoom for hierarchical)
-    const radius = 8 * camera.zoom;
-    ctx.beginPath();
-    ctx.roundRect(screenX - 2, screenY - 2, screenWidth + 4, screenHeight + 4, radius);
-    ctx.stroke();
-    ctx.setLineDash([]);
+    // Selection outline handled by ComposableHierarchicalCanvasEngine for accuracy.
   }
 }

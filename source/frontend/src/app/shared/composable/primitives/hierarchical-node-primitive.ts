@@ -139,15 +139,23 @@ export class HierarchicalNodePrimitive {
     parentX: number,
     parentY: number,
     worldX: number,
-    worldY: number
+    worldY: number,
+    collapseBehavior: CollapseBehavior = 'full-size'
   ): boolean {
     const nodeWorldX = parentX + node.x;
     const nodeWorldY = parentY + node.y;
 
-    return worldX >= nodeWorldX &&
-           worldX <= nodeWorldX + node.width &&
-           worldY >= nodeWorldY &&
-           worldY <= nodeWorldY + node.height;
+    const shouldShrink =
+      collapseBehavior === 'shrink' && node.collapsed && node.children && node.children.length > 0;
+    const nodeWidth = shouldShrink ? 180 : node.width;
+    const nodeHeight = shouldShrink ? 60 : node.height;
+
+    return (
+      worldX >= nodeWorldX &&
+      worldX <= nodeWorldX + nodeWidth &&
+      worldY >= nodeWorldY &&
+      worldY <= nodeWorldY + nodeHeight
+    );
   }
 
   /**
@@ -175,22 +183,25 @@ export class HierarchicalNodePrimitive {
     screenHeight: number,
     childCount: number
   ): void {
-    const badgeSize = 20;
-    const badgeX = screenX + screenWidth - badgeSize - 5;
+    const text = childCount.toString();
+    const padding = 6;
+    const textWidth = ctx.measureText(text).width;
+    const badgeWidth = Math.max(20, textWidth + padding * 2);
+    const badgeHeight = 20;
+    const badgeX = screenX + screenWidth - badgeWidth - 5;
     const badgeY = screenY + 5;
 
-    // Draw badge background
+    // Draw badge background as rounded rectangle
     ctx.fillStyle = '#ff6b6b';
-    ctx.beginPath();
-    ctx.arc(badgeX + badgeSize/2, badgeY + badgeSize/2, badgeSize/2, 0, 2 * Math.PI);
+    DrawingPrimitives.drawRoundedRect(ctx, badgeX, badgeY, badgeWidth, badgeHeight, 8);
     ctx.fill();
 
-    // Draw count text
+    // Draw count text centered
     DrawingPrimitives.drawText(
       ctx,
-      childCount.toString(),
-      badgeX + badgeSize/2 - 5,
-      badgeY + badgeSize/2 + 5,
+      text,
+      badgeX + badgeWidth / 2 - textWidth / 2,
+      badgeY + badgeHeight / 2 + 5,
       12,
       '#ffffff'
     );

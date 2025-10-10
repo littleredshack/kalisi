@@ -1,6 +1,7 @@
 use crate::model::schema::*;
 use anyhow::Result;
 use sha2::{Digest, Sha256};
+use std::path::Path;
 use tree_sitter::{Node as TsNode, Parser};
 
 pub struct RustParser {
@@ -28,7 +29,12 @@ impl RustParser {
 
         let root = tree.root_node();
 
-        let mut file_node = Node::new(NodeKind::File, path.to_string(), Language::Rust)
+        let file_name = Path::new(path)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or(path);
+
+        let mut file_node = Node::new(NodeKind::File, file_name.to_string(), Language::Rust)
             .with_location(Location {
                 path: path.to_string(),
                 start_line: Some(1),

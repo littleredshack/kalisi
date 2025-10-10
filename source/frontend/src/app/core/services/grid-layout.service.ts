@@ -54,7 +54,7 @@ export class GridLayoutService implements ILayoutService {
     if (!parent.children || parent.children.length === 0) return;
 
     const padding = 20;
-    const topPadding = 40; // Extra space for title
+    const topPadding = Math.max(40, Math.min(parent.height * 0.2, 120));
     const sidePadding = padding;
     const bottomPadding = padding;
     const nodeSpacing = 20;
@@ -94,9 +94,8 @@ export class GridLayoutService implements ILayoutService {
     let newWidth = Math.max(parent.width, maxX + sidePadding);
     let newHeight = Math.max(parent.height, maxY + bottomPadding);
 
-    // Constrain width to viewport, but be more generous with height for large datasets
+    // Constrain height to viewport, but allow width to expand for large datasets
     if (this.viewportBounds) {
-      newWidth = Math.min(newWidth, this.viewportBounds.width * 0.95);
       // Allow height to grow much larger for containers with many children
       const minRequiredHeight = Math.max(newHeight, 800); // Minimum 800px for containers
       newHeight = Math.min(minRequiredHeight, this.viewportBounds.height * 5.0); // Allow up to 5x viewport height

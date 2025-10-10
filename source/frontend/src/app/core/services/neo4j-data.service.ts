@@ -100,16 +100,13 @@ export class Neo4jDataService {
       );
       
       if (result.success && result.data && result.data.results) {
-        // Backend returns complete objects with ALL properties - use directly
-        const viewNodes = result.data.results.map((record: any) => ({
+        return result.data.results.map((record: any) => ({
           ...record.vn.properties
         }));
-        
-        return viewNodes;
-      } else {
-        console.error('Failed to fetch ViewNodes:', result.error);
-        return [];
       }
+
+      console.error('Failed to fetch ViewNodes:', result.error);
+      return [];
     } catch (error) {
       console.error('Error fetching ViewNodes:', error);
       return [];
@@ -134,34 +131,71 @@ export class Neo4jDataService {
       console.log('🔍 DEBUG: Query result:', {success: result.success, resultCount: result.data?.results?.length});
       
       if (result.success && result.data && result.data.results) {
-        // Backend now returns clean JSON objects directly
-        const cleanNodes: any[] = [];
-        const cleanEdges: any[] = [];
-        
-        // Extract nodes and edges from clean JSON results with deduplication
-        const seenNodeIds = new Set<number>();
-        const seenEdgeIds = new Set<number>();
-        
+        const nodeMap = new Map<string, any>();
+        const edgeMap = new Map<string, any>();
+
         result.data.results.forEach((record: any) => {
-          Object.values(record).forEach((value: any) => {
-            if (value && typeof value === 'object') {
-              if (value.labels && value.properties) {
-                // Deduplicate nodes by neo4jId
-                if (!seenNodeIds.has(value.neo4jId)) {
-                  seenNodeIds.add(value.neo4jId);
-                  cleanNodes.push(value);
+          const candidateNodes = [record.n, record.m, record.root, record.descendant, record.child];
+
+          candidateNodes.forEach(node => {
+            if (node && node.labels && node.properties) {
+              const guid = node.properties?.GUID || node.properties?.guid;
+              if (guid && !nodeMap.has(guid)) {
+                if (!node.properties.GUID) {
+                  node.properties.GUID = guid;
                 }
-              } else if (value.type && value.startNodeId && value.endNodeId) {
-                // Deduplicate edges by neo4jId
-                if (!seenEdgeIds.has(value.neo4jId)) {
-                  seenEdgeIds.add(value.neo4jId);
-                  cleanEdges.push(value);
-                }
+                nodeMap.set(guid, node);
               }
             }
           });
+
+          const relationship = record.r || record.rel;
+          const sourceNode = record.n || record.root || record.descendant;
+          const targetNode = record.m || record.child;
+
+          if (relationship && sourceNode && targetNode) {
+            const fromGUID = sourceNode.properties?.GUID || sourceNode.properties?.guid;
+            const toGUID = targetNode.properties?.GUID || targetNode.properties?.guid;
+            const relationshipGUID =
+              relationship.properties?.GUID ||
+              relationship.properties?.guid ||
+              relationship.guid ||
+              `${relationship.type}-${fromGUID}-${toGUID}`;
+
+            if (fromGUID && toGUID && relationshipGUID && !edgeMap.has(relationshipGUID)) {
+              const type = relationship.type || relationship.properties?.type || 'RELATES_TO';
+              const normalizedType = type === 'HAS_CHILD' ? 'CONTAINS' : type;
+
+              if (!relationship.properties) {
+                relationship.properties = {};
+              }
+
+              relationship.properties.GUID = relationshipGUID;
+              relationship.properties.fromGUID = fromGUID;
+              relationship.properties.toGUID = toGUID;
+              relationship.properties.type = normalizedType;
+
+              edgeMap.set(relationshipGUID, {
+                neo4jId: relationship.neo4jId,
+                GUID: relationshipGUID,
+                id: relationshipGUID,
+                type: normalizedType,
+                fromGUID,
+                toGUID,
+                properties: {
+                  ...relationship.properties,
+                  originalType: type,
+                  fromGUID,
+                  toGUID
+                }
+              });
+            }
+          }
         });
-        
+
+        const cleanNodes = Array.from(nodeMap.values());
+        const cleanEdges = Array.from(edgeMap.values());
+
         const canvasData = this.convertToEntityModels(cleanNodes, cleanEdges);
         return canvasData;
       } else {
@@ -243,10 +277,28 @@ private convertToEntityModels(rawNodes: any[], rawEdges: any[]): {entities: Enti
     const entities: EntityModel[] = [];
     const relationships: GraphRelationship[] = [];
 
+    const getGuid = (value: any): string | undefined => {
+      if (!value) return undefined;
+      if (typeof value === 'string') return value;
+      return (
+        value.GUID ||
+        value.guid ||
+        value.properties?.GUID ||
+        value.properties?.guid ||
+        value.id ||
+        value.properties?.id
+      );
+    };
+
     // Convert nodes to EntityModel format dynamically
     rawNodes.forEach((node, index) => {
+      const guid = getGuid(node);
+      if (!guid) {
+        return;
+      }
+
       entities.push({
-        id: node.properties?.GUID || node.GUID, // Use GUID only
+        id: guid, // Use GUID only
         name: node.properties?.name || `Node ${index + 1}`,
         x: index * 180, // Better spacing for readability
         y: Math.floor(index / 3) * 120,
@@ -263,17 +315,36 @@ private convertToEntityModels(rawNodes: any[], rawEdges: any[]): {entities: Enti
 
     // Convert edges to GraphRelationship format dynamically
     rawEdges.forEach(edge => {
-      // Use GUID-based matching only
-      const fromGUID = edge.properties?.fromGUID;
-      const toGUID = edge.properties?.toGUID;
-      
-      if (fromGUID && toGUID) {
+      const sourceGuid =
+        edge.properties?.fromGUID ||
+        edge.properties?.fromGuid ||
+        edge.properties?.from_guid ||
+        edge.fromGUID ||
+        edge.fromGuid ||
+        edge.from_guid;
+
+      const targetGuid =
+        edge.properties?.toGUID ||
+        edge.properties?.toGuid ||
+        edge.properties?.to_guid ||
+        edge.toGUID ||
+        edge.toGuid ||
+        edge.to_guid;
+
+      if (sourceGuid && targetGuid) {
+        const edgeGuid =
+          edge.properties?.GUID ||
+          edge.properties?.guid ||
+          edge.GUID ||
+          edge.guid ||
+          `${edge.type}-${sourceGuid}-${targetGuid}`;
+
         relationships.push({
-          id: edge.properties?.GUID || edge.id,
-          fromGUID: fromGUID,  // Use fromGUID consistently
-          toGUID: toGUID,      // Use toGUID consistently
-          source: fromGUID,    // Keep for backward compatibility
-          target: toGUID,      // Keep for backward compatibility
+          id: edgeGuid,
+          fromGUID: sourceGuid,
+          toGUID: targetGuid,
+          source: sourceGuid,
+          target: targetGuid,
           type: edge.type,
           ...edge.properties
         });
@@ -545,7 +616,7 @@ private convertToEntityModels(rawNodes: any[], rawEdges: any[]): {entities: Enti
       );
       
       if (result.success && result.data && result.data.results) {
-        const setNodes = result.data.results.map((record: any) => ({
+        return result.data.results.map((record: any) => ({
           ...record.sn.properties,
           viewNodes: record.viewNodes.map((vn: any) => ({
             ...vn.properties
@@ -554,12 +625,10 @@ private convertToEntityModels(rawNodes: any[], rawEdges: any[]): {entities: Enti
             ...record.qn.properties
           } : null
         }));
-        
-        return setNodes;
-      } else {
-        console.error('Failed to fetch SetNodes:', result.error);
-        return [];
       }
+
+      console.error('Failed to fetch SetNodes:', result.error);
+      return [];
     } catch (error) {
       console.error('Error fetching SetNodes:', error);
       return [];
