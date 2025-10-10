@@ -870,7 +870,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       return;
     }
 
-    const rootNode = this.data.nodes[0];
+    const rootNode = this.findWorkspaceRoot(this.data.nodes) ?? this.data.nodes[0];
     this.engine.centerOnNode(rootNode);
     this.updateCameraInfo();
   }
@@ -888,43 +888,37 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       const layoutResult = layoutEngine.applyLayout(rawData.entities, rawData.relationships);
       const nodes = layoutResult.nodes;
 
-      // Build a map from entity IDs to HierarchicalNodes (including nested children)
-      const nodeMap = new Map<string, HierarchicalNode>();
-      const buildNodeMap = (nodeList: HierarchicalNode[]) => {
+      const nodeByGuid = new Map<string, HierarchicalNode>();
+      const collectNodes = (nodeList: HierarchicalNode[]) => {
         nodeList.forEach(node => {
-          // Find the entity that corresponds to this node
-          // Node.id is set to entity.name in the transformer
-          const entity = rawData.entities.find(e => e.name === node.id);
-          if (entity) {
-            nodeMap.set(entity.id, node);
+          if (node.GUID) {
+            nodeByGuid.set(node.GUID, node);
           }
-          // Recursively map children
-          if (node.children && node.children.length > 0) {
-            buildNodeMap(node.children);
+          if (node.children?.length) {
+            collectNodes(node.children);
           }
         });
       };
-      buildNodeMap(nodes);
+      collectNodes(nodes);
 
-      // Create edges from relationships using the actual nodes
       const edges: Edge[] = [];
       rawData.relationships.forEach(rel => {
         if (rel.type !== 'CONTAINS') {
-          // Look up the actual HierarchicalNodes using entity IDs
-          const fromNode = nodeMap.get(rel.source);
-          const toNode = nodeMap.get(rel.target);
+          const fromNode = nodeByGuid.get(rel.fromGUID || rel.source);
+          const toNode = nodeByGuid.get(rel.toGUID || rel.target);
           if (fromNode && toNode) {
             edges.push({
-              id: rel.id,
-              from: fromNode.GUID,  // Use the node's GUID property
-              to: toNode.GUID,      // Use the node's GUID property
+              id: rel.GUID || rel.id,
+              from: fromNode.GUID!,
+              to: toNode.GUID!,
+              fromGUID: fromNode.GUID!,
+              toGUID: toNode.GUID!,
               label: rel.label || rel.type,
               style: {
                 stroke: '#6ea8fe',
                 strokeWidth: 2,
-                strokeDashArray: null  // Original edges should be solid
-              },
-              ...rel
+                strokeDashArray: null
+              }
             });
           }
         }
@@ -1023,6 +1017,21 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       const v = c === 'x' ? r : (r & 0x3) | 0x8;
       return v.toString(16);
     });
+  }
+
+  private findWorkspaceRoot(nodes: HierarchicalNode[]): HierarchicalNode | null {
+    for (const node of nodes) {
+      if (node.text?.toLowerCase().includes('workspace')) {
+        return node;
+      }
+      if (node.children && node.children.length > 0) {
+        const found = this.findWorkspaceRoot(node.children);
+        if (found) {
+          return found;
+        }
+      }
+    }
+    return null;
   }
 
   // Public methods for CanvasController interface

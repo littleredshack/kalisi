@@ -18,53 +18,69 @@ export class CodebaseHierarchicalLayoutEngine extends BaseLayoutEngine {
   }
 
   applyLayout(entities: any[], relationships: any[]): LayoutResult {
-    // Step 1: Transform entities to hierarchical nodes
-    console.log(`LAYOUT DEBUG: Processing ${entities.length} entities, ${relationships.length} relationships`);
     const nodeMap = new Map<string, HierarchicalNode>();
-    const rootNodes: HierarchicalNode[] = [];
+    const childIds = new Set<string>();
 
-    // Create all nodes first
     entities.forEach(entity => {
-      if (entity.id === 'test-modular-root') return; // Skip root
+      if (!entity || entity.id === 'test-modular-root') {
+        return;
+      }
 
-      const nodeSize = this.getNodeSize(entity.properties?.type);
-      const node = this.createHierarchicalNode(
+      const kind = entity.properties?.kind || entity.properties?.type || '';
+      const layoutType = this.mapKindToLayoutType(kind);
+      const nodeSize = this.getNodeSize(layoutType);
+
+      const node = this.createHierarchicalNodeWithMetadata(
         entity,
-        0, 0, // Position will be calculated later
         nodeSize.width,
-        nodeSize.height
+        nodeSize.height,
+        layoutType,
+        kind
       );
 
       nodeMap.set(entity.id, node);
-
-      // Identify root level nodes (usually containers)
-      if (entity.properties?.type === 'container' || entity.name === 'Kalisi') {
-        rootNodes.push(node);
-        console.log(`LAYOUT DEBUG: Added root node: ${entity.name} (${entity.id})`);
-      }
     });
 
-    // Step 2: Build hierarchy from CONTAINS relationships
     relationships.forEach(rel => {
-      if (rel.type === 'CONTAINS') {
-        const parent = nodeMap.get(rel.source);
-        const child = nodeMap.get(rel.target);
-        if (parent && child) {
-          parent.children.push(child);
-        }
+      if (rel.type !== 'CONTAINS') {
+        return;
+      }
+      const parent = nodeMap.get(rel.source);
+      const child = nodeMap.get(rel.target);
+      if (parent && child) {
+        parent.children.push(child);
+        childIds.add(child.GUID ?? child.id);
       }
     });
 
-    // Step 3: Calculate positions using grid layout
-    this.calculateHierarchicalLayout(rootNodes);
-    this.positionRootNodes(rootNodes);
+    const allNodes = Array.from(nodeMap.values());
+    const rootNodes = allNodes.filter(node => {
+      const guid = node.GUID ?? node.id;
+      if (!guid) {
+        return false;
+      }
+      return !childIds.has(guid);
+    });
 
-    // Step 4: Calculate appropriate camera positioning for the content
-    const camera = this.calculateOptimalCamera(rootNodes);
+    if (rootNodes.length === 0 && allNodes.length > 0) {
+      const fallbackRoot = allNodes.find(node => {
+        const type = node.type?.toLowerCase();
+        return type === 'workspace' || type === 'container';
+      }) || allNodes[0];
+      rootNodes.push(fallbackRoot);
+    }
+
+    const workspaceRoot = rootNodes.find(node => node.type?.toLowerCase() === 'workspace') || rootNodes[0];
+    const orderedRoots = workspaceRoot ? [workspaceRoot, ...rootNodes.filter(node => node !== workspaceRoot)] : rootNodes;
+
+    this.calculateHierarchicalLayout(orderedRoots);
+    this.positionRootNodes(orderedRoots);
+
+    const camera = this.calculateOptimalCamera(orderedRoots);
 
     return {
-      nodes: rootNodes,
-      camera: camera
+      nodes: orderedRoots,
+      camera
     };
   }
 
@@ -101,15 +117,6 @@ export class CodebaseHierarchicalLayoutEngine extends BaseLayoutEngine {
     // Calculate center of content
     const centerX = minX + (maxX - minX) / 2;
     const centerY = minY + (maxY - minY) / 2;
-
-    console.log(`LAYOUT BOUNDS: minX:${minX.toFixed(1)} maxX:${maxX.toFixed(1)} minY:${minY.toFixed(1)} maxY:${maxY.toFixed(1)}`);
-    console.log(`LAYOUT BOUNDS: width:${(maxX-minX).toFixed(1)} height:${(maxY-minY).toFixed(1)}`);
-    console.log(`LAYOUT BOUNDS: center:(${centerX.toFixed(1)}, ${centerY.toFixed(1)})`);
-
-    // Debug: Check where root nodes are actually positioned after layout
-    rootNodes.forEach(node => {
-      console.log(`LAYOUT DEBUG: Root node "${node.text}" positioned at (${node.x.toFixed(1)}, ${node.y.toFixed(1)}) size:(${node.width}x${node.height})`);
-    });
 
     return {
       x: centerX,
@@ -225,18 +232,25 @@ export class CodebaseHierarchicalLayoutEngine extends BaseLayoutEngine {
   /**
    * Override createHierarchicalNode to add GUID for proper edge matching
    */
-  protected override createHierarchicalNode(entity: any, x: number, y: number, width: number, height: number): HierarchicalNode {
-    const colors = this.getNodeColor(entity.properties?.type || 'node');
+  private createHierarchicalNodeWithMetadata(
+    entity: any,
+    width: number,
+    height: number,
+    layoutType: string,
+    kind: string
+  ): HierarchicalNode {
+    const colors = this.getNodeColor(layoutType);
+    const label = this.getNodeLabel(kind, entity.name);
 
     return {
-      id: entity.name,
-      GUID: entity.id, // CRITICAL: Must preserve GUID for edge matching
-      type: entity.properties?.type || 'node',
-      x,
-      y,
+      id: entity.id,
+      GUID: entity.id,
+      type: layoutType,
+      x: 0,
+      y: 0,
       width,
       height,
-      text: entity.name,
+      text: label,
       style: colors,
       selected: false,
       visible: true,
@@ -244,5 +258,24 @@ export class CodebaseHierarchicalLayoutEngine extends BaseLayoutEngine {
       dragging: false,
       children: []
     };
+  }
+
+  private mapKindToLayoutType(kind: string): 'container' | 'node' | 'component' {
+    const normalized = kind.toLowerCase();
+    const containerKinds = new Set(['workspace', 'project', 'repository', 'directory', 'package', 'module']);
+    if (containerKinds.has(normalized)) {
+      return 'container';
+    }
+    return 'component';
+  }
+
+  private getNodeLabel(kind: string, name: string): string {
+    if (!kind) {
+      return name;
+    }
+    if (kind.toLowerCase() === name.toLowerCase()) {
+      return kind;
+    }
+    return `${kind}: ${name}`;
   }
 }
