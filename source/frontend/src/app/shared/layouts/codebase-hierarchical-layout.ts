@@ -26,12 +26,18 @@ export class CodebaseHierarchicalLayoutEngine extends BaseLayoutEngine {
         return;
       }
 
+      const guid = entity.id || entity.properties?.GUID || entity.properties?.guid;
+      if (!guid) {
+        return;
+      }
+
       const kind = entity.properties?.kind || entity.properties?.type || '';
       const layoutType = this.mapKindToLayoutType(kind);
       const nodeSize = this.getNodeSize(layoutType);
 
       const node = this.createHierarchicalNodeWithMetadata(
         entity,
+        guid,
         nodeSize.width,
         nodeSize.height,
         layoutType,
@@ -45,8 +51,10 @@ export class CodebaseHierarchicalLayoutEngine extends BaseLayoutEngine {
       if (rel.type !== 'CONTAINS') {
         return;
       }
-      const parent = nodeMap.get(rel.source);
-      const child = nodeMap.get(rel.target);
+      const parentId = rel.fromGUID || rel.source || rel.from;
+      const childId = rel.toGUID || rel.target || rel.to;
+      const parent = parentId ? nodeMap.get(parentId) : undefined;
+      const child = childId ? nodeMap.get(childId) : undefined;
       if (parent && child) {
         parent.children.push(child);
         childIds.add(child.GUID ?? child.id);
@@ -54,6 +62,7 @@ export class CodebaseHierarchicalLayoutEngine extends BaseLayoutEngine {
     });
 
     const allNodes = Array.from(nodeMap.values());
+    console.log('[Layout] nodeMap size', allNodes.length, 'relationships', relationships.length);
     const rootNodes = allNodes.filter(node => {
       const guid = node.GUID ?? node.id;
       if (!guid) {
@@ -72,6 +81,7 @@ export class CodebaseHierarchicalLayoutEngine extends BaseLayoutEngine {
 
     const workspaceRoot = rootNodes.find(node => node.type?.toLowerCase() === 'workspace') || rootNodes[0];
     const orderedRoots = workspaceRoot ? [workspaceRoot, ...rootNodes.filter(node => node !== workspaceRoot)] : rootNodes;
+    console.log('[Layout] root nodes after ordering', orderedRoots.map(node => node.text));
 
     this.calculateHierarchicalLayout(orderedRoots);
     this.positionRootNodes(orderedRoots);
@@ -234,6 +244,7 @@ export class CodebaseHierarchicalLayoutEngine extends BaseLayoutEngine {
    */
   private createHierarchicalNodeWithMetadata(
     entity: any,
+    guid: string,
     width: number,
     height: number,
     layoutType: string,
@@ -243,8 +254,8 @@ export class CodebaseHierarchicalLayoutEngine extends BaseLayoutEngine {
     const label = this.getNodeLabel(kind, entity.name);
 
     return {
-      id: entity.id,
-      GUID: entity.id,
+      id: guid,
+      GUID: guid,
       type: layoutType,
       x: 0,
       y: 0,

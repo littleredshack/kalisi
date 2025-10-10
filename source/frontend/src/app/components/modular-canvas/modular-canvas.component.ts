@@ -887,6 +887,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       // New adapter path - use applyLayout and construct CanvasData
       const layoutResult = layoutEngine.applyLayout(rawData.entities, rawData.relationships);
       const nodes = layoutResult.nodes;
+      console.log('[Canvas] Layout nodes', nodes.length);
 
       const nodeByGuid = new Map<string, HierarchicalNode>();
       const collectNodes = (nodeList: HierarchicalNode[]) => {
