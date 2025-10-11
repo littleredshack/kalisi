@@ -15,29 +15,6 @@ fi
 
 # Check for run mode flags
 DAEMON_MODE=false
-RUN_MODE="foreground"
-
-if [ $# -gt 0 ]; then
-    case "$1" in
-        --daemon|-d)
-            DAEMON_MODE=true
-            RUN_MODE="daemon"
-            echo "Starting in daemon mode..."
-            shift
-            ;;
-        --foreground|-f)
-            RUN_MODE="foreground"
-            shift
-            ;;
-        --help|-h)
-            echo "Usage: $0 [--daemon|--foreground]"
-            exit 0
-            ;;
-        *)
-            # Leave unrecognised options for future parsing
-            ;;
-    esac
-fi
 
 # Non-interactive mode for containers
 NON_INTERACTIVE=false
@@ -57,8 +34,8 @@ NC='\033[0m'
 echo -e "${BLUE}🚀 Kalisi System Startup${NC}"
 echo "===================="
 
+SOURCE_ROOT="$(pwd)"
 WORKSPACE_ROOT="$(cd .. >/dev/null 2>&1 && pwd)"
-FRONTEND_RUNTIME_DIST="$WORKSPACE_ROOT/runtime/frontend/dist"
 
 # Function to check if command exists
 command_exists() {
@@ -91,32 +68,10 @@ log_message() {
     fi
 }
 
-stop_frontend_watch() {
-    if [ -f frontend/frontend-watch.pid ]; then
-        local pid
-        pid=$(cat frontend/frontend-watch.pid 2>/dev/null || echo "")
-        if [ -n "$pid" ] && ps -p "$pid" >/dev/null 2>&1; then
-            log_message "${BLUE}Stopping existing frontend watcher (PID: $pid)...${NC}"
-            if ! kill "$pid" >/dev/null 2>&1; then
-                sudo kill "$pid" >/dev/null 2>&1 || true
-            fi
-            wait "$pid" 2>/dev/null || true
-        fi
-        rm -f frontend/frontend-watch.pid
-    fi
-    rm -f frontend/frontend-watch.log
-}
-
 prepare_frontend_output_dirs() {
     log_message "${BLUE}Preparing frontend output directory...${NC}"
-    sudo rm -rf "$FRONTEND_RUNTIME_DIST" 2>/dev/null || rm -rf "$FRONTEND_RUNTIME_DIST"
-    mkdir -p "$FRONTEND_RUNTIME_DIST"
-
-    if [ -L "frontend/dist" ] || [ -d "frontend/dist" ]; then
-        sudo rm -rf frontend/dist 2>/dev/null || rm -rf frontend/dist
-    fi
-
-    ln -s ../runtime/frontend/dist frontend/dist
+    sudo rm -rf "$FRONTEND_RUNTIME_ABS" 2>/dev/null || rm -rf "$FRONTEND_RUNTIME_ABS"
+    mkdir -p "$FRONTEND_RUNTIME_ABS"
 }
 
 container_ensure_https_capability() {
@@ -143,19 +98,9 @@ container_ensure_frontend_assets() {
         return
     fi
 
-    mkdir -p "$source_frontend"
-
-    if [ -L "$source_dist" ]; then
-        if [ "$(readlink "$source_dist")" = "$runtime_dist" ]; then
-            return
-        fi
-        rm -f "$source_dist"
-    elif [ -e "$source_dist" ]; then
-        rm -rf "$source_dist"
-    fi
-
-    ln -s "$runtime_dist" "$source_dist"
-    container_log "Linked prebuilt frontend bundle into $source_dist"
+    mkdir -p "$source_dist"
+    rsync -a --delete "$runtime_dist"/ "$source_dist"/
+    container_log "Copied prebuilt frontend bundle into $source_dist"
 }
 
 container_generate_certs() {
@@ -716,6 +661,11 @@ fi
 
 # Configuration loaded from .env
 
+FRONTEND_BUILD_DIR="${FRONTEND_BUILD_DIR:-frontend/dist}"
+FRONTEND_RUNTIME_OUTPUT="${FRONTEND_RUNTIME_OUTPUT:-runtime/frontend/dist}"
+FRONTEND_BUILD_ABS="$SOURCE_ROOT/$FRONTEND_BUILD_DIR"
+FRONTEND_RUNTIME_ABS="$WORKSPACE_ROOT/$FRONTEND_RUNTIME_OUTPUT"
+
 # Check for compiled binaries and rebuild if needed
 echo -e "${BLUE}Checking build status...${NC}"
 
@@ -816,10 +766,8 @@ else
     fi
 fi
 
-# Frontend build with file watching - always enabled
-echo -e "${BLUE}Setting up frontend with file watching...${NC}"
-
-stop_frontend_watch
+# Frontend build pipeline
+echo -e "${BLUE}Preparing frontend assets...${NC}"
 prepare_frontend_output_dirs
 
 # Build WASM assets if script exists
@@ -840,14 +788,13 @@ fi
 echo -e "${BLUE}Building frontend...${NC}"
 npm run build -- --delete-output-path
 
-# Start file watcher in background for auto-rebuild
-echo -e "${BLUE}Starting frontend file watcher for auto-rebuild...${NC}"
-nohup npm run watch > frontend-watch.log 2>&1 &
-WATCH_PID=$!
-echo $WATCH_PID > frontend-watch.pid
+if [ ! -d "$FRONTEND_BUILD_ABS" ]; then
+    echo -e "${RED}❌ Frontend build output not found at $FRONTEND_BUILD_ABS${NC}"
+    exit 1
+fi
 
-echo -e "${GREEN}✅ Frontend watcher started (PID: $WATCH_PID)${NC}"
-echo -e "${YELLOW}Frontend changes will auto-rebuild and be served instantly!${NC}"
+rsync -a --delete "$FRONTEND_BUILD_ABS"/ "$FRONTEND_RUNTIME_ABS"/
+echo -e "${GREEN}✅ Frontend assets copied to $FRONTEND_RUNTIME_ABS${NC}"
 
 # Fix ownership if running as root
 if [ "$EUID" -eq 0 ]; then
@@ -1114,13 +1061,6 @@ echo -e "${YELLOW}Press Ctrl+C to stop${NC}\n"
 # Setup cleanup function FIRST before starting anything
 cleanup_on_exit() {
     echo -e "\n${YELLOW}Cleaning up...${NC}"
-
-    # Clean up frontend watcher
-    if [ -f "frontend-watch.pid" ]; then
-        echo -e "${YELLOW}Stopping frontend file watcher...${NC}"
-        kill $(cat frontend-watch.pid) 2>/dev/null || true
-        rm -f frontend-watch.pid
-    fi
 
     # Clean up agent service
     if [ -n "$AGENT_PID" ] && ps -p $AGENT_PID > /dev/null 2>&1; then
