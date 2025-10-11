@@ -8,6 +8,8 @@ import { ComposableContainmentOrthogonalRenderer } from '../composable/renderers
 import { ComposableTreeTableRenderer } from '../composable/renderers/composable-tree-table-renderer';
 import { TreeTableLayoutEngine } from '../layouts/tree-table-layout';
 import { CodebaseHierarchicalLayoutEngine } from '../layouts/codebase-hierarchical-layout';
+import { CodeModelTreeLayoutEngine } from '../layouts/code-model-tree-layout';
+import { ComposableTreeRenderer } from '../composable/renderers/composable-tree-renderer';
 
 // New composable services
 import { LayoutEngineAdapter } from './layout-adapter';
@@ -31,6 +33,8 @@ export class LayoutEngineFactory {
    */
   static create(layoutEngineType: string): ILayoutEngine {
     switch (layoutEngineType) {
+      case 'code-model-tree':
+        return new CodeModelTreeLayoutEngine();
       case 'codebase-hierarchical':
         return new CodebaseHierarchicalLayoutEngine();
       case 'hierarchical':
@@ -56,7 +60,7 @@ export class LayoutEngineFactory {
    * Get available layout engine types
    */
   static getAvailableTypes(): string[] {
-    return ['hierarchical', 'grid', 'flat-graph'];
+    return ['hierarchical', 'grid', 'flat-graph', 'code-model-tree'];
   }
 }
 
@@ -81,6 +85,9 @@ export class RendererFactory {
         console.log('🎨 DEBUG: Creating ComposableContainmentOrthogonalRenderer');
         return new ComposableContainmentOrthogonalRenderer();
 
+      case 'composable-tree':
+        return new ComposableTreeRenderer();
+
       case 'tree-table':
         console.log('🎨 DEBUG: Creating ComposableTreeTableRenderer');
         return new ComposableTreeTableRenderer();
@@ -95,7 +102,7 @@ export class RendererFactory {
    * Get available renderer types
    */
   static getAvailableTypes(): string[] {
-    return ['composable-flat', 'composable-hierarchical', 'composable-containment-orthogonal'];
+    return ['composable-flat', 'composable-hierarchical', 'composable-containment-orthogonal', 'composable-tree'];
   }
 }
 
@@ -125,19 +132,19 @@ export class ComponentFactory {
                               viewNode.layoutEngine ||
                               (viewNode.properties && viewNode.properties.layoutEngine) ||
                               'hierarchical';
-    if (layoutEngineType === 'hierarchical' && viewNode.name === 'Code Model') {
-      layoutEngineType = 'codebase-hierarchical';
+    let rendererType = viewNode.renderer ||
+                       (viewNode.properties && viewNode.properties.renderer) ||
+                       'shape';
+    if (viewNode.name === 'Code Model') {
+      layoutEngineType = 'code-model-tree';
+      rendererType = 'composable-tree';
     }
     console.log('🎭 DEBUG: ComponentFactory.createFromViewNode:', {
       viewNodeId: viewNode.id,
       viewNodeName: viewNode.name,
       layoutEngineType,
-      rendererType: viewNode.renderer || viewNode.rendererName
+      rendererType
     });
-
-    const rendererType = viewNode.renderer ||
-                         (viewNode.properties && viewNode.properties.renderer) ||
-                         'shape';
 
     return this.createComponents(layoutEngineType, rendererType);
   }
