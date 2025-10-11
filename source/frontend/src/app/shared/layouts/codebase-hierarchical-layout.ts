@@ -1,5 +1,9 @@
 import { BaseLayoutEngine, ILayoutEngine, LayoutResult } from '../canvas/layout';
-import { HierarchicalNode, Edge, Camera } from '../canvas/types';
+import { HierarchicalNode, Camera } from '../canvas/types';
+
+const COLLAPSED_ROOT_WIDTH = 80;
+const COLLAPSED_ROOT_HEIGHT = 40;
+const ROOT_SPACING = 50;
 
 /**
  * Clean layout engine for hierarchical codebase visualization
@@ -81,10 +85,13 @@ export class CodebaseHierarchicalLayoutEngine extends BaseLayoutEngine {
 
     const workspaceRoot = rootNodes.find(node => node.type?.toLowerCase() === 'workspace') || rootNodes[0];
     const orderedRoots = workspaceRoot ? [workspaceRoot, ...rootNodes.filter(node => node !== workspaceRoot)] : rootNodes;
+    console.log('[LayoutDBG] workspaceRoot', workspaceRoot?.text, workspaceRoot?.type);
     console.log('[Layout] root nodes after ordering', orderedRoots.map(node => node.text));
 
     this.calculateHierarchicalLayout(orderedRoots);
     this.positionRootNodes(orderedRoots);
+
+    this.initialiseCollapsedRoot(orderedRoots);
 
     const camera = this.calculateOptimalCamera(orderedRoots);
 
@@ -228,7 +235,7 @@ export class CodebaseHierarchicalLayoutEngine extends BaseLayoutEngine {
   /**
    * Position root nodes horizontally with spacing
    */
-  private positionRootNodes(nodes: HierarchicalNode[], spacing: number = 50): void {
+  private positionRootNodes(nodes: HierarchicalNode[], spacing: number = ROOT_SPACING): void {
     let x = spacing;
 
     nodes.forEach(node => {
@@ -237,6 +244,57 @@ export class CodebaseHierarchicalLayoutEngine extends BaseLayoutEngine {
 
       x += node.width + spacing;
     });
+  }
+
+  private initialiseCollapsedRoot(nodes: HierarchicalNode[]): void {
+    if (!nodes.length) {
+      return;
+    }
+
+    const root = nodes[0];
+    if (!root) {
+      return;
+    }
+
+    const totalDescendants = this.countDescendants(root);
+    if (totalDescendants === 0) {
+      return;
+    }
+
+    root.collapsed = true;
+    root.visible = true;
+    root.width = COLLAPSED_ROOT_WIDTH;
+    root.height = COLLAPSED_ROOT_HEIGHT;
+    root.x = 0;
+    root.y = 0;
+    (root as any).metadata = {
+      ...(root.metadata ?? {}),
+      collapsed: true,
+      childCount: totalDescendants
+    };
+
+    this.hideDescendants(root.children);
+  }
+
+  private hideDescendants(children: HierarchicalNode[]): void {
+    children.forEach(child => {
+      child.visible = false;
+      child.collapsed = true;
+      if (child.children && child.children.length > 0) {
+        this.hideDescendants(child.children);
+      }
+    });
+  }
+
+  private countDescendants(node: HierarchicalNode): number {
+    if (!node.children || node.children.length === 0) {
+      return 0;
+    }
+    let count = node.children.length;
+    node.children.forEach(child => {
+      count += this.countDescendants(child);
+    });
+    return count;
   }
 
   /**

@@ -1,4 +1,4 @@
-import { HierarchicalNode, Edge, CanvasData, Camera, Point, InteractionEvent } from './types';
+import { HierarchicalNode, Edge, CanvasData, Camera, Point, InteractionEvent, Bounds } from './types';
 import { CanvasViewStateService, CanvasMutationType } from './state/canvas-view-state.service';
 import { CameraSystem } from './camera';
 import { IRenderer } from './renderer';
@@ -7,6 +7,9 @@ import { NodeVisibilityState } from '../../core/services/view-node-state.service
 import { ViewNodeStateService } from '../../core/services/view-node-state.service';
 import { DynamicLayoutService } from '../../core/services/dynamic-layout.service';
 import { Subscription } from 'rxjs';
+
+const COLLAPSED_NODE_WIDTH = 80;
+const COLLAPSED_NODE_HEIGHT = 40;
 
 export class ComposableHierarchicalCanvasEngine {
   private canvas: HTMLCanvasElement;
@@ -59,6 +62,7 @@ export class ComposableHierarchicalCanvasEngine {
     }
     
     this.setupEventHandlers();
+    this.ensureCameraWithinBounds('initialize');
   }
 
   // Public API
@@ -73,6 +77,7 @@ export class ComposableHierarchicalCanvasEngine {
       this.cameraSystem.setCamera(data.camera);
     }
     this.render();
+    this.ensureCameraWithinBounds('set-data');
     this.onDataChanged?.(this.data);
     if (this.selectedNode) {
       this.selectedNodeWorldPos = this.getAbsolutePosition(this.selectedNode);
@@ -212,12 +217,36 @@ export class ComposableHierarchicalCanvasEngine {
       }
     });
 
+    this.applyCollapsedNodeDimensions(this.data.nodes, true);
+    const root = this.data.nodes[0];
+    if (root && root.collapsed) {
+      this.cameraSystem.setCamera({ ...this.cameraSystem.getCamera(), x: root.x, y: root.y, zoom: Math.min(this.cameraSystem.getCamera().zoom, 0.2) });
+    }
+
     // Recompute edges with inheritance
     this.data.edges = this.computeEdgesWithInheritance(this.data.originalEdges);
 
     this.render();
     this.notifyDataChanged();
     this.publishState('collapse');
+  }
+
+  private applyCollapsedNodeDimensions(nodes: HierarchicalNode[], clampSize = false): void {
+    nodes.forEach(node => {
+      if (node.collapsed && node.children && node.children.length > 0) {
+        if (clampSize) {
+          node.width = COLLAPSED_NODE_WIDTH;
+          node.height = COLLAPSED_NODE_HEIGHT;
+        }
+        node.children.forEach(child => {
+          child.visible = false;
+          child.collapsed = true;
+          this.applyCollapsedNodeDimensions(child.children ?? [], clampSize);
+        });
+      } else if (node.children && node.children.length > 0) {
+        this.applyCollapsedNodeDimensions(node.children, clampSize);
+      }
+    });
   }
 
   /**
@@ -496,8 +525,8 @@ export class ComposableHierarchicalCanvasEngine {
     const collapseBehavior = this.viewNodeStateService?.getCollapseBehaviorValue?.() ?? 'full-size';
     const shouldShrink =
       collapseBehavior === 'shrink' && node.collapsed && node.children && node.children.length > 0;
-    const width = shouldShrink ? 180 : node.width;
-    const height = shouldShrink ? 60 : node.height;
+    const width = shouldShrink ? COLLAPSED_NODE_WIDTH : node.width;
+    const height = shouldShrink ? COLLAPSED_NODE_HEIGHT : node.height;
 
     const canvasWorldWidth = this.canvas.width / zoom;
     const canvasWorldHeight = this.canvas.height / zoom;
@@ -623,6 +652,126 @@ export class ComposableHierarchicalCanvasEngine {
       camera: this.cameraSystem.getCamera()
     });
   }
+
+  private ensureCameraWithinBounds(_reason: 'set-data' | 'external-state' | 'initialize' = 'set-data'): void {
+    if (!this.data?.nodes?.length) {
+      return;
+    }
+    if (this.canvas.width === 0 || this.canvas.height === 0) {
+      return;
+    }
+
+    const collapseBehavior = this.viewNodeStateService?.getCollapseBehaviorValue?.() ?? 'full-size';
+    const contentBounds = this.calculateContentBounds(this.data.nodes, 0, 0, collapseBehavior);
+    if (!contentBounds) {
+      return;
+    }
+
+    const currentCamera = this.cameraSystem.getCamera();
+    const safeZoom = Number.isFinite(currentCamera.zoom) && currentCamera.zoom > 0 ? currentCamera.zoom : 1;
+    const viewportWidth = this.canvas.width / safeZoom;
+    const viewportHeight = this.canvas.height / safeZoom;
+
+    const viewportBounds: Bounds = {
+      x: Number.isFinite(currentCamera.x) ? currentCamera.x : contentBounds.x,
+      y: Number.isFinite(currentCamera.y) ? currentCamera.y : contentBounds.y,
+      width: viewportWidth,
+      height: viewportHeight
+    };
+
+    const paddingX = viewportWidth * 0.25;
+    const paddingY = viewportHeight * 0.25;
+    const expandedContent: Bounds = {
+      x: contentBounds.x - paddingX,
+      y: contentBounds.y - paddingY,
+      width: contentBounds.width + paddingX * 2,
+      height: contentBounds.height + paddingY * 2
+    };
+
+    const cameraInvalid = !Number.isFinite(currentCamera.x) ||
+      !Number.isFinite(currentCamera.y) ||
+      !Number.isFinite(currentCamera.zoom) ||
+      currentCamera.zoom <= 0;
+
+    if (cameraInvalid || !this.rectanglesIntersect(expandedContent, viewportBounds)) {
+      this.centerCameraOnBounds(contentBounds, safeZoom);
+    }
+  }
+
+  private rectanglesIntersect(a: Bounds, b: Bounds): boolean {
+    return !(
+      a.x + a.width < b.x ||
+      b.x + b.width < a.x ||
+      a.y + a.height < b.y ||
+      b.y + b.height < a.y
+    );
+  }
+
+  private centerCameraOnBounds(bounds: Bounds, zoom: number): void {
+    const viewportWidth = this.canvas.width / zoom;
+    const viewportHeight = this.canvas.height / zoom;
+    const nextCamera: Camera = {
+      x: bounds.x + bounds.width / 2 - viewportWidth / 2,
+      y: bounds.y + bounds.height / 2 - viewportHeight / 2,
+      zoom
+    };
+
+    this.cameraSystem.setCamera(nextCamera);
+    if (this.selectedNode) {
+      this.selectedNodeWorldPos = this.getAbsolutePosition(this.selectedNode);
+    }
+    this.render();
+    this.publishCameraState();
+  }
+
+  private calculateContentBounds(
+    nodes: HierarchicalNode[],
+    offsetX: number,
+    offsetY: number,
+    collapseBehavior: string
+  ): Bounds | null {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    const visit = (nodeList: HierarchicalNode[], parentX: number, parentY: number): void => {
+      nodeList.forEach(node => {
+        if (node.visible === false) {
+          return;
+        }
+
+        const worldX = parentX + (Number.isFinite(node.x) ? node.x : 0);
+        const worldY = parentY + (Number.isFinite(node.y) ? node.y : 0);
+        const hasChildren = Array.isArray(node.children) && node.children.length > 0;
+        const shouldShrink = collapseBehavior === 'shrink' && node.collapsed && hasChildren;
+        const width = shouldShrink ? COLLAPSED_NODE_WIDTH : (Number.isFinite(node.width) ? node.width : 0);
+        const height = shouldShrink ? COLLAPSED_NODE_HEIGHT : (Number.isFinite(node.height) ? node.height : 0);
+
+        minX = Math.min(minX, worldX);
+        minY = Math.min(minY, worldY);
+        maxX = Math.max(maxX, worldX + width);
+        maxY = Math.max(maxY, worldY + height);
+
+        if (!node.collapsed && hasChildren) {
+          visit(node.children, worldX, worldY);
+        }
+      });
+    };
+
+    visit(nodes, offsetX, offsetY);
+
+    if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
+      return null;
+    }
+
+    return {
+      x: minX,
+      y: minY,
+      width: Math.max(0, maxX - minX),
+      height: Math.max(0, maxY - minY)
+    };
+  }
   private applyExternalState(state: CanvasData): void {
     this.applyingExternalState = true;
     this.data = {
@@ -638,6 +787,7 @@ export class ComposableHierarchicalCanvasEngine {
       this.selectedNodeWorldPos = this.getAbsolutePosition(this.selectedNode);
     }
     this.render();
+    this.ensureCameraWithinBounds('external-state');
     this.applyingExternalState = false;
   }
 

@@ -2,6 +2,9 @@ import { HierarchicalNode, Camera } from '../../canvas/types';
 import { DrawingPrimitives } from '../../canvas/drawing-primitives';
 import { CollapseBehavior } from '../../../core/services/view-node-state.service';
 
+const COLLAPSED_NODE_WIDTH = 80;
+const COLLAPSED_NODE_HEIGHT = 40;
+
 /**
  * Hierarchical node drawing primitive - EXACT replica of hierarchical node rendering
  * Extracted from HierarchicalRenderingStrategy.renderNodeHierarchy() for composability
@@ -35,8 +38,8 @@ export class HierarchicalNodePrimitive {
     const shouldShrink = node.collapsed && node.children && node.children.length > 0 && collapseBehavior === 'shrink';
 
     // Use smaller dimensions if collapsed and behavior is 'shrink'
-    const nodeWidth = shouldShrink ? 180 : node.width;
-    const nodeHeight = shouldShrink ? 60 : node.height;
+    const nodeWidth = shouldShrink ? COLLAPSED_NODE_WIDTH : node.width;
+    const nodeHeight = shouldShrink ? COLLAPSED_NODE_HEIGHT : node.height;
 
     // Calculate absolute position in world space (exact same logic)
     const worldX = parentX + node.x;
@@ -120,8 +123,8 @@ export class HierarchicalNodePrimitive {
     const shouldShrink = node.collapsed && node.children && node.children.length > 0 && collapseBehavior === 'shrink';
 
     // Use smaller dimensions if collapsed and behavior is 'shrink'
-    const nodeWidth = shouldShrink ? 180 : node.width;
-    const nodeHeight = shouldShrink ? 60 : node.height;
+    const nodeWidth = shouldShrink ? COLLAPSED_NODE_WIDTH : node.width;
+    const nodeHeight = shouldShrink ? COLLAPSED_NODE_HEIGHT : node.height;
 
     return {
       x: (worldX - camera.x) * camera.zoom,
@@ -147,8 +150,8 @@ export class HierarchicalNodePrimitive {
 
     const shouldShrink =
       collapseBehavior === 'shrink' && node.collapsed && node.children && node.children.length > 0;
-    const nodeWidth = shouldShrink ? 180 : node.width;
-    const nodeHeight = shouldShrink ? 60 : node.height;
+    const nodeWidth = shouldShrink ? COLLAPSED_NODE_WIDTH : node.width;
+    const nodeHeight = shouldShrink ? COLLAPSED_NODE_HEIGHT : node.height;
 
     return (
       worldX >= nodeWorldX &&
