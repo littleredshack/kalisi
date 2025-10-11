@@ -57,6 +57,9 @@ NC='\033[0m'
 echo -e "${BLUE}🚀 Kalisi System Startup${NC}"
 echo "===================="
 
+WORKSPACE_ROOT="$(cd .. >/dev/null 2>&1 && pwd)"
+FRONTEND_RUNTIME_DIST="$WORKSPACE_ROOT/runtime/frontend/dist"
+
 # Function to check if command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
@@ -86,6 +89,34 @@ log_message() {
     else
         echo -e "$1"
     fi
+}
+
+stop_frontend_watch() {
+    if [ -f frontend/frontend-watch.pid ]; then
+        local pid
+        pid=$(cat frontend/frontend-watch.pid 2>/dev/null || echo "")
+        if [ -n "$pid" ] && ps -p "$pid" >/dev/null 2>&1; then
+            log_message "${BLUE}Stopping existing frontend watcher (PID: $pid)...${NC}"
+            if ! kill "$pid" >/dev/null 2>&1; then
+                sudo kill "$pid" >/dev/null 2>&1 || true
+            fi
+            wait "$pid" 2>/dev/null || true
+        fi
+        rm -f frontend/frontend-watch.pid
+    fi
+    rm -f frontend/frontend-watch.log
+}
+
+prepare_frontend_output_dirs() {
+    log_message "${BLUE}Preparing frontend output directory...${NC}"
+    sudo rm -rf "$FRONTEND_RUNTIME_DIST" 2>/dev/null || rm -rf "$FRONTEND_RUNTIME_DIST"
+    mkdir -p "$FRONTEND_RUNTIME_DIST"
+
+    if [ -L "frontend/dist" ] || [ -d "frontend/dist" ]; then
+        sudo rm -rf frontend/dist 2>/dev/null || rm -rf frontend/dist
+    fi
+
+    ln -s ../runtime/frontend/dist frontend/dist
 }
 
 container_ensure_https_capability() {
@@ -788,16 +819,8 @@ fi
 # Frontend build with file watching - always enabled
 echo -e "${BLUE}Setting up frontend with file watching...${NC}"
 
-# Fix ownership issues with frontend dist directory
-if [ -d "frontend/dist" ]; then
-    echo -e "${BLUE}Fixing frontend dist directory ownership...${NC}"
-    sudo chown -R $(whoami):$(whoami) frontend/dist 2>/dev/null || true
-    # If ownership fix fails, just remove and rebuild
-    if [ ! -w "frontend/dist" ]; then
-        echo -e "${YELLOW}Removing dist directory due to permission issues...${NC}"
-        sudo rm -rf frontend/dist 2>/dev/null || rm -rf frontend/dist
-    fi
-fi
+stop_frontend_watch
+prepare_frontend_output_dirs
 
 # Build WASM assets if script exists
 echo -e "${BLUE}Building WASM assets...${NC}"
@@ -815,7 +838,7 @@ fi
 
 # Build initially
 echo -e "${BLUE}Building frontend...${NC}"
-npm run build
+npm run build -- --delete-output-path
 
 # Start file watcher in background for auto-rebuild
 echo -e "${BLUE}Starting frontend file watcher for auto-rebuild...${NC}"
