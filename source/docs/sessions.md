@@ -37,10 +37,12 @@
 - **Collapse Flow**: `collapseToLevel` still sets descendants via `showImmediateChildren`/`hideAllDescendants`. We verified root nodes remain expanded after the state isolation change.
 
 ## Outstanding / Recommended Next Steps
+* Current status: Code Model canvas still renders blank and MIME errors persist; root node is drawn far off-screen (~25k x 35k).
 1. **Camera Reset Logic**: Even with state isolation, the root node can still be off-screen if the stored camera in the DB is out of range or if the layout pushes heights beyond the initial viewport. Add a fallback centering routine (`centerOnInitialNode`) that runs after layout when no saved camera is present.
 2. **Layout Diagnostics**: The root node reports thousands of children (8470) yet remains visually empty. Investigate whether `showImmediateChildren` + `hideAllDescendants` hides everything by design (collapsed badges) or whether we should render a placeholder when a container has collapsed children.
 3. **Consistent Build Script**: Encapsulate the Angular build + hash cleanup into a single script (or CI job) to avoid manual rsync/index rewrites.
-4. **Remove Ad-hoc Logging**: Any lingering `console.warn` or debug logs added during ongoing investigation should be cleaned up once the core display issue is resolved.
-5. **Verify with Fresh Sessions**: After resetting the camera and layout logic, spin up a fresh environment to ensure the Code Model view renders at first load without needing manual zoom/pan.
+4. **Restore Single-Command Build Workflow**: Update `start.sh` (or similar automation) so it runs the Angular build, removes stale hashed bundles, copies the latest output into `/workspace/runtime/frontend/dist`, and then launches services. The goal is to get back to your “one command” workflow; ad-hoc rebuilds are still painful.
+5. **Remove Ad-hoc Logging**: Any lingering `console.warn` or debug logs added during ongoing investigation should be cleaned up once the core display issue is resolved.
+6. **Verify with Fresh Sessions**: After resetting the camera and layout logic, spin up a fresh environment to ensure the Code Model view renders at first load without needing manual zoom/pan.
 
 The state-isolation refactor is now in place. The remaining work is to make sure the root node actually draws visible content (or at least its collapsed placeholder) once the camera is centred. Continuous testing with multiple canvases open simultaneously is recommended to validate the new per-canvas channels.
