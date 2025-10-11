@@ -1,4 +1,5 @@
 use std::{
+    cmp::Ordering,
     env,
     fs::{self, File},
     io::Write,
@@ -141,13 +142,34 @@ async fn main() -> Result<()> {
 
 fn build_model(repo_root: &Path) -> Result<CodeModel> {
     let workspace_name = repo_root
-        .file_name()
+        .parent()
+        .and_then(|p| p.file_name())
         .and_then(|s| s.to_str())
         .unwrap_or("workspace")
         .to_string();
 
-    let mut model = CodeModel::new(workspace_name);
-    let mut repo_node = Node::new(NodeKind::Repository, "source".into(), Language::Multi);
+    let repository_name = repo_root
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("source")
+        .to_string();
+
+    let mut workspace_node =
+        Node::new(NodeKind::Directory, workspace_name.clone(), Language::Multi);
+    let mut repository_node = Node::new(
+        NodeKind::Directory,
+        repository_name.clone(),
+        Language::Multi,
+    );
+
+    populate_directory_hierarchy(&mut repository_node, repo_root, repo_root)?;
+    workspace_node.add_child(repository_node);
+
+    let mut model = CodeModel {
+        version: "1.0.0".into(),
+        workspace: workspace_node,
+        edges: Vec::new(),
+    };
 
     let mut rust_parser = RustParser::new()?;
     let mut ts_parser = TypeScriptParser::new()?;
@@ -198,9 +220,17 @@ fn build_model(repo_root: &Path) -> Result<CodeModel> {
         };
 
         match result {
-            Ok(file_node) => {
-                let parent = ensure_directory_hierarchy(&mut repo_node, &relative_path);
-                parent.add_child(file_node);
+            Ok(parsed_file) => {
+                if let Some(existing_file) =
+                    find_file_node_mut(&mut model.workspace, &relative_path)
+                {
+                    merge_file_nodes(existing_file, parsed_file);
+                } else {
+                    warn!(
+                        "Parsed file node not found in filesystem tree for {}",
+                        relative_path
+                    );
+                }
             }
             Err(err) => warn!("Parse error in {}: {err}", relative_path),
         }
@@ -208,8 +238,6 @@ fn build_model(repo_root: &Path) -> Result<CodeModel> {
 
     info!("Parsed {rust_file_count} Rust files");
     info!("Parsed {ts_file_count} TypeScript files");
-
-    model.workspace.add_child(repo_node);
 
     info!("Building symbol table");
     let mut symbol_table = SymbolTable::new();
@@ -276,51 +304,6 @@ fn should_skip(path: &Path) -> bool {
         || path_str.contains("/.git/")
 }
 
-fn ensure_directory_hierarchy<'a>(root: &'a mut Node, relative_path: &str) -> &'a mut Node {
-    let path = Path::new(relative_path);
-    let mut current = root;
-
-    if let Some(parent) = path.parent() {
-        if !parent.as_os_str().is_empty() {
-            let mut accumulated = PathBuf::new();
-
-            for component in parent.components() {
-                if let std::path::Component::Normal(segment_os) = component {
-                    let segment = segment_os.to_string_lossy().to_string();
-                    accumulated.push(&segment);
-
-                    let existing_index = current.children.iter().position(|child| {
-                        child.kind == NodeKind::Directory && child.name == segment
-                    });
-
-                    current = if let Some(idx) = existing_index {
-                        current.children.get_mut(idx).unwrap()
-                    } else {
-                        let location = Location {
-                            path: accumulated.to_string_lossy().to_string(),
-                            start_line: None,
-                            start_col: None,
-                            end_line: None,
-                            end_col: None,
-                            byte_start: None,
-                            byte_end: None,
-                        };
-
-                        let dir_node =
-                            Node::new(NodeKind::Directory, segment.clone(), Language::Multi)
-                                .with_location(location);
-
-                        current.add_child(dir_node);
-                        current.children.last_mut().unwrap()
-                    };
-                }
-            }
-        }
-    }
-
-    current
-}
-
 fn find_file_node<'a>(node: &'a Node, target_path: &str) -> Option<&'a Node> {
     if node.kind == NodeKind::File {
         if let Some(loc) = &node.location {
@@ -337,6 +320,33 @@ fn find_file_node<'a>(node: &'a Node, target_path: &str) -> Option<&'a Node> {
     }
 
     None
+}
+
+fn find_file_node_mut<'a>(node: &'a mut Node, target_path: &str) -> Option<&'a mut Node> {
+    if node.kind == NodeKind::File {
+        if let Some(loc) = &node.location {
+            if loc.path == target_path {
+                return Some(node);
+            }
+        }
+    }
+
+    for child in &mut node.children {
+        if let Some(result) = find_file_node_mut(child, target_path) {
+            return Some(result);
+        }
+    }
+
+    None
+}
+
+fn merge_file_nodes(target: &mut Node, parsed: Node) {
+    target.language = parsed.language;
+    target.labels = parsed.labels;
+    target.location = parsed.location;
+    target.metadata = parsed.metadata;
+    target.hash = parsed.hash;
+    target.children = parsed.children;
 }
 
 fn aggregate_call_counts(edges: &mut Vec<code_model_builder::Edge>) {
@@ -381,6 +391,111 @@ fn aggregate_call_counts(edges: &mut Vec<code_model_builder::Edge>) {
             true
         }
     });
+}
+
+fn populate_directory_hierarchy(
+    parent_node: &mut Node,
+    current_path: &Path,
+    repo_root: &Path,
+) -> Result<()> {
+    let mut entries: Vec<_> = fs::read_dir(current_path)
+        .with_context(|| format!("read directory {}", current_path.display()))?
+        .filter_map(|entry| entry.ok())
+        .collect();
+
+    entries.sort_by(|a, b| {
+        let a_ty = a.file_type();
+        let b_ty = b.file_type();
+
+        match (
+            a_ty.as_ref().map(|ft| ft.is_dir()),
+            b_ty.as_ref().map(|ft| ft.is_dir()),
+        ) {
+            (Ok(true), Ok(false)) => Ordering::Less,
+            (Ok(false), Ok(true)) => Ordering::Greater,
+            _ => a.file_name().cmp(&b.file_name()),
+        }
+    });
+
+    for entry in entries {
+        let entry_path = entry.path();
+
+        if should_skip(&entry_path) {
+            continue;
+        }
+
+        let file_type = match entry.file_type() {
+            Ok(ft) => ft,
+            Err(err) => {
+                warn!(
+                    "Unable to determine file type for {}: {err}",
+                    entry_path.display()
+                );
+                continue;
+            }
+        };
+
+        if file_type.is_symlink() {
+            continue;
+        }
+
+        let name = entry.file_name().to_string_lossy().to_string();
+
+        let relative_path = entry_path
+            .strip_prefix(repo_root)
+            .unwrap_or(&entry_path)
+            .to_string_lossy()
+            .to_string();
+
+        if file_type.is_dir() {
+            let mut dir_node = Node::new(NodeKind::Directory, name, Language::Multi);
+            if !relative_path.is_empty() {
+                dir_node = dir_node.with_location(Location {
+                    path: relative_path,
+                    start_line: None,
+                    start_col: None,
+                    end_line: None,
+                    end_col: None,
+                    byte_start: None,
+                    byte_end: None,
+                });
+            }
+
+            populate_directory_hierarchy(&mut dir_node, &entry_path, repo_root)?;
+            parent_node.add_child(dir_node);
+        } else if file_type.is_file() {
+            let language = language_from_extension(
+                entry_path
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .unwrap_or_default(),
+            );
+
+            let file_node = Node::new(NodeKind::File, name, language).with_location(Location {
+                path: relative_path,
+                start_line: None,
+                start_col: None,
+                end_line: None,
+                end_col: None,
+                byte_start: None,
+                byte_end: None,
+            });
+
+            parent_node.add_child(file_node);
+        }
+    }
+
+    Ok(())
+}
+
+fn language_from_extension(ext: &str) -> Language {
+    match ext.to_ascii_lowercase().as_str() {
+        "rs" => Language::Rust,
+        "ts" | "tsx" => Language::TypeScript,
+        "js" | "jsx" => Language::TypeScript,
+        "py" => Language::Python,
+        _ => Language::Unknown,
+    }
 }
 
 fn write_tree(model: &CodeModel, out_dir: &Path) -> Result<()> {
