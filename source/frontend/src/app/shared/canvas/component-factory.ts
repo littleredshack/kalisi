@@ -7,6 +7,7 @@ import { ComposableHierarchicalRenderer } from '../composable/renderers/composab
 import { ComposableContainmentOrthogonalRenderer } from '../composable/renderers/composable-containment-orthogonal-renderer';
 import { ComposableTreeTableRenderer } from '../composable/renderers/composable-tree-table-renderer';
 import { TreeTableLayoutEngine } from '../layouts/tree-table-layout';
+import { CodebaseHierarchicalLayoutEngine } from '../layouts/codebase-hierarchical-layout';
 
 // New composable services
 import { LayoutEngineAdapter } from './layout-adapter';
@@ -30,7 +31,10 @@ export class LayoutEngineFactory {
    */
   static create(layoutEngineType: string): ILayoutEngine {
     switch (layoutEngineType) {
+      case 'codebase-hierarchical':
+        return new CodebaseHierarchicalLayoutEngine();
       case 'hierarchical':
+        return new LayoutEngineAdapter(transformer, gridLayout);
       case 'grid':
         // Use new adapter with composable services for grid layout
         return new LayoutEngineAdapter(transformer, gridLayout);
@@ -117,10 +121,13 @@ export class ComponentFactory {
    * Create components from ViewNode object using dynamic properties
    */
   static createFromViewNode(viewNode: any): { layoutEngine: ILayoutEngine; renderer: IRenderer } {
-    const layoutEngineType = viewNode.layout_engine ||
+    let layoutEngineType = viewNode.layout_engine ||
                               viewNode.layoutEngine ||
                               (viewNode.properties && viewNode.properties.layoutEngine) ||
                               'hierarchical';
+    if (layoutEngineType === 'hierarchical' && viewNode.name === 'Code Model') {
+      layoutEngineType = 'codebase-hierarchical';
+    }
     console.log('🎭 DEBUG: ComponentFactory.createFromViewNode:', {
       viewNodeId: viewNode.id,
       viewNodeName: viewNode.name,
