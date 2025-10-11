@@ -117,7 +117,19 @@ export class Neo4jDataService {
     console.log('🔍 DEBUG: executeViewNodeQuery for ViewNode:', viewNode.name, viewNode.id);
     try {
       // Get the cypherQuery from the associated QueryNode instead of ViewNode
-      const queryToExecute = await this.getQueryFromQueryNode(viewNode);
+      let queryToExecute = await this.getQueryFromQueryNode(viewNode);
+
+      // Temporary override while tree renderer is stabilised; avoids stale DB queries
+      if (viewNode.name === 'Code Model') {
+        queryToExecute = `
+          MATCH (root:CodeElement {name: "workspace"})
+          WITH root.import_batch AS batch
+          MATCH (n:CodeElement {import_batch: batch})
+          OPTIONAL MATCH (n)-[r:HAS_CHILD]->(m:CodeElement {import_batch: batch})
+          RETURN n, r, m
+        `;
+      }
+
       console.log('🔍 DEBUG: Query to execute:', queryToExecute);
       
       // Execute the cypherQuery via existing cypher endpoint
