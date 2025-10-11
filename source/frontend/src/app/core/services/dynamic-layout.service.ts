@@ -13,6 +13,9 @@ import { CollapseBehavior, ViewNodeStateService } from './view-node-state.servic
   providedIn: 'root'
 })
 export class DynamicLayoutService {
+  private isTreeNode(node?: HierarchicalNode | null): boolean {
+    return !!node?.metadata && node.metadata['displayMode'] === 'tree';
+  }
   constructor(
     private readonly canvasViewStateService: CanvasViewStateService,
     private readonly viewNodeStateService: ViewNodeStateService
@@ -38,6 +41,9 @@ export class DynamicLayoutService {
 
     const { node: changedNode, siblings, parent } = context;
 
+    if (this.isTreeNode(changedNode) || this.isTreeNode(parent)) {
+      return;
+    }
     const userLocked = (changedNode as any)._userLocked === true;
     if (userLocked) {
       if (!changedNode.collapsed && changedNode.children && changedNode.children.length > 0) {
@@ -155,6 +161,9 @@ export class DynamicLayoutService {
    * Reflow children within their parent container
    */
   private reflowChildren(children: HierarchicalNode[], parentNode?: HierarchicalNode): void {
+    if (this.isTreeNode(parentNode)) {
+      return;
+    }
     const PADDING = 20;
     const SPACING = 20;
     const headerOffset = parentNode ? this.getHeaderOffset(parentNode) : 40;
@@ -182,6 +191,9 @@ export class DynamicLayoutService {
     viewportBounds?: { width: number; height: number },
     parentNode?: HierarchicalNode
   ): void {
+    if (this.isTreeNode(parentNode)) {
+      return;
+    }
     if (nodes.length === 0) return;
 
     const PADDING = 20;
@@ -306,6 +318,9 @@ export class DynamicLayoutService {
     viewportBounds?: { width: number; height: number }
   ): void {
     for (const node of nodes) {
+      if (this.isTreeNode(node)) {
+        continue;
+      }
       if (node.children && node.children.length > 0) {
         this.ensureParentContainsChildren(node, viewportBounds);
         this.ensureAllParentsContainChildren(node.children, viewportBounds);
@@ -317,6 +332,9 @@ export class DynamicLayoutService {
     parentNode: HierarchicalNode,
     viewportBounds?: { width: number; height: number }
   ): void {
+    if (this.isTreeNode(parentNode)) {
+      return;
+    }
     if (!parentNode.children || parentNode.children.length === 0) return;
 
     const CONTAINER_PADDING = 40;
@@ -351,6 +369,9 @@ export class DynamicLayoutService {
     parentNode: HierarchicalNode,
     viewportBounds?: { width: number; height: number }
   ): void {
+    if (this.isTreeNode(parentNode)) {
+      return;
+    }
     const childBounds = this.calculateChildrenBounds(parentNode.children);
     const padding = 40;
 

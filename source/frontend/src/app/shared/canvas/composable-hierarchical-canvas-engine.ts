@@ -8,8 +8,8 @@ import { ViewNodeStateService } from '../../core/services/view-node-state.servic
 import { DynamicLayoutService } from '../../core/services/dynamic-layout.service';
 import { Subscription } from 'rxjs';
 
-const COLLAPSED_NODE_WIDTH = 80;
-const COLLAPSED_NODE_HEIGHT = 40;
+const COLLAPSED_NODE_WIDTH = 220;
+const COLLAPSED_NODE_HEIGHT = 64;
 
 export class ComposableHierarchicalCanvasEngine {
   private canvas: HTMLCanvasElement;
@@ -186,6 +186,11 @@ export class ComposableHierarchicalCanvasEngine {
 
     // After collapse, ensure parent containers are properly sized for remaining visible children
     this.data.nodes.forEach(rootNode => {
+      const isTreeLayout = rootNode.metadata?.['displayMode'] === 'tree';
+      if (isTreeLayout) {
+        return;
+      }
+
       if (rootNode.children && rootNode.children.length > 0) {
         // Calculate height for grid layout of collapsed children
         const visibleChildren = rootNode.children.filter(child => child.visible);
@@ -211,7 +216,6 @@ export class ComposableHierarchicalCanvasEngine {
             height: this.canvas.height / this.cameraSystem.getCamera().zoom
           };
 
-
           this.dynamicLayoutService.reflowContainer(rootNode.children, containerBounds, viewportBounds, rootNode);
         }
       }
@@ -235,8 +239,20 @@ export class ComposableHierarchicalCanvasEngine {
     nodes.forEach(node => {
       if (node.collapsed && node.children && node.children.length > 0) {
         if (clampSize) {
-          node.width = COLLAPSED_NODE_WIDTH;
-          node.height = COLLAPSED_NODE_HEIGHT;
+          const isTreeNode = node.metadata?.['displayMode'] === 'tree';
+          if (isTreeNode) {
+            const defaultWidth = typeof node.metadata?.['defaultWidth'] === 'number'
+              ? Number(node.metadata['defaultWidth'])
+              : node.width || COLLAPSED_NODE_WIDTH;
+            const defaultHeight = typeof node.metadata?.['defaultHeight'] === 'number'
+              ? Number(node.metadata['defaultHeight'])
+              : node.height || COLLAPSED_NODE_HEIGHT;
+            node.width = defaultWidth;
+            node.height = defaultHeight;
+          } else {
+            node.width = COLLAPSED_NODE_WIDTH;
+            node.height = COLLAPSED_NODE_HEIGHT;
+          }
         }
         node.children.forEach(child => {
           child.visible = false;
@@ -1004,8 +1020,21 @@ export class ComposableHierarchicalCanvasEngine {
     const collapseBehavior = this.viewNodeStateService?.getCollapseBehaviorValue?.() ?? 'full-size';
     const shouldShrink =
       collapseBehavior === 'shrink' && node.collapsed && node.children && node.children.length > 0;
-    const width = shouldShrink ? 180 : node.width;
-    const height = shouldShrink ? 60 : node.height;
+
+    const isTreeNode = node.metadata?.['displayMode'] === 'tree';
+    const defaultWidth = typeof node.metadata?.['defaultWidth'] === 'number'
+      ? Number(node.metadata['defaultWidth'])
+      : node.width;
+    const defaultHeight = typeof node.metadata?.['defaultHeight'] === 'number'
+      ? Number(node.metadata['defaultHeight'])
+      : node.height;
+
+    const width = shouldShrink
+      ? (isTreeNode ? defaultWidth : COLLAPSED_NODE_WIDTH)
+      : node.width;
+    const height = shouldShrink
+      ? (isTreeNode ? defaultHeight : COLLAPSED_NODE_HEIGHT)
+      : node.height;
     const screenWidth = width * camera.zoom;
     const screenHeight = height * camera.zoom;
 

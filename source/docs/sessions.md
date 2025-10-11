@@ -1,3 +1,104 @@
+What really gets you there
+
+  1. Declarative, data-driven node model
+      - Node fields (geometry, metadata, labels, edges) live in a single immutable graph/state store.
+      - Layout engines take that graph and emit a transformed graph—nothing mutates it downstream.
+  2. Pluggable layout engines with capability flags
+      - Each engine (tree, orthogonal, Sugiyama, force, DAG‑reflow, etc.) implements an interface like
+
+        interface LayoutEngine {
+          getName(): string;
+          apply(graph: LayoutGraph, options: LayoutOptions): LayoutResult;
+          canHandleRealtime?: boolean;
+        }
+      - Engines declare if they support incremental reflow; the orchestrator only runs reflow for engines that opt
+        in. Tree returns false, so none of the grid logic touches it.
+  3. Event/Observer pipeline
+      - All layout/app state updates are events (e.g. CollapseNode, ResizeNode, LayoutApplied).
+      - Observers (renderers, AI agents, collaboration layer) subscribe and react without mutating the graph
+        themselves.
+  4. Renderer(s) read-only
+      - Canvas/webgl/HTML renderers consume the LayoutResult and draw; selections/hit testing use the same metrics.
+        They never massage coordinates on their own.
+  5. Assistant/AI layer hooks into the same event bus
+      - AI can propose “expand this branch”, “run clustering layout”, “raise edge weights”—by dispatching the same
+        commands a human would. No hidden state.
+  6. History & collaboration
+      - Because everything is event-based, we can record/replay state for undo, real-time collaboration, or “AI
+        explain what changed”.
+  7. Runtime layout switching
+      - Swap tree → force → orthogonal on the same graph without restarting. The orchestrator unloads the previous
+        engine, loads the new one, and re-emits a LayoutResult.
+
+  ### Why the current setup struggles
+
+  - Layout, reflow, and render have been bleeding into each other. We hard-coded sizes, forced 400px in the engine,
+    and used different collapsed widths in different modules—every move cascaded.
+  - The dynamic reflow wasn’t layout-aware, so it kept battling the tree engine.
+  - Metadata wasn’t authoritative; we’d compute the right numbers but never store them globally, so the selector/
+    renderer/kernel got out of sync.
+
+  ### What to do now
+
+  We’ve already moved in the right direction today by:
+
+  - Letting the tree engine own width/height and publishing the defaults in metadata.
+  - Teaching the reflow service to stand down when displayMode === 'tree'.
+  - Keeping the renderer/selector read-only.
+
+  Take that refactor the rest of the way:
+
+  1. Formal layout contract (as above).
+  2. Refactor ComposableHierarchicalCanvasEngine so it just orchestrates: load engine → run → publish → render, no
+     layout logic inside.
+  3. Move all hard-coded shrink/expand to per-layout utilities: tree uses metadata defaults; containment can still
+     shrink to 80×40 if it wants.
+  4. Expose an event bus (CanvasEvent) so AI, collaboration, undo, etc. plug in cleanly.
+
+  Once that skeleton is in place, you can add more engines, mix AI suggestions, or drive layout changes from data
+  alone—and none of the components fight each other. It’s also the only way you’ll scale to those “huge amount more”
+  plans without endless back‑and‑forth.
+
+  So, no—the earlier “partial fixes” were not the holistic answer. The right approach is this layered, declarative
+  architecture. We just started chipping away at it today; let’s keep going methodically so every new layout is a
+  drop-in module instead of a tug-of-war.
+  
+------------------
+you can grab the canvas component or its state service straight
+  from the console and dump the whole CanvasData.
+
+  Two easy options:
+
+  1. Call the engine directly
+
+     ng.getComponent(document.querySelector('app-modular-canvas')).engine.getData()
+     That returns the exact structure the renderer is using (nodes, edges, camera, etc.).
+     That returns the exact structure the renderer is using (nodes, edges, camera, etc.).
+  2. Go through the shared state service
+
+     ng.getInjector(document.querySelector('app-modular-canvas'))
+       .get(ng.coreTokens.CanvasViewStateService)
+       .getCurrentState('modular-canvas')
+
+     (Replace the string if you’re on a different canvasId.) This is the authoritative snapshot that gets published
+     to the collaborative layout pipeline.
+
+  Either object is safe to console.log or JSON.stringify whenever you want a full dump.
+
+
+› And can you call one of those directly from here?
+
+
+• I can’t execute browser console calls from this CLI—the Angular component tree and window scope live in your
+  running frontend, not in this shell. Grab the snippet:
+
+  ng.getComponent(document.querySelector('app-modular-canvas')).engine.getData()
+
+  …and paste it into your browser’s devtools console with the Code Model view open. That will dump the live
+  CanvasData there.
+
+  
+
 # Session: Code Model Canvas Debugging (2025-10-10)
 
 ## User Goals

@@ -9,8 +9,10 @@ interface EntityModel {
 
 const NODE_WIDTH = 220;
 const NODE_HEIGHT = 64;
-const HORIZONTAL_SPACING = 260;
-const VERTICAL_SPACING = 110;
+const HORIZONTAL_INDENT = 10;
+const HORIZONTAL_PADDING = 20;
+const VERTICAL_GAP = 20;
+const COLLAPSED_NODE_HEIGHT = 64;
 
 /**
  * Layout engine that arranges CodeElement nodes in a classic tree layout.
@@ -55,7 +57,9 @@ export class CodeModelTreeLayoutEngine extends BaseLayoutEngine implements ILayo
         dragging: false,
         metadata: {
           kind,
-          displayMode: 'tree'
+          displayMode: 'tree',
+          defaultWidth: NODE_WIDTH,
+          defaultHeight: NODE_HEIGHT
         } as Record<string, any>
       };
 
@@ -88,12 +92,13 @@ export class CodeModelTreeLayoutEngine extends BaseLayoutEngine implements ILayo
 
     roots.forEach(root => {
       this.sortChildrenRecursive(root);
+      this.initialiseCollapseState(root, true);
     });
 
     let nextY = 0;
     roots.forEach(root => {
-      const subtreeHeight = this.assignAbsolutePositions(root, 0, nextY);
-      nextY += Math.max(VERTICAL_SPACING, subtreeHeight);
+      const subtreeHeight = this.assignAbsolutePositions(root, nextY, 0);
+      nextY += subtreeHeight + VERTICAL_GAP;
     });
 
     roots.forEach(root => {
@@ -117,28 +122,64 @@ export class CodeModelTreeLayoutEngine extends BaseLayoutEngine implements ILayo
     node.children.forEach(child => this.sortChildrenRecursive(child));
   }
 
-  private assignAbsolutePositions(node: HierarchicalNode, depth: number, currentY: number): number {
-    const absX = depth * HORIZONTAL_SPACING;
-    (node as any).__absX = absX;
+  private initialiseCollapseState(node: HierarchicalNode, isRoot: boolean): void {
+    if (node.children.length > 0) {
+      node.collapsed = !isRoot;
+      node.children.forEach(child => this.initialiseCollapseState(child, false));
+    }
+  }
 
-    if (!node.children.length) {
-      (node as any).__absY = currentY;
-      return VERTICAL_SPACING;
+  private assignAbsolutePositions(node: HierarchicalNode, currentY: number, indent: number): number {
+    const absX = indent;
+    (node as any).__absX = absX;
+    (node as any).__absY = currentY;
+
+    const hasChildren = node.children.length > 0;
+    const isCollapsed = hasChildren && node.collapsed;
+    const nodeHeight = isCollapsed ? COLLAPSED_NODE_HEIGHT : NODE_HEIGHT;
+
+    node.width = NODE_WIDTH;
+    node.height = nodeHeight;
+
+    if (!hasChildren || isCollapsed) {
+      if (node.metadata) {
+        node.metadata['defaultWidth'] = node.width;
+        node.metadata['defaultHeight'] = nodeHeight;
+      }
+      return nodeHeight;
     }
 
-    let accumulatedHeight = 0;
+    let totalHeight = nodeHeight;
+    let childTop = currentY + nodeHeight + VERTICAL_GAP;
+    totalHeight += VERTICAL_GAP;
+    let maxChildExtent = NODE_WIDTH;
+
     node.children.forEach((child, index) => {
-      const childOffset = currentY + accumulatedHeight;
-      const childHeight = this.assignAbsolutePositions(child, depth + 1, childOffset);
-      accumulatedHeight += childHeight;
+      if (index > 0) {
+        childTop += VERTICAL_GAP;
+        totalHeight += VERTICAL_GAP;
+      }
+      const childHeight = this.assignAbsolutePositions(child, childTop, indent + HORIZONTAL_INDENT);
+      totalHeight += childHeight;
+      childTop += childHeight;
+
+      const childExtent = HORIZONTAL_INDENT + (child.width ?? NODE_WIDTH) + HORIZONTAL_PADDING;
+      if (childExtent > maxChildExtent) {
+        maxChildExtent = childExtent;
+      }
     });
 
-    const firstChild = node.children[0] as any;
-    const lastChild = node.children[node.children.length - 1] as any;
-    const midpoint = ((firstChild.__absY ?? currentY) + (lastChild.__absY ?? currentY)) / 2;
-    (node as any).__absY = midpoint;
+    node.width = Math.max(NODE_WIDTH, maxChildExtent);
+    if (hasChildren) {
+      totalHeight -= VERTICAL_GAP;
+    }
+    node.height = totalHeight;
 
-    return Math.max(VERTICAL_SPACING, accumulatedHeight);
+    if (node.metadata) {
+      node.metadata['defaultWidth'] = node.width;
+      node.metadata['defaultHeight'] = COLLAPSED_NODE_HEIGHT;
+    }
+    return totalHeight;
   }
 
   private convertAbsoluteToRelative(node: HierarchicalNode, parentAbsX: number, parentAbsY: number): void {
