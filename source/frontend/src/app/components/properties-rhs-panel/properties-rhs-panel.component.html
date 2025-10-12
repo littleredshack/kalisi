@@ -49,6 +49,28 @@
         <button
           pButton
           type="button"
+          label="Undo"
+          icon="pi pi-undo"
+          (click)="onUndo()"
+          class="p-button-sm control-button"
+          [disabled]="!(canUndo$ | async)"
+          pTooltip="Undo last change">
+        </button>
+
+        <button
+          pButton
+          type="button"
+          label="Redo"
+          icon="pi pi-redo"
+          (click)="onRedo()"
+          class="p-button-sm control-button"
+          [disabled]="!(canRedo$ | async)"
+          pTooltip="Redo last undone change">
+        </button>
+
+        <button
+          pButton
+          type="button"
           [label]="(autoLayoutState$ | async) || 'Auto Layout: OFF'"
           icon="pi pi-sitemap"
           (click)="onToggleAutoLayout()"
@@ -68,6 +90,15 @@
         </select>
       </div>
 
+      <div class="layout-engine-control" *ngIf="layoutEngines$ | async as engines">
+        <label class="control-label">Layout Engine:</label>
+        <select class="layout-engine-selector" (change)="onLayoutEngineChange($any($event.target).value)">
+          <option *ngFor="let engine of engines" [selected]="engine === (activeLayoutEngine$ | async)" [value]="engine">
+            {{ engine }}
+          </option>
+        </select>
+      </div>
+
       <div class="camera-info">
         <span class="info-label">Camera:</span>
         <span class="info-value">
@@ -75,6 +106,8 @@
           Zoom: {{ (cameraInfo$ | async)?.zoom }}x
         </span>
       </div>
+
+      <app-canvas-event-history></app-canvas-event-history>
     </div>
 
     <app-properties-panel

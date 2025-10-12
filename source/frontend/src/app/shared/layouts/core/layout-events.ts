@@ -1,0 +1,93 @@
+import { Observable, Subject } from 'rxjs';
+import { LayoutResult } from './layout-contract';
+
+export type CanvasEventSource = 'user' | 'system' | 'ai' | 'collaboration' | 'history';
+
+export type CanvasEvent =
+  | {
+      readonly type: 'CollapseNode';
+      readonly nodeId: string;
+      readonly source: CanvasEventSource;
+      readonly timestamp: number;
+    }
+  | {
+      readonly type: 'ExpandNode';
+      readonly nodeId: string;
+      readonly source: CanvasEventSource;
+      readonly timestamp: number;
+    }
+  | {
+      readonly type: 'ResizeNode';
+      readonly nodeId: string;
+      readonly width: number;
+      readonly height: number;
+      readonly source: CanvasEventSource;
+      readonly timestamp: number;
+    }
+  | {
+      readonly type: 'NodeMoved';
+      readonly nodeId: string;
+      readonly x: number;
+      readonly y: number;
+      readonly source: CanvasEventSource;
+      readonly timestamp: number;
+    }
+  | {
+      readonly type: 'LayoutRequested';
+      readonly engineName: string;
+      readonly canvasId: string;
+      readonly source: CanvasEventSource;
+      readonly timestamp: number;
+      readonly payload?: Readonly<Record<string, unknown>>;
+    }
+  | {
+      readonly type: 'LayoutApplied';
+      readonly engineName: string;
+      readonly canvasId: string;
+      readonly source: CanvasEventSource;
+      readonly timestamp: number;
+      readonly result: LayoutResult;
+    }
+  | {
+      readonly type: 'EngineSwitched';
+      readonly engineName: string;
+      readonly previousEngineName?: string;
+      readonly canvasId: string;
+      readonly source: CanvasEventSource;
+      readonly timestamp: number;
+    }
+  | {
+      readonly type: 'CameraChanged';
+      readonly canvasId: string;
+      readonly source: CanvasEventSource;
+      readonly timestamp: number;
+      readonly camera: {
+        readonly x: number;
+        readonly y: number;
+        readonly zoom: number;
+      };
+    }
+  | {
+      readonly type: 'HistoryReplay';
+      readonly canvasId: string;
+      readonly sinceVersion: number;
+      readonly untilVersion: number;
+      readonly source: CanvasEventSource;
+      readonly timestamp: number;
+    };
+
+export class CanvasEventBus {
+  private readonly subject = new Subject<CanvasEvent>();
+
+  get events$(): Observable<CanvasEvent> {
+    return this.subject.asObservable();
+  }
+
+  emit(event: CanvasEvent): void {
+    this.subject.next(event);
+  }
+
+  complete(): void {
+    this.subject.complete();
+  }
+}

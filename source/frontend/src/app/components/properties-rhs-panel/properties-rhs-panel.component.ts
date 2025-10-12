@@ -6,6 +6,7 @@ import { FormsModule } from '@angular/forms';
 import { PropertiesPanelComponent } from '../properties-panel/properties-panel.component';
 import { CanvasControlService, CameraInfo } from '../../core/services/canvas-control.service';
 import { Observable, map } from 'rxjs';
+import { CanvasEventHistoryComponent } from '../canvas-event-history/canvas-event-history.component';
 
 @Component({
   selector: 'app-properties-rhs-panel',
@@ -15,7 +16,8 @@ import { Observable, map } from 'rxjs';
     ButtonModule,
     TooltipModule,
     FormsModule,
-    PropertiesPanelComponent
+    PropertiesPanelComponent,
+    CanvasEventHistoryComponent
   ],
   templateUrl: './properties-rhs-panel.component.html',
   styleUrls: ['./properties-rhs-panel.component.scss']
@@ -39,6 +41,10 @@ export class PropertiesRhsPanelComponent implements OnInit, OnDestroy, OnChanges
   cameraInfo$: Observable<CameraInfo>;
   availableLevels$: Observable<number[]>;
   autoLayoutState$: Observable<string>;
+  canUndo$: Observable<boolean>;
+  canRedo$: Observable<boolean>;
+  layoutEngines$: Observable<string[]>;
+  activeLayoutEngine$: Observable<string | null>;
   levelOptions$: Observable<any[]>;
   selectedLevel: number | null = null;
 
@@ -48,6 +54,10 @@ export class PropertiesRhsPanelComponent implements OnInit, OnDestroy, OnChanges
     this.cameraInfo$ = this.canvasControlService.cameraInfo$;
     this.availableLevels$ = this.canvasControlService.availableLevels$;
     this.autoLayoutState$ = this.canvasControlService.autoLayoutState$;
+    this.canUndo$ = this.canvasControlService.canUndo$;
+    this.canRedo$ = this.canvasControlService.canRedo$;
+    this.layoutEngines$ = this.canvasControlService.layoutEngines$;
+    this.activeLayoutEngine$ = this.canvasControlService.activeLayoutEngine$;
 
     // Transform levels array into dropdown options
     this.levelOptions$ = this.availableLevels$.pipe(
@@ -138,11 +148,25 @@ export class PropertiesRhsPanelComponent implements OnInit, OnDestroy, OnChanges
     this.canvasControlService.toggleAutoLayout();
   }
 
+  onUndo(): void {
+    this.canvasControlService.undo();
+  }
+
+  onRedo(): void {
+    this.canvasControlService.redo();
+  }
+
   onCollapseLevel(level: number): void {
     if (level !== null && level !== undefined) {
       this.canvasControlService.collapseToLevel(level);
       // Reset dropdown after selection
       this.selectedLevel = null;
+    }
+  }
+
+  onLayoutEngineChange(engineName: string): void {
+    if (engineName) {
+      this.canvasControlService.changeLayoutEngine(engineName);
     }
   }
 }

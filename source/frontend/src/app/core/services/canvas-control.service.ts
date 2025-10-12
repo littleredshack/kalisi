@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
+import { CanvasEventHubService } from './canvas-event-hub.service';
 
 export interface CameraInfo {
   x: number;
@@ -15,46 +16,70 @@ export interface CanvasController {
   getAvailableLevels(): number[];
   getCameraInfo(): CameraInfo;
   getCollapseBehaviorLabel(): string;
+  getCanvasId(): string;
+  getAvailableLayoutEngines(): string[];
+  getActiveLayoutEngine(): string | null;
+  switchLayoutEngine(engineName: string): void;
+  undo(): void;
+  redo(): void;
+  canUndo(): boolean;
+  canRedo(): boolean;
 }
 
-@Injectable({
-  providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class CanvasControlService {
   private activeCanvas: CanvasController | null = null;
+  private activeCanvasId: string | null = null;
 
-  // Observable state for UI binding
-  private cameraInfoSubject = new BehaviorSubject<CameraInfo>({ x: 0, y: 0, zoom: 1 });
-  private availableLevelsSubject = new BehaviorSubject<number[]>([]);
-  private autoLayoutStateSubject = new BehaviorSubject<string>('Auto Layout: OFF');
-  private hasActiveCanvasSubject = new BehaviorSubject<boolean>(false);
+  private readonly cameraInfoSubject = new BehaviorSubject<CameraInfo>({ x: 0, y: 0, zoom: 1 });
+  private readonly availableLevelsSubject = new BehaviorSubject<number[]>([]);
+  private readonly autoLayoutStateSubject = new BehaviorSubject<string>('Auto Layout: OFF');
+  private readonly hasActiveCanvasSubject = new BehaviorSubject<boolean>(false);
+  private readonly layoutEnginesSubject = new BehaviorSubject<string[]>([]);
+  private readonly activeLayoutEngineSubject = new BehaviorSubject<string | null>(null);
+  private readonly activeCanvasIdSubject = new BehaviorSubject<string | null>(null);
+  private readonly canUndoSubject = new BehaviorSubject<boolean>(false);
+  private readonly canRedoSubject = new BehaviorSubject<boolean>(false);
 
-  public cameraInfo$ = this.cameraInfoSubject.asObservable();
-  public availableLevels$ = this.availableLevelsSubject.asObservable();
-  public autoLayoutState$ = this.autoLayoutStateSubject.asObservable();
-  public hasActiveCanvas$ = this.hasActiveCanvasSubject.asObservable();
+  readonly cameraInfo$ = this.cameraInfoSubject.asObservable();
+  readonly availableLevels$ = this.availableLevelsSubject.asObservable();
+  readonly autoLayoutState$ = this.autoLayoutStateSubject.asObservable();
+  readonly hasActiveCanvas$ = this.hasActiveCanvasSubject.asObservable();
+  readonly layoutEngines$ = this.layoutEnginesSubject.asObservable();
+  readonly activeLayoutEngine$ = this.activeLayoutEngineSubject.asObservable();
+  readonly activeCanvasId$ = this.activeCanvasIdSubject.asObservable();
+  readonly canUndo$ = this.canUndoSubject.asObservable();
+  readonly canRedo$ = this.canRedoSubject.asObservable();
 
-  constructor() {}
+  constructor(private readonly canvasEventHubService: CanvasEventHubService) {}
 
   registerCanvas(canvas: CanvasController): void {
     this.activeCanvas = canvas;
+    this.activeCanvasId = canvas.getCanvasId();
     this.hasActiveCanvasSubject.next(true);
+    this.activeCanvasIdSubject.next(this.activeCanvasId);
+    this.canvasEventHubService.setActiveCanvasId(this.activeCanvasId);
     this.updateState();
   }
 
   unregisterCanvas(): void {
     this.activeCanvas = null;
+    this.activeCanvasId = null;
     this.hasActiveCanvasSubject.next(false);
     this.cameraInfoSubject.next({ x: 0, y: 0, zoom: 1 });
     this.availableLevelsSubject.next([]);
     this.autoLayoutStateSubject.next('Auto Layout: OFF');
+    this.layoutEnginesSubject.next([]);
+    this.activeLayoutEngineSubject.next(null);
+    this.activeCanvasIdSubject.next(null);
+    this.canUndoSubject.next(false);
+    this.canRedoSubject.next(false);
+    this.canvasEventHubService.setActiveCanvasId(null);
   }
 
   resetCanvas(): void {
-    if (this.activeCanvas) {
-      this.activeCanvas.onResetClick();
-      this.updateState();
-    }
+    this.activeCanvas?.onResetClick();
+    this.updateState();
   }
 
   async saveLayout(): Promise<void> {
@@ -64,22 +89,35 @@ export class CanvasControlService {
   }
 
   toggleAutoLayout(): void {
-    if (this.activeCanvas) {
-      this.activeCanvas.onToggleCollapseBehavior();
-      this.updateState();
-    }
+    this.activeCanvas?.onToggleCollapseBehavior();
+    this.updateState();
   }
 
   collapseToLevel(level: number): void {
-    if (this.activeCanvas) {
-      // Create a mock event with the target value
-      const mockEvent = {
-        target: { value: level.toString() }
-      } as any as Event;
-
-      this.activeCanvas.onLevelSelect(mockEvent);
-      this.updateState();
+    if (!this.activeCanvas) {
+      return;
     }
+    const mockEvent = { target: { value: level.toString() } } as any as Event;
+    this.activeCanvas.onLevelSelect(mockEvent);
+    this.updateState();
+  }
+
+  changeLayoutEngine(engineName: string): void {
+    if (!this.activeCanvas) {
+      return;
+    }
+    this.activeCanvas.switchLayoutEngine(engineName);
+    this.updateState();
+  }
+
+  undo(): void {
+    this.activeCanvas?.undo();
+    this.updateState();
+  }
+
+  redo(): void {
+    this.activeCanvas?.redo();
+    this.updateState();
   }
 
   updateCameraInfo(info: CameraInfo): void {
@@ -90,23 +128,28 @@ export class CanvasControlService {
     this.availableLevelsSubject.next(levels);
   }
 
-  private updateState(): void {
-    if (this.activeCanvas) {
-      // Update camera info
-      const cameraInfo = this.activeCanvas.getCameraInfo();
-      this.cameraInfoSubject.next(cameraInfo);
-
-      // Update available levels
-      const levels = this.activeCanvas.getAvailableLevels();
-      this.availableLevelsSubject.next(levels);
-
-      // Update auto layout state
-      const autoLayoutLabel = this.activeCanvas.getCollapseBehaviorLabel();
-      this.autoLayoutStateSubject.next(autoLayoutLabel);
-    }
+  getActiveCanvasId(): string | null {
+    return this.activeCanvasId;
   }
 
-  // Call this when canvas state changes (e.g., after camera moves)
+  private updateState(): void {
+    if (!this.activeCanvas) {
+      return;
+    }
+
+    const cameraInfo = this.activeCanvas.getCameraInfo();
+    this.cameraInfoSubject.next(cameraInfo);
+
+    const levels = this.activeCanvas.getAvailableLevels();
+    this.availableLevelsSubject.next(levels);
+
+    this.autoLayoutStateSubject.next(this.activeCanvas.getCollapseBehaviorLabel());
+    this.layoutEnginesSubject.next(this.activeCanvas.getAvailableLayoutEngines());
+    this.activeLayoutEngineSubject.next(this.activeCanvas.getActiveLayoutEngine());
+    this.canUndoSubject.next(this.activeCanvas.canUndo());
+    this.canRedoSubject.next(this.activeCanvas.canRedo());
+  }
+
   notifyStateChange(): void {
     this.updateState();
   }

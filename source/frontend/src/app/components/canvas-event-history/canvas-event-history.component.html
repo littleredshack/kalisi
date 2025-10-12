@@ -1,0 +1,24 @@
+<section class="event-history" *ngIf="history$ | async as history">
+  <header class="event-history__header">
+    <span class="event-history__title">Recent Events</span>
+  </header>
+
+  <ng-container *ngIf="history.length > 0; else emptyState">
+    <ul class="event-history__list">
+      <li class="event-history__item" *ngFor="let item of history; trackBy: trackByIndex">
+        <div class="event-history__meta">
+          <span class="event-history__type">{{ item.description }}</span>
+          <span class="event-history__time">{{ item.timestamp }}</span>
+          <span class="event-history__source">{{ item.source }}</span>
+        </div>
+        <button type="button" class="event-history__replay" (click)="replay(item)">
+          Replay
+        </button>
+      </li>
+    </ul>
+  </ng-container>
+
+  <ng-template #emptyState>
+    <div class="event-history__empty">No events yet.</div>
+  </ng-template>
+</section>
