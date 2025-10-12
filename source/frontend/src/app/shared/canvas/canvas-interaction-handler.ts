@@ -1,4 +1,8 @@
 import { HierarchicalNode, Point, Camera } from './types';
+import { ViewNodeStateService } from '../../core/services/view-node-state.service';
+
+const COLLAPSED_NODE_WIDTH = 220;
+const COLLAPSED_NODE_HEIGHT = 64;
 
 /**
  * Manages interaction state and computational logic
@@ -237,5 +241,99 @@ export class CanvasInteractionHandler {
 
     // Apply movement constraints
     return this.applyMovementConstraints(selectedNode, newRelativeX, newRelativeY, allNodes);
+  }
+
+  // Selection rendering methods (extracted from canvas engine)
+  renderSelectionAtPosition(
+    ctx: CanvasRenderingContext2D,
+    node: HierarchicalNode,
+    worldPos: Point,
+    camera: Camera,
+    viewNodeStateService?: ViewNodeStateService
+  ): void {
+    if (this.getSelectedNode() === node) {
+      this.updateSelectedNodeWorldPos(worldPos);
+    }
+    // ORANGE L-CORNER SELECTION INDICATORS
+    // Convert world position to screen coordinates for selection rendering
+    const screenX = (worldPos.x - camera.x) * camera.zoom;
+    const screenY = (worldPos.y - camera.y) * camera.zoom;
+
+    // Get effective size based on collapse behavior from renderer
+    const collapseBehavior = viewNodeStateService?.getCollapseBehaviorValue?.() ?? 'full-size';
+    const shouldShrink =
+      collapseBehavior === 'shrink' && node.collapsed && node.children && node.children.length > 0;
+
+    const isTreeNode = node.metadata?.['displayMode'] === 'tree';
+    const defaultWidth = typeof node.metadata?.['defaultWidth'] === 'number'
+      ? Number(node.metadata['defaultWidth'])
+      : node.width;
+    const defaultHeight = typeof node.metadata?.['defaultHeight'] === 'number'
+      ? Number(node.metadata['defaultHeight'])
+      : node.height;
+
+    const width = shouldShrink
+      ? (isTreeNode ? defaultWidth : COLLAPSED_NODE_WIDTH)
+      : node.width;
+    const height = shouldShrink
+      ? (isTreeNode ? defaultHeight : COLLAPSED_NODE_HEIGHT)
+      : node.height;
+    const screenWidth = width * camera.zoom;
+    const screenHeight = height * camera.zoom;
+
+    // Draw orange L-corner handles (fixed screen pixels, not scaled by zoom)
+    this.drawLCornerHandles(ctx, screenX, screenY, screenWidth, screenHeight);
+  }
+
+  private drawLCornerHandles(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number): void {
+    // ORANGE L-CORNER HANDLES: Size relative to node, fixed screen pixels
+    const baseArmLength = Math.min(width, height) * 0.08; // 8% of smaller dimension
+    const armLength = Math.max(8, Math.min(20, baseArmLength)); // Clamp between 8-20px
+    const offset = 6;      // 6px gap from border (increased)
+    const thickness = 2;   // 2px line thickness
+
+    ctx.strokeStyle = '#FF8A00';  // Orange
+    ctx.lineWidth = thickness;
+    ctx.lineCap = 'square';
+
+    // Calculate corner positions (outside the rounded rectangle)
+    const left = x - offset;
+    const right = x + width + offset;
+    const top = y - offset;
+    const bottom = y + height + offset;
+
+    // Draw 4 L-shaped corner indicators (parallel to node edges)
+
+    // Top-left L (horizontal arm right, vertical arm down)
+    ctx.beginPath();
+    ctx.moveTo(left, top);
+    ctx.lineTo(left + armLength, top);
+    ctx.moveTo(left, top);
+    ctx.lineTo(left, top + armLength);
+    ctx.stroke();
+
+    // Top-right L (horizontal arm left, vertical arm down)
+    ctx.beginPath();
+    ctx.moveTo(right, top);
+    ctx.lineTo(right - armLength, top);
+    ctx.moveTo(right, top);
+    ctx.lineTo(right, top + armLength);
+    ctx.stroke();
+
+    // Bottom-right L (horizontal arm left, vertical arm up)
+    ctx.beginPath();
+    ctx.moveTo(right, bottom);
+    ctx.lineTo(right - armLength, bottom);
+    ctx.moveTo(right, bottom);
+    ctx.lineTo(right, bottom - armLength);
+    ctx.stroke();
+
+    // Bottom-left L (horizontal arm right, vertical arm up)
+    ctx.beginPath();
+    ctx.moveTo(left, bottom);
+    ctx.lineTo(left + armLength, bottom);
+    ctx.moveTo(left, bottom);
+    ctx.lineTo(left, bottom - armLength);
+    ctx.stroke();
   }
 }

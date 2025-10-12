@@ -677,7 +677,7 @@ export class ComposableHierarchicalCanvasEngine {
     const selectedNode = this.interactionHandler.getSelectedNode();
     if (selectedNode) {
       const worldPos = this.interactionHandler.getSelectedNodeWorldPos() || this.interactionHandler.getAbsolutePosition(selectedNode, this.data.nodes);
-      this.renderSelectionAtPosition(selectedNode, worldPos, camera);
+      this.interactionHandler.renderSelectionAtPosition(this.ctx, selectedNode, worldPos, camera, this.viewNodeStateService);
     }
 
     this.lastRenderedFrameVersion = frame?.version ?? this.lastRenderedFrameVersion;
@@ -1348,93 +1348,6 @@ export class ComposableHierarchicalCanvasEngine {
 
 
 
-  private renderSelectionAtPosition(node: HierarchicalNode, worldPos: Point, camera: Camera): void {
-    if (this.interactionHandler.getSelectedNode() === node) {
-      this.interactionHandler.updateSelectedNodeWorldPos(worldPos);
-    }
-    // ORANGE L-CORNER SELECTION INDICATORS
-    // Convert world position to screen coordinates for selection rendering
-    const screenX = (worldPos.x - camera.x) * camera.zoom;
-    const screenY = (worldPos.y - camera.y) * camera.zoom;
-
-    // Get effective size based on collapse behavior from renderer
-    const collapseBehavior = this.viewNodeStateService?.getCollapseBehaviorValue?.() ?? 'full-size';
-    const shouldShrink =
-      collapseBehavior === 'shrink' && node.collapsed && node.children && node.children.length > 0;
-
-    const isTreeNode = node.metadata?.['displayMode'] === 'tree';
-    const defaultWidth = typeof node.metadata?.['defaultWidth'] === 'number'
-      ? Number(node.metadata['defaultWidth'])
-      : node.width;
-    const defaultHeight = typeof node.metadata?.['defaultHeight'] === 'number'
-      ? Number(node.metadata['defaultHeight'])
-      : node.height;
-
-    const width = shouldShrink
-      ? (isTreeNode ? defaultWidth : COLLAPSED_NODE_WIDTH)
-      : node.width;
-    const height = shouldShrink
-      ? (isTreeNode ? defaultHeight : COLLAPSED_NODE_HEIGHT)
-      : node.height;
-    const screenWidth = width * camera.zoom;
-    const screenHeight = height * camera.zoom;
-
-    // Draw orange L-corner handles (fixed screen pixels, not scaled by zoom)
-    this.drawLCornerHandles(screenX, screenY, screenWidth, screenHeight);
-  }
-
-
-  private drawLCornerHandles(x: number, y: number, width: number, height: number): void {
-    // ORANGE L-CORNER HANDLES: Size relative to node, fixed screen pixels
-    const baseArmLength = Math.min(width, height) * 0.08; // 8% of smaller dimension
-    const armLength = Math.max(8, Math.min(20, baseArmLength)); // Clamp between 8-20px
-    const offset = 6;      // 6px gap from border (increased)
-    const thickness = 2;   // 2px line thickness
-    
-    this.ctx.strokeStyle = '#FF8A00';  // Orange
-    this.ctx.lineWidth = thickness;
-    this.ctx.lineCap = 'square';
-    
-    // Calculate corner positions (outside the rounded rectangle)
-    const left = x - offset;
-    const right = x + width + offset;
-    const top = y - offset;
-    const bottom = y + height + offset;
-    
-    // Draw 4 L-shaped corner indicators (parallel to node edges)
-    
-    // Top-left L (horizontal arm right, vertical arm down)
-    this.ctx.beginPath();
-    this.ctx.moveTo(left, top);
-    this.ctx.lineTo(left + armLength, top);
-    this.ctx.moveTo(left, top);
-    this.ctx.lineTo(left, top + armLength);
-    this.ctx.stroke();
-    
-    // Top-right L (horizontal arm left, vertical arm down)
-    this.ctx.beginPath();
-    this.ctx.moveTo(right, top);
-    this.ctx.lineTo(right - armLength, top);
-    this.ctx.moveTo(right, top);
-    this.ctx.lineTo(right, top + armLength);
-    this.ctx.stroke();
-    
-    // Bottom-right L (horizontal arm left, vertical arm up)
-    this.ctx.beginPath();
-    this.ctx.moveTo(right, bottom);
-    this.ctx.lineTo(right - armLength, bottom);
-    this.ctx.moveTo(right, bottom);
-    this.ctx.lineTo(right, bottom - armLength);
-    this.ctx.stroke();
-    
-    // Bottom-left L (horizontal arm right, vertical arm up)
-    this.ctx.beginPath();
-    this.ctx.moveTo(left, bottom);
-    this.ctx.lineTo(left + armLength, bottom);
-    this.ctx.moveTo(left, bottom);
-    this.ctx.lineTo(left, bottom - armLength);
-    this.ctx.stroke();
-  }
 
   // COPIED EXACT RESIZE LOGIC FROM WORKING MONOLITHIC SYSTEM
   handleResize(node: HierarchicalNode, handle: string, mouseX: number, mouseY: number): void {
