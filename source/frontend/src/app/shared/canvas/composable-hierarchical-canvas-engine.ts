@@ -763,25 +763,7 @@ export class ComposableHierarchicalCanvasEngine {
     this.publishCameraState('camera', 'user');
   }
 
-  // Selection operations
-  selectNode(worldX: number, worldY: number): HierarchicalNode | null {
-    const result = this.renderer.hitTest(worldX, worldY, this.data.nodes);
-
-    // Clear previous selection
-    this.clearAllSelection();
-
-    if (result) {
-      this.interactionHandler.setSelectedNode(result.node, result.worldPosition);
-      result.node.selected = true;
-      this.onSelectionChanged?.(result.node);
-    } else {
-      this.interactionHandler.clearSelection();
-      this.onSelectionChanged?.(null);
-    }
-
-    this.render();
-    return this.interactionHandler.getSelectedNode();
-  }
+  // Selection operations (now handled by event processing pipeline)
 
   clearSelection(): void {
     this.clearAllSelection();
@@ -1254,81 +1236,7 @@ export class ComposableHierarchicalCanvasEngine {
     this.emitCameraChangedEvent(eventSource);
   }
 
-  // Drag operations - FIXED COORDINATE SYSTEM BUG
-  startDrag(worldX: number, worldY: number, screenX: number, screenY: number): HierarchicalNode | null {
-    const result = this.renderer.hitTest(worldX, worldY, this.data.nodes);
-
-    if (result) {
-      this.clearAllSelection();
-      this.interactionHandler.setSelectedNode(result.node, result.worldPosition);
-
-      const absolutePos = result.worldPosition ?? this.interactionHandler.getAbsolutePosition(result.node, this.data.nodes);
-      const dragOffset = {
-        x: worldX - absolutePos.x,
-        y: worldY - absolutePos.y
-      };
-      this.interactionHandler.setDragging(true, dragOffset);
-
-      result.node.selected = true;
-      result.node.dragging = true;
-
-      this.onSelectionChanged?.(result.node);
-      this.render();
-      return this.interactionHandler.getSelectedNode();
-    }
-
-    return null;
-  }
-
-  updateDrag(worldX: number, worldY: number): boolean {
-    const selectedNode = this.interactionHandler.getSelectedNode();
-    if (!this.interactionHandler.isNodeDragging() || !selectedNode) return false;
-
-    // Use interaction handler for drag calculations
-    const constrainedPosition = this.interactionHandler.calculateDragPosition(worldX, worldY, this.data.nodes);
-    if (!constrainedPosition) return false;
-
-    selectedNode.x = constrainedPosition.x;
-    selectedNode.y = constrainedPosition.y;
-
-    (selectedNode as any)._lockedPosition = {
-      x: selectedNode.x,
-      y: selectedNode.y
-    };
-    (selectedNode as any)._userLocked = true;
-
-    const newWorldPos = this.interactionHandler.getAbsolutePosition(selectedNode, this.data.nodes);
-    this.interactionHandler.updateSelectedNodeWorldPos(newWorldPos);
-    this.updateWorldMetadata(selectedNode);
-    this.invalidateEdgeGeometry(selectedNode.GUID ?? selectedNode.id);
-    this.invalidateRendererCache(selectedNode.GUID ?? selectedNode.id);
-    this.data.edges = this.computeEdgesWithInheritance(this.data.originalEdges);
-
-    this.render();
-    this.notifyDataChanged();
-    return true;
-  }
-
-  stopDrag(): void {
-    const node = this.interactionHandler.getSelectedNode();
-    if (node) {
-      node.dragging = false;
-    }
-    this.interactionHandler.setDragging(false);
-    const nodeGuid = node?.GUID;
-    if (node) {
-      this.updateWorldMetadata(node);
-      this.invalidateEdgeGeometry(nodeGuid ?? node.id);
-      this.invalidateRendererCache(nodeGuid ?? node.id);
-    }
-    this.data.edges = this.computeEdgesWithInheritance(this.data.originalEdges);
-    this.publishState('position', nodeGuid);
-    this.notifyDataChanged();
-    if (node) {
-      this.emitNodeMovementEvent(node, 'user');
-    }
-    this.syncRuntimeFromCurrentData('user');
-  }
+  // Drag operations (now handled by event processing pipeline)
 
   // Node manipulation operations
   moveNode(node: HierarchicalNode, newX: number, newY: number): void {

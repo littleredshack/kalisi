@@ -35,6 +35,10 @@ export class CanvasInteractionHandler {
   private resizeHandle = '';
   private dragOffset: Point = { x: 0, y: 0 };
 
+  // Performance optimization: cache for coordinate calculations
+  private nodePathCache = new Map<string, HierarchicalNode[]>();
+  private lastNodesVersion = -1;
+
   // Read-only state getters
   getSelectedNode(): HierarchicalNode | null {
     return this.selectedNode;
@@ -267,6 +271,12 @@ export class CanvasInteractionHandler {
     return { x: 0, y: 0 };
   }
 
+  // Clear caches when nodes structure changes
+  clearCache(): void {
+    this.nodePathCache.clear();
+    this.lastNodesVersion++;
+  }
+
   getParentAbsolutePosition(targetNode: HierarchicalNode, allNodes: HierarchicalNode[]): Point {
     const path = this.getNodePath(targetNode, allNodes);
     if (path && path.length > 1) {
@@ -287,13 +297,20 @@ export class CanvasInteractionHandler {
   }
 
   private getNodePath(targetNode: HierarchicalNode, allNodes: HierarchicalNode[]): HierarchicalNode[] | null {
-    const targetGuid = targetNode.GUID;
+    const targetGuid = targetNode.GUID || targetNode.id;
+    if (!targetGuid) return null;
+
+    // Check cache first
+    const cached = this.nodePathCache.get(targetGuid);
+    if (cached) {
+      return cached;
+    }
 
     const matchesTarget = (node: HierarchicalNode): boolean => {
       if (node === targetNode) {
         return true;
       }
-      if (targetGuid && node.GUID === targetGuid) {
+      if (targetGuid && (node.GUID === targetGuid || node.id === targetGuid)) {
         return true;
       }
       return false;
@@ -306,6 +323,8 @@ export class CanvasInteractionHandler {
       for (const node of nodes) {
         const path = [...currentPath, node];
         if (matchesTarget(node)) {
+          // Cache the result
+          this.nodePathCache.set(targetGuid, path);
           return path;
         }
         const found = traverse(node.children ?? [], path);
