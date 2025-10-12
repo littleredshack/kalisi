@@ -11,10 +11,12 @@ import {
   ResizeUpdateEvent,
   ResizeStopEvent,
   HitTestResizeEvent,
+  DoubleClickEvent,
   SelectResult,
   DragStartResult,
   DragUpdateResult,
-  HitTestResizeResult
+  HitTestResizeResult,
+  DoubleClickResult
 } from './interaction-events';
 
 const COLLAPSED_NODE_WIDTH = 220;
@@ -99,6 +101,8 @@ export class CanvasInteractionHandler {
       renderer: any;
       clearAllSelection: () => void;
       onSelectionChanged?: (node: HierarchicalNode | null) => void;
+      camera?: Camera;
+      toggleNodeCollapsed?: (nodeGuid: string) => void;
     }
   ): InteractionEventResult {
     switch (event.type) {
@@ -118,6 +122,8 @@ export class CanvasInteractionHandler {
         return this.handleResizeUpdateEvent(event, context);
       case 'resize-stop':
         return this.handleResizeStopEvent(event, context);
+      case 'double-click':
+        return this.handleDoubleClickEvent(event, context);
       default:
         console.warn('Unknown interaction event type:', (event as any).type);
         return;
@@ -222,6 +228,31 @@ export class CanvasInteractionHandler {
 
   private handleResizeStopEvent(event: ResizeStopEvent, context: any): void {
     this.setResizing(false);
+  }
+
+  private handleDoubleClickEvent(event: DoubleClickEvent, context: any): DoubleClickResult {
+    console.debug('[DoubleClick] Handled by interaction handler:', event.nodeGuid, 'time:', event.timeSinceLastClick + 'ms');
+
+    // Store whether this node was selected before collapse/expand
+    const wasSelected = this.selectedNode &&
+                       (this.selectedNode.GUID === event.nodeGuid || this.selectedNode.id === event.nodeGuid);
+
+    // Perform the collapse/expand operation
+    if (context.toggleNodeCollapsed) {
+      context.toggleNodeCollapsed(event.nodeGuid);
+    }
+
+    // CRITICAL FIX: If the collapsed/expanded node was selected, update position tracking
+    if (wasSelected && this.selectedNode) {
+      console.debug('[DoubleClick] Updating selected node position after collapse/expand');
+      const newWorldPos = this.getAbsolutePosition(this.selectedNode, context.allNodes);
+      this.updateSelectedNodeWorldPos(newWorldPos);
+    }
+
+    return {
+      handled: true,
+      nodeGuid: event.nodeGuid
+    };
   }
 
   // Hit testing methods (extracted from canvas engine)

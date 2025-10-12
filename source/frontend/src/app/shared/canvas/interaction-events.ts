@@ -13,7 +13,8 @@ export type InteractionEventType =
   | 'resize-start'
   | 'resize-update'
   | 'resize-stop'
-  | 'hit-test-resize';
+  | 'hit-test-resize'
+  | 'double-click';
 
 export interface BaseInteractionEvent {
   type: InteractionEventType;
@@ -62,6 +63,12 @@ export interface HitTestResizeEvent extends BaseInteractionEvent {
   screenPos: Point;
 }
 
+export interface DoubleClickEvent extends BaseInteractionEvent {
+  type: 'double-click';
+  nodeGuid: string;
+  timeSinceLastClick: number;
+}
+
 export type InteractionEvent =
   | SelectEvent
   | DragStartEvent
@@ -70,7 +77,8 @@ export type InteractionEvent =
   | ResizeStartEvent
   | ResizeUpdateEvent
   | ResizeStopEvent
-  | HitTestResizeEvent;
+  | HitTestResizeEvent
+  | DoubleClickEvent;
 
 /**
  * Result types for interaction events
@@ -91,9 +99,15 @@ export interface HitTestResizeResult {
   handle: string;
 }
 
+export interface DoubleClickResult {
+  handled: boolean;
+  nodeGuid: string;
+}
+
 export type InteractionEventResult =
   | SelectResult
   | DragStartResult
   | DragUpdateResult
   | HitTestResizeResult
+  | DoubleClickResult
   | void;

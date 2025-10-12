@@ -8,7 +8,7 @@ import { DynamicLayoutService } from '../../core/services/dynamic-layout.service
 import { MessageService } from 'primeng/api';
 import { ComposableHierarchicalCanvasEngine } from '../../shared/canvas/composable-hierarchical-canvas-engine';
 import { HierarchicalNode, Edge, CanvasData, Camera } from '../../shared/canvas/types';
-import { SelectEvent, DragStartEvent, DragUpdateEvent, DragStopEvent, HitTestResizeEvent } from '../../shared/canvas/interaction-events';
+import { SelectEvent, DragStartEvent, DragUpdateEvent, DragStopEvent, HitTestResizeEvent, DoubleClickEvent } from '../../shared/canvas/interaction-events';
 import { ComponentFactory } from '../../shared/canvas/component-factory';
 import { CanvasControlService, CanvasController, CameraInfo } from '../../core/services/canvas-control.service';
 import { CanvasViewStateService } from '../../shared/canvas/state/canvas-view-state.service';
@@ -813,8 +813,14 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     if (isDoubleClick) {
       console.debug('[DoubleClick] Detected on node:', clickedGuid, 'time:', timeSinceLastClick + 'ms');
 
-      // Double-click detected - toggle collapse without selecting
-      this.engine.toggleNodeCollapsed(clickedGuid);
+      // Double-click detected - process through interaction handler
+      const doubleClickEvent: DoubleClickEvent = {
+        type: 'double-click',
+        worldPos: { x: worldX, y: worldY },
+        nodeGuid: clickedGuid,
+        timeSinceLastClick
+      };
+      this.engine.processInteractionEvent(doubleClickEvent);
       this.updateCameraInfo();
 
       // Reset tracking to prevent triple-click

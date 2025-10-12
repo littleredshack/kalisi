@@ -791,7 +791,8 @@ export class ComposableHierarchicalCanvasEngine {
       renderer: this.renderer,
       camera: this.cameraSystem.getCamera(),
       clearAllSelection: () => this.clearAllSelection(),
-      onSelectionChanged: this.onSelectionChanged
+      onSelectionChanged: this.onSelectionChanged,
+      toggleNodeCollapsed: (nodeGuid: string) => this.toggleNodeCollapsed(nodeGuid)
     };
 
     const result = this.interactionHandler.processEvent(event, context);
@@ -823,6 +824,12 @@ export class ComposableHierarchicalCanvasEngine {
 
     if (event.type === 'select') {
       this.render();
+    }
+
+    if (event.type === 'double-click') {
+      // Double-click handling is now centralized in interaction handler
+      // No additional side effects needed here
+      console.debug('[DoubleClick] Processed through interaction handler');
     }
 
     return result;
