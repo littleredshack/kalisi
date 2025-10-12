@@ -1863,18 +1863,47 @@ export class ComposableHierarchicalCanvasEngine {
     if (!data.nodes.length) {
       return;
     }
-    const [primary, ...others] = data.nodes;
-    others.forEach(node => this.hideNodeRecursively(node));
-    if (primary) {
-      this.showNode(primary, false);
-      primary.collapsed = false;
-      primary.visible = true;
-      (primary.children ?? []).forEach(child => this.showNode(child, false));
+
+    const targetGuid = this.selectedNode?.GUID ?? this.selectedNode?.id;
+    const selectedNode = targetGuid ? this.findNodeInCanvasData(data.nodes, targetGuid) : null;
+    const primary = selectedNode ?? data.nodes[0];
+
+    data.nodes.forEach(root => this.hideNodeRecursively(root));
+
+    if (!primary) {
+      return;
+    }
+
+    this.showNode(primary, false);
+    primary.visible = true;
+    primary.collapsed = false;
+
+    (primary.children ?? []).forEach(child => {
+      child.visible = true;
+      child.collapsed = true;
+      this.hideNodeRecursively(child);
+    });
+
+    const parent = targetGuid ? this.findParentInCanvasData(data.nodes, targetGuid) : null;
+    if (parent) {
+      this.showNode(parent, false);
+      parent.collapsed = false;
+      parent.visible = true;
+      (parent.children ?? []).forEach(child => {
+        child.visible = true;
+        child.collapsed = child !== primary;
+        if (child !== primary) {
+          this.hideNodeRecursively(child);
+        }
+      });
     }
   }
 
   private applyActiveContainmentLens(data: CanvasData): void {
-    const target = this.findFirstContainerNode(data.nodes);
+    const selectionGuid = this.selectedNode?.GUID ?? this.selectedNode?.id;
+    const target = selectionGuid
+      ? this.findContainerAncestor(data.nodes, selectionGuid) ?? this.findFirstContainerNode(data.nodes)
+      : this.findFirstContainerNode(data.nodes);
     if (!target) {
       return;
     }
@@ -1929,6 +1958,63 @@ export class ComposableHierarchicalCanvasEngine {
       const candidate = this.findFirstContainerNode(node.children ?? []);
       if (candidate) {
         return candidate;
+      }
+    }
+    return null;
+  }
+
+  private findContainerAncestor(nodes: HierarchicalNode[], targetGuid: string): HierarchicalNode | null {
+    const visit = (node: HierarchicalNode, ancestors: HierarchicalNode[]): HierarchicalNode | null => {
+      const nodeId = node.GUID ?? node.id;
+      const nextAncestors = [...ancestors, node];
+
+      if (nodeId === targetGuid) {
+        return [...nextAncestors].reverse().find(candidate => candidate.children && candidate.children.length > 0) ?? null;
+      }
+
+      for (const child of node.children ?? []) {
+        const found = visit(child, nextAncestors);
+        if (found) {
+          return found;
+        }
+      }
+      return null;
+    };
+
+    for (const root of nodes) {
+      const candidate = visit(root, []);
+      if (candidate) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  private findNodeInCanvasData(nodes: HierarchicalNode[], guid: string): HierarchicalNode | null {
+    for (const node of nodes) {
+      const nodeId = node.GUID ?? node.id;
+      if (nodeId === guid) {
+        return node;
+      }
+      const found = this.findNodeInCanvasData(node.children ?? [], guid);
+      if (found) {
+        return found;
+      }
+    }
+    return null;
+  }
+
+  private findParentInCanvasData(nodes: HierarchicalNode[], targetGuid: string): HierarchicalNode | null {
+    for (const node of nodes) {
+      for (const child of node.children ?? []) {
+        const childId = child.GUID ?? child.id;
+        if (childId === targetGuid) {
+          return node;
+        }
+        const found = this.findParentInCanvasData(child.children ?? [], targetGuid);
+        if (found) {
+          return found;
+        }
       }
     }
     return null;
