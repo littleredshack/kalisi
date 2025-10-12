@@ -18,6 +18,8 @@ import { LayoutModuleDescriptor, LayoutModuleRegistry } from '../../shared/layou
 import { ComponentFactoryResult } from '../../shared/canvas/component-factory';
 import { GraphLensRegistry, GraphLensDescriptor } from '../../shared/graph/lens-registry';
 import { ensureRelativeNodeCoordinates } from '../../shared/canvas/utils/relative-coordinates';
+import { CanvasLayoutRuntime } from '../../shared/canvas/layout-runtime';
+import { layoutGraphToHierarchical } from '../../shared/layouts/core/layout-graph-utils';
 
 @Component({
   selector: 'app-modular-canvas',
@@ -72,6 +74,9 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   private runtimeEngineId: string = 'containment-grid';
   private availableLenses: ReadonlyArray<GraphLensDescriptor> = [];
   private currentLensId = 'full-graph';
+
+  // Feature flag: Use runtime for raw data processing (Phase 2 migration)
+  private useRuntimeDataProcessing = false;
 
   // Level selector state
   availableLevels: number[] = [];
@@ -489,15 +494,49 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     }
 
     // If we have raw ViewNode data, process it with the selected layout engine
-    if (this.rawViewNodeData && this.selectedViewNode && legacyLayout) {
-      if ('setViewportBounds' in legacyLayout) {
-        (legacyLayout as any).setViewportBounds({ width: canvas.width, height: canvas.height });
+    if (this.rawViewNodeData && this.selectedViewNode) {
+      // Check if we should use runtime data processing (Phase 2 migration)
+      const shouldUseRuntime = this.useRuntimeDataProcessing &&
+                               (this.runtimeEngineId === 'containment-grid' || this.runtimeEngineId === 'orthogonal');
+
+      if (shouldUseRuntime) {
+        console.debug('[ModularCanvas] Using runtime data processing for:', this.runtimeEngineId);
+
+        const tempRuntime = new CanvasLayoutRuntime(`${this.canvasId}-temp`, this.data!, {
+          defaultEngine: this.runtimeEngineId,
+          runLayoutOnInit: false
+        });
+
+        // Process raw data through runtime (don't run layout yet, just build graph)
+        tempRuntime.setRawData({
+          entities: this.rawViewNodeData.entities,
+          relationships: this.rawViewNodeData.relationships
+        }, false, 'system');  // false = don't run layout yet
+
+        // Convert LayoutGraph back to CanvasData format
+        const processedGraph = tempRuntime.getLayoutGraph();
+        const hierarchicalSnapshot = layoutGraphToHierarchical(processedGraph);
+
+        this.data = {
+          nodes: hierarchicalSnapshot.nodes,
+          edges: hierarchicalSnapshot.edges,
+          originalEdges: hierarchicalSnapshot.edges,
+          camera: this.data?.camera
+        };
+
+        console.debug('[ModularCanvas] Runtime processing complete, nodes:', this.data.nodes.length);
+      } else if (legacyLayout) {
+        // Legacy path: use old layout engine adapter
+        console.debug('[ModularCanvas] Using legacy data processing');
+        if ('setViewportBounds' in legacyLayout) {
+          (legacyLayout as any).setViewportBounds({ width: canvas.width, height: canvas.height });
+        }
+        const processedData = this.convertDataWithLayoutEngine(
+          this.rawViewNodeData,
+          legacyLayout
+        );
+        this.data = processedData;
       }
-      const processedData = this.convertDataWithLayoutEngine(
-        this.rawViewNodeData,
-        legacyLayout
-      );
-      this.data = processedData;
     }
     
     // Always use ComposableHierarchicalCanvasEngine
