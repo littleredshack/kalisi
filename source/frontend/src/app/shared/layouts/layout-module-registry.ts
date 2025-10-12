@@ -116,8 +116,8 @@ const MODULES: LayoutModuleDescriptor[] = [
         factory: () => new ComposableFlatRenderer(),
         tags: ['flat', 'physics']
       }
-    ],
-    createLegacyLayout: () => new FlatGraphLayoutEngine()
+    ]
+    // Legacy adapter removed - using runtime data processing
   },
   {
     id: 'tree',
@@ -162,8 +162,8 @@ const MODULES: LayoutModuleDescriptor[] = [
         factory: () => new ComposableTreeTableRenderer(),
         tags: ['table', 'tree']
       }
-    ],
-    createLegacyLayout: () => new TreeTableLayoutEngine()
+    ]
+    // Legacy adapter removed - tree-table uses tree runtime engine
   },
   {
     id: 'codebase-hierarchical',
@@ -185,8 +185,8 @@ const MODULES: LayoutModuleDescriptor[] = [
         factory: () => new ComposableHierarchicalRenderer(),
         tags: ['legacy']
       }
-    ],
-    createLegacyLayout: () => new CodebaseHierarchicalLayoutEngine()
+    ]
+    // Legacy adapter removed - uses containment-grid runtime engine
   }
 ];
 
