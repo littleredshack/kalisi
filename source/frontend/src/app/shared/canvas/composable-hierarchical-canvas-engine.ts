@@ -35,6 +35,7 @@ export class ComposableHierarchicalCanvasEngine {
   private currentEngineName: string;
   private currentLensId = 'full-graph';
   private lensBaseData: CanvasData;
+  private pendingRendererInvalidation = false;
   
   // Event handlers
   private onDataChanged?: (data: CanvasData) => void;
@@ -638,6 +639,7 @@ export class ComposableHierarchicalCanvasEngine {
     this.presentationFrame = this.layoutRuntime.getPresentationFrame() ?? this.presentationFrame;
     const frame = this.presentationFrame;
     const camera = this.cameraSystem.getCamera();
+    const shouldForceRender = this.pendingRendererInvalidation;
     const cameraChanged =
       !this.lastRenderedCamera ||
       this.lastRenderedCamera.x !== camera.x ||
@@ -646,7 +648,7 @@ export class ComposableHierarchicalCanvasEngine {
     const lensChanged = frame ? frame.lensId !== this.lastRenderedLensId : false;
 
     if (frame && frame.version === this.lastRenderedFrameVersion && (!frame.delta || (frame.delta.nodes.length === 0 && frame.delta.edges.length === 0))) {
-      if (!cameraChanged && !lensChanged) {
+      if (!cameraChanged && !lensChanged && !shouldForceRender) {
         return;
       }
     }
@@ -670,6 +672,7 @@ export class ComposableHierarchicalCanvasEngine {
     }
 
     this.renderer.render(this.ctx, this.data.nodes, this.data.edges, camera, frame ?? undefined);
+    this.pendingRendererInvalidation = false;
 
     if (this.selectedNode) {
       const worldPos = this.selectedNodeWorldPos || this.getAbsolutePosition(this.selectedNode);
@@ -2158,10 +2161,9 @@ export class ComposableHierarchicalCanvasEngine {
   }
 
   private invalidateRendererCache(nodeGuid?: string): void {
-    const invalidate = (this.renderer as unknown as { invalidateCache?: (ids?: ReadonlyArray<string>) => void }).invalidateCache;
-    if (typeof invalidate === 'function') {
-      invalidate(nodeGuid ? [nodeGuid] : undefined);
-    }
+    this.pendingRendererInvalidation = true;
+    const rendererWithCache = this.renderer as IRenderer & { invalidateCache?: (ids?: ReadonlyArray<string>) => void };
+    rendererWithCache.invalidateCache?.call(rendererWithCache, nodeGuid ? [nodeGuid] : undefined);
   }
 
   private trimEdgesToVisible(data: CanvasData): void {

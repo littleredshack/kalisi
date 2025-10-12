@@ -275,9 +275,9 @@ export class ComposableFlatRenderer extends BaseRenderer {
     return guid ?? fallback ?? null;
   }
 
-  override invalidateCache(): void {
+  override invalidateCache = (): void => {
     this.edgeWaypointCache.clear();
     this.lastFrameVersion = -1;
     this.lastLensId = null;
-  }
+  };
 }

@@ -391,11 +391,11 @@ export class ComposableContainmentOrthogonalRenderer extends BaseRenderer {
     // Selection outline rendered by the canvas engine for accurate positioning.
   }
 
-  override invalidateCache(): void {
+  override invalidateCache = (): void => {
     this.edgeWaypointCache.clear();
     this.nodeBoundsCache.clear();
     this.flattenedNodeBounds = [];
     this.lastFrameVersion = -1;
     this.lastLensId = null;
-  }
+  };
 }
