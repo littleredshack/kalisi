@@ -15,6 +15,15 @@ import { OrthogonalRoutingService } from '../../../core/services/orthogonal-rout
  * 3. Uses exact same visual specifications (colors, sizes, etc.)
  * 4. Supports same interactions (drag, zoom, pan)
  */
+interface IndexedNode {
+  readonly id: string;
+  readonly node: HierarchicalNode;
+  readonly absoluteX: number;
+  readonly absoluteY: number;
+  readonly width: number;
+  readonly height: number;
+}
+
 export class ComposableFlatRenderer extends BaseRenderer {
   private routingService = new OrthogonalRoutingService();
   private edgeWaypointCache = new Map<string, Point[]>();
@@ -50,7 +59,7 @@ export class ComposableFlatRenderer extends BaseRenderer {
 
     if (delta?.nodes) {
       delta.nodes
-        .filter(nodeDelta => nodeDelta.hasGeometryChange)
+        .filter(nodeDelta => nodeDelta.hasGeometryChange || nodeDelta.hasStateChange || nodeDelta.hasMetadataChange)
         .forEach(nodeDelta => dirtyNodeIds.add(nodeDelta.nodeId));
     }
 
@@ -60,11 +69,10 @@ export class ComposableFlatRenderer extends BaseRenderer {
         .forEach(edgeDelta => dirtyEdgeIds.add(edgeDelta.edgeId));
     }
 
-    const cacheInvalidated =
-      frameVersion < this.lastFrameVersion ||
-      lensId !== this.lastLensId ||
-      !delta ||
-      this.lastFrameVersion === -1;
+    const hasFrame = Boolean(frame);
+    const cacheInvalidated = hasFrame
+      ? frameVersion !== this.lastFrameVersion || lensId !== this.lastLensId || !delta
+      : this.lastFrameVersion === -1;
 
     if (cacheInvalidated) {
       this.edgeWaypointCache.clear();
@@ -78,6 +86,7 @@ export class ComposableFlatRenderer extends BaseRenderer {
     }
 
     const nodeIndex = this.buildNodeIndex(nodes);
+    const indexedNodes = Array.from(nodeIndex.values());
 
     edges.forEach(edge => {
       const fromId = this.getEdgeNodeIdentifier(edge.fromGUID, edge.from);
@@ -94,7 +103,7 @@ export class ComposableFlatRenderer extends BaseRenderer {
         return;
       }
 
-      const waypoints = this.calculateWaypoints(edge, nodes, nodeIndex);
+      const waypoints = this.calculateWaypoints(edge, nodeIndex, indexedNodes);
       if (waypoints) {
         this.edgeWaypointCache.set(edge.id, waypoints);
       } else {
@@ -102,8 +111,10 @@ export class ComposableFlatRenderer extends BaseRenderer {
       }
     });
 
-    this.lastFrameVersion = frameVersion;
-    this.lastLensId = lensId;
+    if (hasFrame) {
+      this.lastFrameVersion = frameVersion;
+      this.lastLensId = lensId;
+    }
 
     // Step 2: Render edges first (behind nodes) - EXACT same z-order
     edges.forEach(edge => {
@@ -174,31 +185,42 @@ export class ComposableFlatRenderer extends BaseRenderer {
    */
   private calculateWaypoints(
     edge: Edge,
-    nodes: HierarchicalNode[],
-    nodeIndex: Map<string, HierarchicalNode>
+    nodeIndex: Map<string, IndexedNode>,
+    indexedNodes: IndexedNode[]
   ): Point[] | null {
     const fromId = this.getEdgeNodeIdentifier(edge.fromGUID, edge.from);
     const toId = this.getEdgeNodeIdentifier(edge.toGUID, edge.to);
-    const fromNode = this.findNodeByIdentifier(fromId, nodeIndex);
-    const toNode = this.findNodeByIdentifier(toId, nodeIndex);
-
-    if (!fromNode || !toNode) {
+    if (!fromId || !toId) {
       return null;
     }
 
-    const fromBounds = { x: fromNode.x, y: fromNode.y, width: fromNode.width, height: fromNode.height };
-    const toBounds = { x: toNode.x, y: toNode.y, width: toNode.width, height: toNode.height };
+    const fromEntry = nodeIndex.get(fromId);
+    const toEntry = nodeIndex.get(toId);
 
-    const obstacles = nodes
-      .filter(node => {
-        const id = this.getNodeIdentifier(node);
-        return id !== null && id !== fromId && id !== toId;
-      })
-      .map(node => ({
-        x: node.x,
-        y: node.y,
-        width: node.width,
-        height: node.height
+    if (!fromEntry || !toEntry) {
+      return null;
+    }
+
+    const fromBounds = {
+      x: fromEntry.absoluteX,
+      y: fromEntry.absoluteY,
+      width: fromEntry.width,
+      height: fromEntry.height
+    };
+    const toBounds = {
+      x: toEntry.absoluteX,
+      y: toEntry.absoluteY,
+      width: toEntry.width,
+      height: toEntry.height
+    };
+
+    const obstacles = indexedNodes
+      .filter(entry => entry.id !== fromEntry.id && entry.id !== toEntry.id)
+      .map(entry => ({
+        x: entry.absoluteX,
+        y: entry.absoluteY,
+        width: entry.width,
+        height: entry.height
       }));
 
     const waypoints = this.routingService.calculatePath(fromBounds, toBounds, obstacles);
@@ -206,23 +228,42 @@ export class ComposableFlatRenderer extends BaseRenderer {
   }
 
   /**
-   * Find node by GUID - the ONLY way to identify nodes
+   * Find node by identifier - the ONLY way to identify nodes
    */
-  private findNodeByIdentifier(identifier: string | null, nodeIndex: Map<string, HierarchicalNode>): HierarchicalNode | null {
+  private findNodeByIdentifier(identifier: string | null, nodeIndex: Map<string, IndexedNode>): HierarchicalNode | null {
     if (!identifier) {
       return null;
     }
-    return nodeIndex.get(identifier) ?? null;
+    return nodeIndex.get(identifier)?.node ?? null;
   }
 
-  private buildNodeIndex(nodes: HierarchicalNode[]): Map<string, HierarchicalNode> {
-    const map = new Map<string, HierarchicalNode>();
-    nodes.forEach(node => {
-      const id = this.getNodeIdentifier(node);
-      if (id) {
-        map.set(id, node);
-      }
-    });
+  private buildNodeIndex(nodes: HierarchicalNode[]): Map<string, IndexedNode> {
+    const map = new Map<string, IndexedNode>();
+
+    const traverse = (nodeList: HierarchicalNode[], offsetX: number, offsetY: number) => {
+      nodeList.forEach(node => {
+        const id = this.getNodeIdentifier(node);
+        const absoluteX = offsetX + node.x;
+        const absoluteY = offsetY + node.y;
+
+        if (id) {
+          map.set(id, {
+            id,
+            node,
+            absoluteX,
+            absoluteY,
+            width: node.width,
+            height: node.height
+          });
+        }
+
+        if (node.children && node.children.length > 0) {
+          traverse(node.children, absoluteX, absoluteY);
+        }
+      });
+    };
+
+    traverse(nodes, 0, 0);
     return map;
   }
 

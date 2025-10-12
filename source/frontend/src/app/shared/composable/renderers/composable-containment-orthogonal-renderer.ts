@@ -37,6 +37,10 @@ export class ComposableContainmentOrthogonalRenderer extends BaseRenderer {
     // Subscribe to collapse behavior changes
     service.collapseBehavior.subscribe(behavior => {
       this.collapseBehavior = behavior;
+      this.edgeWaypointCache.clear();
+      this.nodeBoundsCache.clear();
+      this.flattenedNodeBounds = [];
+      this.lastFrameVersion = -1;
     });
   }
 
@@ -69,7 +73,7 @@ export class ComposableContainmentOrthogonalRenderer extends BaseRenderer {
 
     if (delta?.nodes) {
       delta.nodes
-        .filter(nodeDelta => nodeDelta.hasGeometryChange)
+        .filter(nodeDelta => nodeDelta.hasGeometryChange || nodeDelta.hasStateChange || nodeDelta.hasMetadataChange)
         .forEach(nodeDelta => dirtyNodeIds.add(nodeDelta.nodeId));
     }
 
@@ -79,11 +83,10 @@ export class ComposableContainmentOrthogonalRenderer extends BaseRenderer {
         .forEach(edgeDelta => dirtyEdgeIds.add(edgeDelta.edgeId));
     }
 
-    const cacheInvalidated =
-      frameVersion < this.lastFrameVersion ||
-      lensId !== this.lastLensId ||
-      !delta ||
-      this.lastFrameVersion === -1;
+    const hasFrame = Boolean(frame);
+    const cacheInvalidated = hasFrame
+      ? frameVersion !== this.lastFrameVersion || lensId !== this.lastLensId || !delta
+      : this.lastFrameVersion === -1;
 
     if (cacheInvalidated || dirtyNodeIds.size > 0) {
       this.rebuildNodeBounds(nodes);
@@ -118,8 +121,10 @@ export class ComposableContainmentOrthogonalRenderer extends BaseRenderer {
       }
     });
 
-    this.lastFrameVersion = frameVersion;
-    this.lastLensId = lensId;
+    if (hasFrame) {
+      this.lastFrameVersion = frameVersion;
+      this.lastLensId = lensId;
+    }
 
     // 2-pass rendering for proper z-order:
     // 1. Draw all nodes (hierarchical with containment)

@@ -22,6 +22,8 @@ export class ComposableHierarchicalCanvasEngine {
   private renderer: IRenderer;
   private presentationFrame: PresentationFrame | null = null;
   private lastRenderedFrameVersion = -1;
+  private lastRenderedCamera: Camera | null = null;
+  private lastRenderedLensId: string | undefined;
   private viewNodeStateService?: ViewNodeStateService;
   private dynamicLayoutService?: DynamicLayoutService;
   private data: CanvasData;
@@ -634,13 +636,22 @@ export class ComposableHierarchicalCanvasEngine {
   render(): void {
     this.presentationFrame = this.layoutRuntime.getPresentationFrame() ?? this.presentationFrame;
     const frame = this.presentationFrame;
+    const camera = this.cameraSystem.getCamera();
+    const cameraChanged =
+      !this.lastRenderedCamera ||
+      this.lastRenderedCamera.x !== camera.x ||
+      this.lastRenderedCamera.y !== camera.y ||
+      this.lastRenderedCamera.zoom !== camera.zoom;
+    const lensChanged = frame ? frame.lensId !== this.lastRenderedLensId : false;
+
     if (frame && frame.version === this.lastRenderedFrameVersion && (!frame.delta || (frame.delta.nodes.length === 0 && frame.delta.edges.length === 0))) {
-      return;
+      if (!cameraChanged && !lensChanged) {
+        return;
+      }
     }
 
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-    const camera = this.cameraSystem.getCamera();
     this.renderer.render(this.ctx, this.data.nodes, this.data.edges, camera, frame ?? undefined);
 
     if (this.selectedNode) {
@@ -649,6 +660,8 @@ export class ComposableHierarchicalCanvasEngine {
     }
 
     this.lastRenderedFrameVersion = frame?.version ?? this.lastRenderedFrameVersion;
+    this.lastRenderedCamera = { ...camera };
+    this.lastRenderedLensId = frame?.lensId ?? this.lastRenderedLensId;
   }
 
   centerOnNode(node: HierarchicalNode): void {
