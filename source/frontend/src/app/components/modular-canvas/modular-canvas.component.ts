@@ -14,6 +14,8 @@ import { CanvasControlService, CanvasController, CameraInfo } from '../../core/s
 import { CanvasViewStateService } from '../../shared/canvas/state/canvas-view-state.service';
 import { CanvasHistoryService } from '../../core/services/canvas-history.service';
 import { CanvasEventHubService } from '../../core/services/canvas-event-hub.service';
+import { LayoutModuleDescriptor, LayoutModuleRegistry } from '../../shared/layouts/layout-module-registry';
+import { ComponentFactoryResult } from '../../shared/canvas/component-factory';
 
 @Component({
   selector: 'app-modular-canvas',
@@ -63,6 +65,9 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   private pendingViewNodeLayout: CanvasData | null = null;
   private rawViewNodeData: {entities: any[], relationships: any[]} | null = null;
   private canvasId = 'modular-canvas';
+  private currentLayoutModule?: LayoutModuleDescriptor;
+  private currentRendererId?: string;
+  private runtimeEngineId: string = 'containment-grid';
 
   // Level selector state
   availableLevels: number[] = [];
@@ -451,19 +456,20 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     this.resizeCanvas();
     
     // Create engine with factory-based components using ViewNode properties
-    let layoutEngine, renderer;
+    let layoutComponents: ComponentFactoryResult;
 
     if (this.selectedViewNode) {
       // Use ViewNode properties to determine components
-      const components = ComponentFactory.createFromViewNode(this.selectedViewNode);
-      layoutEngine = components.layoutEngine;
-      renderer = components.renderer;
+      layoutComponents = ComponentFactory.createFromViewNode(this.selectedViewNode);
     } else {
       // Default components for non-ViewNode cases
-      const components = ComponentFactory.createComponents('hierarchical', 'composable-flat');
-      layoutEngine = components.layoutEngine;
-      renderer = components.renderer;
+      layoutComponents = ComponentFactory.createComponents('containment-grid', 'composable-hierarchical');
     }
+
+    const { layoutEngine, renderer, module, runtimeEngine, rendererId } = layoutComponents;
+    this.currentLayoutModule = module;
+    this.currentRendererId = rendererId;
+    this.runtimeEngineId = runtimeEngine;
 
     // Inject ViewNodeStateService into containment-orthogonal renderer
     if (renderer && 'setViewNodeStateService' in renderer) {
@@ -477,7 +483,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     }
     
     // If we have raw ViewNode data, process it with the selected layout engine
-    if (this.rawViewNodeData && this.selectedViewNode) {
+    if (this.rawViewNodeData && this.selectedViewNode && module?.createLegacyLayout) {
       const viewportBounds = {
         width: canvas.width,
         height: canvas.height,
@@ -1094,6 +1100,11 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   switchLayoutEngine(engineName: string): void {
     if (!this.engine) {
       return;
+    }
+    const module = LayoutModuleRegistry.getModule(engineName);
+    if (module) {
+      this.currentLayoutModule = module;
+      this.runtimeEngineId = module.runtimeEngine;
     }
     this.engine.switchLayoutEngine(engineName, 'user');
     this.canvasControlService.notifyStateChange();
