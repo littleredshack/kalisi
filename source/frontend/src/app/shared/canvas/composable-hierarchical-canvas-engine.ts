@@ -802,6 +802,50 @@ export class ComposableHierarchicalCanvasEngine {
     return this.cameraSystem;
   }
 
+  // Event processing pipeline (Phase 7.3)
+  processInteractionEvent(event: any): any {
+    const context = {
+      allNodes: this.data.nodes,
+      renderer: this.renderer,
+      camera: this.cameraSystem.getCamera(),
+      clearAllSelection: () => this.clearAllSelection(),
+      onSelectionChanged: this.onSelectionChanged
+    };
+
+    const result = this.interactionHandler.processEvent(event, context);
+
+    // Handle side effects that need canvas engine involvement
+    if (event.type === 'drag-update' && result && (result as any).dragHandled) {
+      const selectedNode = this.interactionHandler.getSelectedNode();
+      if (selectedNode) {
+        this.updateWorldMetadata(selectedNode);
+        this.invalidateEdgeGeometry(selectedNode.GUID ?? selectedNode.id);
+        this.invalidateRendererCache(selectedNode.GUID ?? selectedNode.id);
+        this.data.edges = this.computeEdgesWithInheritance(this.data.originalEdges);
+        this.render();
+        this.notifyDataChanged();
+      }
+    }
+
+    if (event.type === 'drag-stop') {
+      const node = this.interactionHandler.getSelectedNode();
+      if (node) {
+        this.updateWorldMetadata(node);
+        this.invalidateEdgeGeometry(node.GUID ?? node.id);
+        this.invalidateRendererCache(node.GUID ?? node.id);
+        this.render();
+        this.notifyDataChanged();
+        this.syncRuntimeFromCurrentData('user');
+      }
+    }
+
+    if (event.type === 'select') {
+      this.render();
+    }
+
+    return result;
+  }
+
   // Private methods
   private setupEventHandlers(): void {
     // Event handlers will be managed externally by InteractionManager

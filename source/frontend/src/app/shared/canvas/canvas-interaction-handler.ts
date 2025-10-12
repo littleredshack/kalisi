@@ -1,5 +1,21 @@
 import { HierarchicalNode, Point, Camera } from './types';
 import { ViewNodeStateService } from '../../core/services/view-node-state.service';
+import {
+  InteractionEvent,
+  InteractionEventResult,
+  SelectEvent,
+  DragStartEvent,
+  DragUpdateEvent,
+  DragStopEvent,
+  ResizeStartEvent,
+  ResizeUpdateEvent,
+  ResizeStopEvent,
+  HitTestResizeEvent,
+  SelectResult,
+  DragStartResult,
+  DragUpdateResult,
+  HitTestResizeResult
+} from './interaction-events';
 
 const COLLAPSED_NODE_WIDTH = 220;
 const COLLAPSED_NODE_HEIGHT = 64;
@@ -69,6 +85,139 @@ export class CanvasInteractionHandler {
 
   updateSelectedNodeWorldPos(worldPos: Point): void {
     this.selectedNodeWorldPos = worldPos;
+  }
+
+  // Event processing pipeline (Phase 7.3)
+  processEvent(
+    event: InteractionEvent,
+    context: {
+      allNodes: HierarchicalNode[];
+      renderer: any;
+      clearAllSelection: () => void;
+      onSelectionChanged?: (node: HierarchicalNode | null) => void;
+    }
+  ): InteractionEventResult {
+    switch (event.type) {
+      case 'select':
+        return this.handleSelectEvent(event, context);
+      case 'drag-start':
+        return this.handleDragStartEvent(event, context);
+      case 'drag-update':
+        return this.handleDragUpdateEvent(event, context);
+      case 'drag-stop':
+        return this.handleDragStopEvent(event, context);
+      case 'hit-test-resize':
+        return this.handleHitTestResizeEvent(event, context);
+      case 'resize-start':
+        return this.handleResizeStartEvent(event, context);
+      case 'resize-update':
+        return this.handleResizeUpdateEvent(event, context);
+      case 'resize-stop':
+        return this.handleResizeStopEvent(event, context);
+      default:
+        console.warn('Unknown interaction event type:', (event as any).type);
+        return;
+    }
+  }
+
+  private handleSelectEvent(event: SelectEvent, context: any): SelectResult {
+    const result = context.renderer.hitTest(event.worldPos.x, event.worldPos.y, context.allNodes);
+
+    // Clear previous selection
+    context.clearAllSelection();
+
+    if (result) {
+      this.setSelectedNode(result.node, result.worldPosition);
+      result.node.selected = true;
+      context.onSelectionChanged?.(result.node);
+    } else {
+      this.clearSelection();
+      context.onSelectionChanged?.(null);
+    }
+
+    return { selectedNode: this.getSelectedNode() };
+  }
+
+  private handleDragStartEvent(event: DragStartEvent, context: any): DragStartResult {
+    const result = context.renderer.hitTest(event.worldPos.x, event.worldPos.y, context.allNodes);
+
+    if (result) {
+      context.clearAllSelection();
+      this.setSelectedNode(result.node, result.worldPosition);
+
+      const absolutePos = result.worldPosition ?? this.getAbsolutePosition(result.node, context.allNodes);
+      const dragOffset = {
+        x: event.worldPos.x - absolutePos.x,
+        y: event.worldPos.y - absolutePos.y
+      };
+      this.setDragging(true, dragOffset);
+
+      result.node.selected = true;
+      result.node.dragging = true;
+
+      context.onSelectionChanged?.(result.node);
+      return { draggedNode: this.getSelectedNode() };
+    }
+
+    return { draggedNode: null };
+  }
+
+  private handleDragUpdateEvent(event: DragUpdateEvent, context: any): DragUpdateResult {
+    const constrainedPosition = this.calculateDragPosition(
+      event.worldPos.x,
+      event.worldPos.y,
+      context.allNodes
+    );
+
+    if (!constrainedPosition) return { dragHandled: false };
+
+    const selectedNode = this.getSelectedNode()!;
+    selectedNode.x = constrainedPosition.x;
+    selectedNode.y = constrainedPosition.y;
+
+    (selectedNode as any)._lockedPosition = {
+      x: selectedNode.x,
+      y: selectedNode.y
+    };
+    (selectedNode as any)._userLocked = true;
+
+    const newWorldPos = this.getAbsolutePosition(selectedNode, context.allNodes);
+    this.updateSelectedNodeWorldPos(newWorldPos);
+
+    return { dragHandled: true };
+  }
+
+  private handleDragStopEvent(event: DragStopEvent, context: any): void {
+    const node = this.getSelectedNode();
+    if (node) {
+      node.dragging = false;
+    }
+    this.setDragging(false);
+  }
+
+  private handleHitTestResizeEvent(event: HitTestResizeEvent, context: any): HitTestResizeResult {
+    const handle = this.hitTestResizeHandle(
+      event.screenPos.x,
+      event.screenPos.y,
+      event.node,
+      (node) => this.getAbsolutePosition(node, context.allNodes),
+      context.camera
+    );
+
+    return { handle };
+  }
+
+  private handleResizeStartEvent(event: ResizeStartEvent, context: any): void {
+    this.setResizing(true, event.handle);
+  }
+
+  private handleResizeUpdateEvent(event: ResizeUpdateEvent, context: any): void {
+    // Resize logic would be implemented here
+    // For now, keeping existing handleResize approach
+  }
+
+  private handleResizeStopEvent(event: ResizeStopEvent, context: any): void {
+    this.setResizing(false);
   }
 
   // Hit testing methods (extracted from canvas engine)

@@ -8,6 +8,7 @@ import { DynamicLayoutService } from '../../core/services/dynamic-layout.service
 import { MessageService } from 'primeng/api';
 import { ComposableHierarchicalCanvasEngine } from '../../shared/canvas/composable-hierarchical-canvas-engine';
 import { HierarchicalNode, Edge, CanvasData, Camera } from '../../shared/canvas/types';
+import { SelectEvent, DragStartEvent, DragUpdateEvent, DragStopEvent, HitTestResizeEvent } from '../../shared/canvas/interaction-events';
 import { ComponentFactory } from '../../shared/canvas/component-factory';
 import { CanvasControlService, CanvasController, CameraInfo } from '../../core/services/canvas-control.service';
 import { CanvasViewStateService } from '../../shared/canvas/state/canvas-view-state.service';
@@ -780,13 +781,14 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     // COPIED EXACT RESIZE HANDLE DETECTION FROM MONOLITHIC SYSTEM
     const selectedNode = this.engine.getSelectedNode();
     if (selectedNode) {
-      const handle = this.engine?.getInteractionHandler().hitTestResizeHandle(
-        screenX,
-        screenY,
-        selectedNode,
-        (node) => this.engine!.getInteractionHandler().getAbsolutePosition(node, this.engine!.getData()?.nodes || []),
-        this.engine!.getCameraSystem().getCamera()
-      );
+      const hitTestEvent: HitTestResizeEvent = {
+        type: 'hit-test-resize',
+        worldPos: { x: worldX, y: worldY },
+        screenPos: { x: screenX, y: screenY },
+        node: selectedNode
+      };
+      const hitTestResult = this.engine.processInteractionEvent(hitTestEvent);
+      const handle = hitTestResult?.handle;
       if (handle) {
         this.isResizing = true;
         this.resizeHandle = handle;
@@ -822,14 +824,25 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     }
 
     // Not a double-click - proceed with normal selection
-    const clickedNode = this.engine.selectNode(worldX, worldY);
+    const selectEvent: SelectEvent = {
+      type: 'select',
+      worldPos: { x: worldX, y: worldY }
+    };
+    const selectResult = this.engine.processInteractionEvent(selectEvent);
+    const clickedNode = selectResult?.selectedNode;
 
     // Update click tracking for next potential double-click
     this.lastClickTime = currentTime;
     this.lastClickNodeGuid = clickedGuid || null;
 
     // Try to start dragging a node (pass both world and screen coordinates)
-    const draggedNode = this.engine.startDrag(worldX, worldY, screenX, screenY);
+    const dragStartEvent: DragStartEvent = {
+      type: 'drag-start',
+      worldPos: { x: worldX, y: worldY },
+      screenPos: { x: screenX, y: screenY }
+    };
+    const dragResult = this.engine.processInteractionEvent(dragStartEvent);
+    const draggedNode = dragResult?.draggedNode;
     
     if (draggedNode) {
       // Reset drag flag when starting new drag
@@ -872,7 +885,12 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     }
 
     // Handle dragging
-    const dragHandled = this.engine.updateDrag(worldX, worldY);
+    const dragUpdateEvent: DragUpdateEvent = {
+      type: 'drag-update',
+      worldPos: { x: worldX, y: worldY }
+    };
+    const dragUpdateResult = this.engine.processInteractionEvent(dragUpdateEvent);
+    const dragHandled = dragUpdateResult?.dragHandled;
     
     if (dragHandled) {
       // Mark that dragging has occurred
@@ -897,7 +915,11 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     this.isResizing = false;
     
     if (this.engine) {
-      this.engine.stopDrag();
+      const dragStopEvent: DragStopEvent = {
+        type: 'drag-stop',
+        worldPos: { x: 0, y: 0 } // Position not needed for stop event
+      };
+      this.engine.processInteractionEvent(dragStopEvent);
       
       // Auto-deselect after drag completion
       if (this.hasDragged) {
