@@ -139,8 +139,8 @@ const MODULES: LayoutModuleDescriptor[] = [
         factory: () => new ComposableTreeRenderer(),
         tags: ['tree', 'hierarchy']
       }
-    ],
-    createLegacyLayout: () => new CodeModelTreeLayoutEngine()
+    ]
+    // Legacy adapter removed - using runtime data processing
   },
   {
     id: 'tree-table',
