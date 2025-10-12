@@ -1839,7 +1839,6 @@ export class ComposableHierarchicalCanvasEngine {
 
     data.nodes = data.nodes || [];
     data.nodes.forEach(ensureNode);
-    this.ensureRelativeCoordinates(data.nodes, 0, 0);
 
     const ensureEdge = (edge: Edge) => {
       const edgeAny = edge as any;
@@ -2022,42 +2021,6 @@ export class ComposableHierarchicalCanvasEngine {
       }
     }
     return null;
-  }
-
-  private ensureRelativeCoordinates(nodes: HierarchicalNode[], parentWorldX: number, parentWorldY: number): void {
-    nodes.forEach(node => {
-      if (!node) {
-        return;
-      }
-
-      if (!node.metadata) {
-        node.metadata = {};
-      }
-
-      const meta = node.metadata as Record<string, any>;
-      const storedWorldPosition = meta['worldPosition'] as { x: number; y: number } | undefined;
-      const hasWorldPosition =
-        storedWorldPosition &&
-        typeof storedWorldPosition.x === 'number' &&
-        typeof storedWorldPosition.y === 'number';
-
-      const worldX = hasWorldPosition ? storedWorldPosition!.x : node.x;
-      const worldY = hasWorldPosition ? storedWorldPosition!.y : node.y;
-
-      if (!hasWorldPosition) {
-        meta['worldPosition'] = { x: worldX, y: worldY };
-      }
-
-      if (meta['__relative'] !== true) {
-        node.x = worldX - parentWorldX;
-        node.y = worldY - parentWorldY;
-        meta['__relative'] = true;
-      }
-
-      if (node.children && node.children.length > 0) {
-        this.ensureRelativeCoordinates(node.children, worldX, worldY);
-      }
-    });
   }
 
   private findNodeInCanvasData(nodes: HierarchicalNode[], guid: string): HierarchicalNode | null {
