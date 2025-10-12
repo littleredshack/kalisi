@@ -117,13 +117,13 @@ export class CanvasLayoutRuntime {
     this.orchestrator.setActiveEngine(this.canvasId, this.normaliseEngineName(engineName), source);
   }
 
-  runLayout(options: LayoutRunOptions = {}): CanvasData {
+  async runLayout(options: LayoutRunOptions = {}): Promise<CanvasData> {
     const normalisedEngine = options.engineName ? this.normaliseEngineName(options.engineName) : undefined;
     if (normalisedEngine) {
       this.orchestrator.setActiveEngine(this.canvasId, normalisedEngine, options.source ?? 'system');
     }
 
-    const result = this.workerBridge.run(this.canvasId, this.store.current.graph, {
+    const result = await this.workerBridge.run(this.canvasId, this.store.current.graph, {
       ...options,
       engineName: normalisedEngine
     });

@@ -3,6 +3,7 @@ import { BehaviorSubject, Observable } from 'rxjs';
 import { CanvasEventHubService } from './canvas-event-hub.service';
 import { LayoutModuleRegistry } from '../../shared/layouts/layout-module-registry';
 import { GraphLensRegistry } from '../../shared/graph/lens-registry';
+import { CanvasData } from '../../shared/canvas/types';
 
 export interface CameraInfo {
   x: number;
@@ -21,7 +22,7 @@ export interface CanvasController {
   getCanvasId(): string;
   getAvailableLayoutEngines(): string[];
   getActiveLayoutEngine(): string | null;
-  switchLayoutEngine(engineName: string): void;
+  switchLayoutEngine(engineName: string): Promise<CanvasData | null> | void;
   getActiveGraphLens?(): string | null;
   setGraphLens?(lensId: string): void;
   getAvailableGraphLenses?(): string[];
@@ -159,8 +160,8 @@ export class CanvasControlService {
         timestamp: Date.now()
       });
     } else {
-      this.activeCanvas.switchLayoutEngine(engineName);
-      this.updateState();
+      const result = this.activeCanvas.switchLayoutEngine(engineName);
+      Promise.resolve(result).then(() => this.updateState());
     }
   }
 

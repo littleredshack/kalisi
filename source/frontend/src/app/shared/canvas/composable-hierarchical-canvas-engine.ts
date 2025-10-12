@@ -88,7 +88,7 @@ export class ComposableHierarchicalCanvasEngine {
       this.cameraSystem.setCamera(initialData.camera);
     }
 
-    this.canvasEventSubscription = this.canvasEventBus.events$.subscribe(event => this.handleCanvasEvent(event));
+    this.canvasEventSubscription = this.canvasEventBus.events$.subscribe(event => { void this.handleCanvasEvent(event); });
     this.currentEngineName = this.layoutRuntime.getActiveEngineName() ?? initialEngineName;
 
     this.layoutRuntime.runLayout({ reason: 'initial', source: 'system' });
@@ -167,7 +167,7 @@ export class ComposableHierarchicalCanvasEngine {
     this.lastRenderedFrameVersion = -1;
   }
 
-  switchLayoutEngine(engineName: string, source: CanvasEventSource = 'user'): CanvasData | null {
+  async switchLayoutEngine(engineName: string, source: CanvasEventSource = 'user'): Promise<CanvasData | null> {
     if (!engineName || engineName === this.currentEngineName) {
       return null;
     }
@@ -185,23 +185,22 @@ export class ComposableHierarchicalCanvasEngine {
     return this.runLayout({ reason: 'engine-switch', engineName: targetEngine, source });
   }
 
-  runLayout(options: LayoutRunOptions = {}): CanvasData {
+  async runLayout(options: LayoutRunOptions = {}): Promise<CanvasData> {
     const source = options.source ?? 'system';
     this.syncRuntimeFromCurrentData(source);
     const targetEngine = options.engineName
       ? this.normaliseEngineName(options.engineName, this.data)
       : undefined;
     this.suppressCanvasEvents = true;
-    let result: CanvasData;
     try {
-      result = this.layoutRuntime.runLayout({ ...options, engineName: targetEngine, source });
+      const result = await this.layoutRuntime.runLayout({ ...options, engineName: targetEngine, source });
+      this.presentationFrame = this.layoutRuntime.getPresentationFrame() ?? null;
+      this.setData(this.presentationFrame?.canvasData ?? result, source);
+      this.currentEngineName = this.layoutRuntime.getActiveEngineName() ?? this.currentEngineName;
+      return this.getData();
     } finally {
       this.suppressCanvasEvents = false;
     }
-    this.presentationFrame = this.layoutRuntime.getPresentationFrame();
-    this.setData(this.presentationFrame?.canvasData ?? result, source);
-    this.currentEngineName = this.layoutRuntime.getActiveEngineName() ?? this.currentEngineName;
-    return this.getData();
   }
 
   setOnDataChanged(callback: (data: CanvasData) => void): void {
@@ -954,17 +953,17 @@ export class ComposableHierarchicalCanvasEngine {
     }
   }
 
-  private withEventSuppressed<T>(callback: () => T): T {
+  private async withEventSuppressed<T>(callback: () => Promise<T> | T): Promise<T> {
     const previous = this.suppressCanvasEvents;
     this.suppressCanvasEvents = true;
     try {
-      return callback();
+      return await Promise.resolve(callback());
     } finally {
       this.suppressCanvasEvents = previous;
     }
   }
 
-  private handleCanvasEvent(event: CanvasEvent): void {
+  private async handleCanvasEvent(event: CanvasEvent): Promise<void> {
     if (this.suppressCanvasEvents) {
       return;
     }
@@ -991,7 +990,7 @@ export class ComposableHierarchicalCanvasEngine {
         break;
       case 'LayoutRequested':
         if (event.canvasId === this.canvasId) {
-          this.withEventSuppressed(() =>
+          await this.withEventSuppressed(() =>
             this.runLayout({
               engineName: event.engineName,
               reason: 'user-command',
@@ -1004,7 +1003,7 @@ export class ComposableHierarchicalCanvasEngine {
       case 'EngineSwitched':
         if (event.canvasId === this.canvasId) {
           this.currentEngineName = event.engineName;
-          this.withEventSuppressed(() =>
+          await this.withEventSuppressed(() =>
             this.runLayout({
               reason: 'engine-switch',
               engineName: event.engineName,
