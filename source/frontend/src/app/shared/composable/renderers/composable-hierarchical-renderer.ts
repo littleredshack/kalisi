@@ -36,18 +36,22 @@ export class ComposableHierarchicalRenderer extends BaseRenderer {
    * Main render method - orchestrates 3-pass rendering EXACT same as HierarchicalRenderingStrategy
    */
   render(ctx: CanvasRenderingContext2D, nodes: HierarchicalNode[], edges: Edge[], camera: Camera, frame?: PresentationFrame): void {
-    // Render in proper z-order for hierarchical layout (EXACT same approach):
-    // 1. Draw nodes level by level
-    // 2. Draw edges on top (so they're visible even if they cross parent nodes)
-    // 3. Draw inherited edges from folded nodes
+    const nodeDeltas = new Set(frame?.delta?.nodes.filter(delta => delta.hasGeometryChange || delta.hasMetadataChange).map(delta => delta.nodeId));
+    const edgeDeltas = new Set(frame?.delta?.edges.filter(delta => delta.hasChange).map(delta => delta.edgeId));
 
-    // First pass: Draw all nodes using composable primitive
-    nodes.forEach(node => this.renderNodeHierarchy(ctx, node, 0, 0, camera));
+    nodes.forEach(node => {
+      const nodeId = node.GUID ?? node.id;
+      if (!nodeId || nodeDeltas.size === 0 || nodeDeltas.has(nodeId)) {
+        this.renderNodeHierarchy(ctx, node, 0, 0, camera);
+      }
+    });
 
-    // Second pass: Draw edges on top using composable primitive
-    edges.forEach(edge => this.renderEdge(ctx, edge, nodes, camera));
+    edges.forEach(edge => {
+      if (edgeDeltas.size === 0 || edgeDeltas.has(edge.id)) {
+        this.renderEdge(ctx, edge, nodes, camera);
+      }
+    });
 
-    // Third pass: Draw inherited edges from folded nodes using composable primitive
     this.renderInheritedEdges(ctx, nodes, camera);
   }
 
