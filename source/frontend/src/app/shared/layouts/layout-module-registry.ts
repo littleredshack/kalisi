@@ -93,8 +93,8 @@ const MODULES: LayoutModuleDescriptor[] = [
         factory: () => new ComposableContainmentOrthogonalRenderer(),
         tags: ['orthogonal']
       }
-    ],
-    createLegacyLayout: () => new LayoutEngineAdapter(transformer, gridLayout)
+    ]
+    // Legacy adapter removed - using runtime data processing
   },
   {
     id: 'force-directed',
