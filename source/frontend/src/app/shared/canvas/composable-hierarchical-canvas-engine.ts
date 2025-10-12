@@ -1110,6 +1110,7 @@ export class ComposableHierarchicalCanvasEngine {
     node.y = absoluteY - parentPos.y;
     this.selectedNodeWorldPos = this.selectedNode === node ? this.getAbsolutePosition(node) : this.selectedNodeWorldPos;
     this.updateWorldMetadata(node);
+    this.data.edges = this.computeEdgesWithInheritance(this.data.originalEdges);
 
     this.render();
     this.notifyDataChanged();
@@ -1131,6 +1132,7 @@ export class ComposableHierarchicalCanvasEngine {
     node.height = Math.max(0, height);
     this.selectedNodeWorldPos = this.selectedNode === node ? this.getAbsolutePosition(node) : this.selectedNodeWorldPos;
     this.updateWorldMetadata(node);
+    this.data.edges = this.computeEdgesWithInheritance(this.data.originalEdges);
 
     this.render();
     this.notifyDataChanged();
@@ -1264,6 +1266,8 @@ export class ComposableHierarchicalCanvasEngine {
     (this.selectedNode as any)._userLocked = true;
 
     this.selectedNodeWorldPos = this.getAbsolutePosition(this.selectedNode);
+    this.updateWorldMetadata(this.selectedNode);
+    this.data.edges = this.computeEdgesWithInheritance(this.data.originalEdges);
 
     this.render();
     this.notifyDataChanged();
@@ -1280,6 +1284,7 @@ export class ComposableHierarchicalCanvasEngine {
     if (node) {
       this.updateWorldMetadata(node);
     }
+    this.data.edges = this.computeEdgesWithInheritance(this.data.originalEdges);
     this.publishState('position', nodeGuid);
     this.notifyDataChanged();
     if (node) {
@@ -1293,6 +1298,7 @@ export class ComposableHierarchicalCanvasEngine {
     node.x = newX;
     node.y = newY;
     this.updateWorldMetadata(node);
+    this.data.edges = this.computeEdgesWithInheritance(this.data.originalEdges);
     this.render();
     this.notifyDataChanged();
     this.publishState('position', node.GUID);
@@ -1304,6 +1310,7 @@ export class ComposableHierarchicalCanvasEngine {
     node.width = newWidth;
     node.height = newHeight;
     this.updateWorldMetadata(node);
+    this.data.edges = this.computeEdgesWithInheritance(this.data.originalEdges);
     this.render();
     this.notifyDataChanged();
     this.publishState('resize', node.GUID);
