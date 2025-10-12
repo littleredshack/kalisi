@@ -27,12 +27,7 @@ export interface PresentationDelta {
   readonly edges: ReadonlyArray<EdgeDelta>;
 }
 
-export interface PresentationFrameResult {
-  readonly frame: PresentationFrame;
-  readonly delta: PresentationDelta;
-}
-
-export function buildPresentationFrame(result: LayoutResult, previous?: PresentationFrame): PresentationFrameResult {
+export function buildPresentationFrame(result: LayoutResult, previous?: PresentationFrame): PresentationFrame {
   const snapshot = layoutGraphToHierarchical(result.graph);
   const camera = result.camera ?? previous?.camera;
 
@@ -45,15 +40,13 @@ export function buildPresentationFrame(result: LayoutResult, previous?: Presenta
 
   const delta = calculateDelta(canvasData, previous?.canvasData ?? null);
 
-  const frame: PresentationFrame = {
+  return {
     version: (result.graph.metadata.layoutVersion ?? previous?.version ?? 0) + 1,
     camera,
     canvasData,
     lastResult: result,
     delta
   };
-
-  return { frame, delta };
 }
 
 function calculateDelta(current: CanvasData, previous: CanvasData | null): PresentationDelta {

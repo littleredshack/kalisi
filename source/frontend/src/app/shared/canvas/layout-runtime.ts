@@ -46,8 +46,7 @@ export class CanvasLayoutRuntime {
         source: 'system'
       });
       this.store.update(result);
-      const built = buildPresentationFrame(result);
-      this.frame = built.frame;
+      this.frame = buildPresentationFrame(result);
       this.canvasData = this.cloneCanvasData(this.frame.canvasData);
     }
   }
@@ -129,8 +128,7 @@ export class CanvasLayoutRuntime {
       engineName: normalisedEngine
     });
     this.store.update(result);
-    const built = buildPresentationFrame(result, this.frame ?? undefined);
-    this.frame = built.frame;
+    this.frame = buildPresentationFrame(result, this.frame ?? undefined);
     this.canvasData = this.cloneCanvasData(this.frame.canvasData);
     return this.canvasData;
   }

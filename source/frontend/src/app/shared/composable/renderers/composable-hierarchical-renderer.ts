@@ -1,5 +1,6 @@
 import { BaseRenderer } from '../../canvas/renderer';
 import { HierarchicalNode, Edge, Camera, Point, Bounds, NodeEvent } from '../../canvas/types';
+import { PresentationFrame } from '../../render/presentation-frame';
 import { HierarchicalNodePrimitive } from '../primitives/hierarchical-node-primitive';
 import { HierarchicalEdgePrimitive } from '../primitives/hierarchical-edge-primitive';
 
@@ -34,7 +35,7 @@ export class ComposableHierarchicalRenderer extends BaseRenderer {
   /**
    * Main render method - orchestrates 3-pass rendering EXACT same as HierarchicalRenderingStrategy
    */
-  render(ctx: CanvasRenderingContext2D, nodes: HierarchicalNode[], edges: Edge[], camera: Camera): void {
+  render(ctx: CanvasRenderingContext2D, nodes: HierarchicalNode[], edges: Edge[], camera: Camera, frame?: PresentationFrame): void {
     // Render in proper z-order for hierarchical layout (EXACT same approach):
     // 1. Draw nodes level by level
     // 2. Draw edges on top (so they're visible even if they cross parent nodes)

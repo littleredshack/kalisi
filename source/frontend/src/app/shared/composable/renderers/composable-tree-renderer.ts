@@ -1,5 +1,6 @@
 import { BaseRenderer } from '../../canvas/renderer';
 import { HierarchicalNode, Edge, Camera, NodeEvent } from '../../canvas/types';
+import { PresentationFrame } from '../../render/presentation-frame';
 import { DrawingPrimitives } from '../../canvas/drawing-primitives';
 
 const CORNER_RADIUS = 10;
@@ -23,7 +24,7 @@ export class ComposableTreeRenderer extends BaseRenderer {
     };
   }
 
-  render(ctx: CanvasRenderingContext2D, nodes: HierarchicalNode[], _edges: Edge[], camera: Camera): void {
+  render(ctx: CanvasRenderingContext2D, nodes: HierarchicalNode[], _edges: Edge[], camera: Camera, frame?: PresentationFrame): void {
     nodes.forEach(node => {
       this.renderNodeRecursive(ctx, node, 0, 0, camera);
     });

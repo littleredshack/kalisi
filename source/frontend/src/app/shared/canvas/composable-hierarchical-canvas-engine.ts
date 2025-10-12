@@ -1,4 +1,5 @@
 import { HierarchicalNode, Edge, CanvasData, Camera, Point, InteractionEvent, Bounds } from './types';
+import { PresentationFrame } from '../render/presentation-frame';
 import { CanvasViewStateService, CanvasMutationType } from './state/canvas-view-state.service';
 import { CameraSystem } from './camera';
 import { IRenderer } from './renderer';
@@ -19,6 +20,7 @@ export class ComposableHierarchicalCanvasEngine {
   private ctx: CanvasRenderingContext2D;
   private cameraSystem: CameraSystem;
   private renderer: IRenderer;
+  private presentationFrame: PresentationFrame | null = null;
   private viewNodeStateService?: ViewNodeStateService;
   private dynamicLayoutService?: DynamicLayoutService;
   private data: CanvasData;
@@ -194,8 +196,8 @@ export class ComposableHierarchicalCanvasEngine {
     } finally {
       this.suppressCanvasEvents = false;
     }
-    const frame = this.layoutRuntime.getPresentationFrame();
-    this.setData(frame?.canvasData ?? result, source);
+    this.presentationFrame = this.layoutRuntime.getPresentationFrame();
+    this.setData(this.presentationFrame?.canvasData ?? result, source);
     this.currentEngineName = this.layoutRuntime.getActiveEngineName() ?? this.currentEngineName;
     return this.getData();
   }
@@ -770,10 +772,10 @@ export class ComposableHierarchicalCanvasEngine {
   }
 
   private notifyDataChanged(): void {
-    const frame = this.layoutRuntime.getPresentationFrame();
-    if (frame) {
+    this.presentationFrame = this.layoutRuntime.getPresentationFrame();
+    if (this.presentationFrame) {
       this.onDataChanged?.({
-        ...frame.canvasData,
+        ...this.presentationFrame.canvasData,
         camera: this.cameraSystem.getCamera()
       });
     } else {
