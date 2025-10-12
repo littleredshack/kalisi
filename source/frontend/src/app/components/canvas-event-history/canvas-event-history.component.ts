@@ -87,6 +87,8 @@ export class CanvasEventHistoryComponent {
         return 'Camera Changed';
       case 'HistoryReplay':
         return 'History Replay';
+      case 'GraphLensChanged':
+        return `Lens → ${event.lensId}`;
     }
     return type as string;
   }

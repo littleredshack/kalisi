@@ -30,6 +30,7 @@ export class ComposableHierarchicalCanvasEngine {
   private readonly eventHub?: CanvasEventHubService;
   private currentEngineName: string;
   private currentLensId = 'full-graph';
+  private lensBaseData: CanvasData;
   
   // Event handlers
   private onDataChanged?: (data: CanvasData) => void;
@@ -65,6 +66,7 @@ export class ComposableHierarchicalCanvasEngine {
       originalEdges: initialData.originalEdges || initialData.edges.filter(e => !e.id.startsWith('inherited-'))
     };
     this.normaliseCanvasData(this.data);
+    this.lensBaseData = this.cloneCanvasData(this.data);
 
     const legacyEngineName =
       typeof initialLayoutEngine?.getName === 'function'
@@ -94,18 +96,22 @@ export class ComposableHierarchicalCanvasEngine {
     const initialResult = this.layoutRuntime.runLayout({ reason: 'initial', source: 'system' });
     this.data = initialResult;
     this.normaliseCanvasData(this.data);
+    this.lensBaseData = this.cloneCanvasData(this.data);
 
     this.setupEventHandlers();
     this.ensureCameraWithinBounds('initialize');
   }
 
   // Public API
-  setData(data: CanvasData, source: CanvasEventSource = 'system'): void {
+  setData(data: CanvasData, source: CanvasEventSource = 'system', updateLensBase = true): void {
     this.data = { 
       ...data,
       originalEdges: data.originalEdges || data.edges.filter(e => !e.id.startsWith('inherited-'))
     };
     this.normaliseCanvasData(this.data);
+    if (updateLensBase) {
+      this.lensBaseData = this.cloneCanvasData(this.data);
+    }
     
     if (data.camera) {
       this.cameraSystem.setCamera(data.camera);
@@ -157,7 +163,8 @@ export class ComposableHierarchicalCanvasEngine {
       canvasId: this.canvasId,
       lensId
     });
-    // TODO: integrate lens filtering and runtime subgraph selection
+    const filtered = this.applyLensToData(lensId);
+    this.setData(filtered, 'system', false);
   }
 
   switchLayoutEngine(engineName: string, source: CanvasEventSource = 'user'): CanvasData | null {
@@ -1829,6 +1836,136 @@ export class ComposableHierarchicalCanvasEngine {
     } else {
       data.originalEdges.forEach(ensureEdge);
     }
+  }
+
+  private applyLensToData(lensId: string): CanvasData {
+    const source = this.lensBaseData ?? this.data;
+    const clone = this.cloneCanvasData(source);
+
+    switch (lensId) {
+      case 'selected-root-neighborhood':
+        this.applyRootNeighborhoodLens(clone);
+        break;
+      case 'active-containment':
+        this.applyActiveContainmentLens(clone);
+        break;
+      case 'full-graph':
+      default:
+        break;
+    }
+
+    this.trimEdgesToVisible(clone);
+    return clone;
+  }
+
+  private applyRootNeighborhoodLens(data: CanvasData): void {
+    if (!data.nodes.length) {
+      return;
+    }
+    const [primary, ...others] = data.nodes;
+    others.forEach(node => this.hideNodeRecursively(node));
+    if (primary) {
+      this.showNode(primary, false);
+      primary.collapsed = false;
+      primary.visible = true;
+      (primary.children ?? []).forEach(child => this.showNode(child, false));
+    }
+  }
+
+  private applyActiveContainmentLens(data: CanvasData): void {
+    const target = this.findFirstContainerNode(data.nodes);
+    if (!target) {
+      return;
+    }
+    const targetId = target.GUID ?? target.id;
+    data.nodes.forEach(root => {
+      const contains = this.applyContainmentLensRecursive(root, targetId);
+      if (!contains) {
+        this.hideNodeRecursively(root);
+      }
+    });
+  }
+
+  private applyContainmentLensRecursive(node: HierarchicalNode, targetId: string): boolean {
+    const nodeId = node.GUID ?? node.id;
+    if (nodeId === targetId) {
+      this.showNode(node, true);
+      return true;
+    }
+
+    let descendantMatch = false;
+    node.children.forEach(child => {
+      if (this.applyContainmentLensRecursive(child, targetId)) {
+        descendantMatch = true;
+      } else {
+        this.hideNodeRecursively(child);
+      }
+    });
+
+    if (descendantMatch) {
+      this.showNode(node, false);
+    }
+    return descendantMatch;
+  }
+
+  private showNode(node: HierarchicalNode, includeDescendants: boolean): void {
+    node.visible = true;
+    if (includeDescendants) {
+      node.children.forEach(child => this.showNode(child, true));
+    }
+  }
+
+  private hideNodeRecursively(node: HierarchicalNode): void {
+    node.visible = false;
+    node.children.forEach(child => this.hideNodeRecursively(child));
+  }
+
+  private findFirstContainerNode(nodes: HierarchicalNode[]): HierarchicalNode | null {
+    for (const node of nodes) {
+      if (node.children && node.children.length > 0) {
+        return node;
+      }
+      const candidate = this.findFirstContainerNode(node.children ?? []);
+      if (candidate) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  private trimEdgesToVisible(data: CanvasData): void {
+    if (!Array.isArray(data.edges)) {
+      return;
+    }
+    const visibleIds = new Set<string>();
+    this.collectVisibleNodeIds(data.nodes, visibleIds);
+    const filterEdge = (edge: Edge): boolean => {
+      const fromId = edge.fromGUID ?? edge.from;
+      const toId = edge.toGUID ?? edge.to;
+      return visibleIds.has(fromId) && visibleIds.has(toId);
+    };
+    data.edges = data.edges.filter(filterEdge);
+    if (data.originalEdges) {
+      data.originalEdges = data.originalEdges.filter(filterEdge);
+    }
+  }
+
+  private collectVisibleNodeIds(nodes: HierarchicalNode[], visible: Set<string>): void {
+    nodes.forEach(node => {
+      if (node.visible !== false) {
+        const nodeId = node.GUID ?? node.id;
+        visible.add(nodeId);
+        this.collectVisibleNodeIds(node.children ?? [], visible);
+      }
+    });
+  }
+
+  private cloneCanvasData(data: CanvasData): CanvasData {
+    const structured = (globalThis as unknown as { structuredClone?: <T>(input: T) => T }).structuredClone;
+    if (typeof structured === 'function') {
+      return structured(data);
+    }
+    return JSON.parse(JSON.stringify(data));
   }
 
   private inferEngineFromData(data: CanvasData): string {
