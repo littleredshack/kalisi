@@ -98,7 +98,7 @@ export class ComposableHierarchicalCanvasEngine {
   }
 
   // Public API
-  setData(data: CanvasData): void {
+  setData(data: CanvasData, source: CanvasEventSource = 'system'): void {
     this.data = { 
       ...data,
       originalEdges: data.originalEdges || data.edges.filter(e => !e.id.startsWith('inherited-'))
@@ -115,6 +115,7 @@ export class ComposableHierarchicalCanvasEngine {
       this.selectedNodeWorldPos = this.getAbsolutePosition(this.selectedNode);
     }
     this.publishState('replace');
+    this.syncRuntimeFromCurrentData(source);
   }
 
   getData(): CanvasData {
@@ -131,6 +132,47 @@ export class ComposableHierarchicalCanvasEngine {
 
   getRenderer(): IRenderer {
     return this.renderer;
+  }
+
+  getAvailableLayoutEngines(): string[] {
+    return this.layoutRuntime.getAvailableEngines();
+  }
+
+  getActiveLayoutEngine(): string | null {
+    return this.layoutRuntime.getActiveEngineName();
+  }
+
+  switchLayoutEngine(engineName: string, source: CanvasEventSource = 'user'): CanvasData | null {
+    if (!engineName || engineName === this.currentEngineName) {
+      return null;
+    }
+
+    this.suppressCanvasEvents = true;
+    try {
+      this.layoutRuntime.setActiveEngine(engineName, source);
+    } finally {
+      this.suppressCanvasEvents = false;
+    }
+
+    this.currentEngineName = this.layoutRuntime.getActiveEngineName() ?? engineName;
+    return this.runLayout({ reason: 'engine-switch', engineName, source });
+  }
+
+  runLayout(options: LayoutRunOptions = {}): CanvasData {
+    const source = options.source ?? 'system';
+    this.syncRuntimeFromCurrentData(source);
+
+    this.suppressCanvasEvents = true;
+    let result: CanvasData;
+    try {
+      result = this.layoutRuntime.runLayout({ ...options, source });
+    } finally {
+      this.suppressCanvasEvents = false;
+    }
+
+    this.setData(result, source);
+    this.currentEngineName = this.layoutRuntime.getActiveEngineName() ?? this.currentEngineName;
+    return this.getData();
   }
 
   setOnDataChanged(callback: (data: CanvasData) => void): void {
@@ -265,6 +307,7 @@ export class ComposableHierarchicalCanvasEngine {
     this.render();
     this.notifyDataChanged();
     this.publishState('collapse');
+    this.syncRuntimeFromCurrentData('user');
   }
 
   private applyCollapsedNodeDimensions(nodes: HierarchicalNode[], clampSize = false): void {
@@ -449,16 +492,28 @@ export class ComposableHierarchicalCanvasEngine {
   }
 
   // FOLD/UNFOLD WITH EDGE INHERITANCE
-  toggleNodeCollapsed(nodeGuid: string): void {
+  toggleNodeCollapsed(nodeGuid: string, source: CanvasEventSource = 'user'): void {
+    this.setNodeCollapsed(nodeGuid, undefined, source);
+  }
+
+  setNodeCollapsed(
+    nodeGuid: string,
+    collapsed?: boolean,
+    source: CanvasEventSource = 'user'
+  ): void {
     if (!nodeGuid) {
-      console.warn('toggleNodeCollapsed called without a GUID');
+      console.warn('setNodeCollapsed called without a GUID');
       return;
     }
     const node = this.findNodeByGUID(nodeGuid);
     if (!node) return;
 
-    if (node.collapsed) {
-      // Unfold: restore previous state if available, otherwise show immediate children
+    const targetCollapsed = typeof collapsed === 'boolean' ? collapsed : !node.collapsed;
+    if (node.collapsed === targetCollapsed) {
+      return;
+    }
+
+    if (!targetCollapsed) {
       node.collapsed = false;
       const lockedPosition = (node as any)._lockedPosition;
       if (lockedPosition) {
@@ -468,20 +523,16 @@ export class ComposableHierarchicalCanvasEngine {
       }
 
       if (this.viewNodeStateService) {
-        // Try to restore previous state
         const savedState = this.viewNodeStateService.restoreNodeVisibilityState(nodeGuid);
         if (savedState) {
           this.restoreNodeStateRecursively(node, savedState);
         } else {
-          // Fallback: show immediate children only
           this.showImmediateChildren(node);
         }
       } else {
-        // Fallback: show immediate children only
         this.showImmediateChildren(node);
       }
 
-      // Auto-expand container to fit children
       const childBounds = this.calculateChildBounds(node.children.filter(c => c.visible));
       const requiredWidth = childBounds.maxX + 40;
       const requiredHeight = childBounds.maxY + 40;
@@ -491,7 +542,6 @@ export class ComposableHierarchicalCanvasEngine {
         node.height = Math.max(node.height, requiredHeight);
       }
     } else {
-      // Fold: save current state first, then hide children
       (node as any)._lockedPosition = { x: node.x, y: node.y };
       if (this.viewNodeStateService) {
         this.viewNodeStateService.saveNodeVisibilityState(nodeGuid, node);
@@ -507,10 +557,8 @@ export class ComposableHierarchicalCanvasEngine {
       }
     }
 
-    // Recompute edges with inheritance - use original edges as base
     this.data.edges = this.computeEdgesWithInheritance(this.data.originalEdges);
 
-    // Re-render and notify
     this.render();
     this.onDataChanged?.(this.data);
     if (this.selectedNode) {
@@ -522,6 +570,8 @@ export class ComposableHierarchicalCanvasEngine {
         height: this.canvas.height / this.cameraSystem.getCamera().zoom
       }
     });
+    this.emitNodeCollapseEvent(nodeGuid, targetCollapsed, source);
+    this.syncRuntimeFromCurrentData(source);
   }
 
   // COPIED DESCENDANT VISIBILITY MANAGEMENT FROM STORE
@@ -587,7 +637,7 @@ export class ComposableHierarchicalCanvasEngine {
       this.selectedNodeWorldPos = worldPos;
     }
     this.render();
-    this.publishCameraState();
+    this.publishCameraState('camera', 'user');
   }
 
   // Camera operations
@@ -595,10 +645,10 @@ export class ComposableHierarchicalCanvasEngine {
     return this.cameraSystem.getCamera();
   }
 
-  setCamera(camera: Camera): void {
+  setCamera(camera: Camera, source: CanvasEventSource = 'system'): void {
     this.cameraSystem.setCamera(camera);
     this.render();
-    this.publishCameraState('camera');
+    this.publishCameraState('camera', source);
   }
 
   pan(deltaX: number, deltaY: number): void {
@@ -609,13 +659,13 @@ export class ComposableHierarchicalCanvasEngine {
     this.cameraSystem.updatePan(deltaX, deltaY);
     this.cameraSystem.stopPan();
     this.render();
-    this.publishCameraState();
+    this.publishCameraState('camera', 'user');
   }
 
   zoom(screenX: number, screenY: number, zoomDelta: number): void {
     this.cameraSystem.zoom(screenX, screenY, zoomDelta);
     this.render();
-    this.publishCameraState();
+    this.publishCameraState('camera', 'user');
   }
 
   zoomToLevel(level: number): void {
@@ -623,7 +673,7 @@ export class ComposableHierarchicalCanvasEngine {
     camera.zoom = Math.max(0.1, Math.min(5.0, level));
     this.cameraSystem.setCamera(camera);
     this.render();
-    this.publishCameraState();
+    this.publishCameraState('camera', 'user');
   }
 
   zoomAtCenter(delta: number): void {
@@ -640,7 +690,7 @@ export class ComposableHierarchicalCanvasEngine {
 
     this.cameraSystem.setCamera(camera);
     this.render();
-    this.publishCameraState();
+    this.publishCameraState('camera', 'user');
   }
 
   // Selection operations
@@ -769,7 +819,7 @@ export class ComposableHierarchicalCanvasEngine {
       this.selectedNodeWorldPos = this.getAbsolutePosition(this.selectedNode);
     }
     this.render();
-    this.publishCameraState();
+    this.publishCameraState('camera', 'system');
   }
 
   private calculateContentBounds(
@@ -839,6 +889,191 @@ export class ComposableHierarchicalCanvasEngine {
     this.applyingExternalState = false;
   }
 
+  private syncRuntimeFromCurrentData(source: CanvasEventSource = 'system'): void {
+    const snapshot = this.getData();
+    this.layoutRuntime.setCanvasData(snapshot, false, source);
+  }
+
+  private emitCanvasEvent(event: CanvasEvent): void {
+    if (this.suppressCanvasEvents) {
+      return;
+    }
+
+    this.suppressCanvasEvents = true;
+    try {
+      this.canvasEventBus.emit({
+        ...event,
+        timestamp: event.timestamp ?? Date.now()
+      });
+    } finally {
+      this.suppressCanvasEvents = false;
+    }
+  }
+
+  private withEventSuppressed<T>(callback: () => T): T {
+    const previous = this.suppressCanvasEvents;
+    this.suppressCanvasEvents = true;
+    try {
+      return callback();
+    } finally {
+      this.suppressCanvasEvents = previous;
+    }
+  }
+
+  private handleCanvasEvent(event: CanvasEvent): void {
+    if (this.suppressCanvasEvents) {
+      return;
+    }
+
+    switch (event.type) {
+      case 'CollapseNode':
+        this.withEventSuppressed(() => this.setNodeCollapsed(event.nodeId, true, event.source));
+        break;
+      case 'ExpandNode':
+        this.withEventSuppressed(() => this.setNodeCollapsed(event.nodeId, false, event.source));
+        break;
+      case 'NodeMoved':
+        this.withEventSuppressed(() => this.applyExternalNodeMove(event.nodeId, event.x, event.y, event.source));
+        break;
+      case 'ResizeNode':
+        this.withEventSuppressed(() =>
+          this.applyExternalNodeResize(event.nodeId, event.width, event.height, event.source)
+        );
+        break;
+      case 'CameraChanged':
+        if (event.canvasId === this.canvasId) {
+          this.withEventSuppressed(() => this.setCamera(event.camera, event.source));
+        }
+        break;
+      case 'LayoutRequested':
+        if (event.canvasId === this.canvasId) {
+          this.withEventSuppressed(() =>
+            this.runLayout({
+              engineName: event.engineName,
+              reason: 'user-command',
+              engineOptions: event.payload,
+              source: event.source
+            })
+          );
+        }
+        break;
+      case 'EngineSwitched':
+        if (event.canvasId === this.canvasId) {
+          this.currentEngineName = event.engineName;
+          this.withEventSuppressed(() =>
+            this.runLayout({
+              reason: 'engine-switch',
+              engineName: event.engineName,
+              source: event.source
+            })
+          );
+        }
+        break;
+      case 'LayoutApplied':
+        if (event.canvasId === this.canvasId) {
+          this.currentEngineName = event.engineName;
+        }
+        break;
+      case 'HistoryReplay':
+        if (event.canvasId === this.canvasId) {
+          // Future: implement batched history replay processing.
+        }
+        break;
+    }
+  }
+
+  private applyExternalNodeMove(
+    nodeGuid: string,
+    absoluteX: number,
+    absoluteY: number,
+    source: CanvasEventSource
+  ): void {
+    const node = this.findNodeByGUID(nodeGuid);
+    if (!node) {
+      return;
+    }
+
+    const parentPos = this.getParentAbsolutePosition(node);
+    node.x = absoluteX - parentPos.x;
+    node.y = absoluteY - parentPos.y;
+    this.selectedNodeWorldPos = this.selectedNode === node ? this.getAbsolutePosition(node) : this.selectedNodeWorldPos;
+
+    this.render();
+    this.notifyDataChanged();
+    this.syncRuntimeFromCurrentData(source);
+  }
+
+  private applyExternalNodeResize(
+    nodeGuid: string,
+    width: number,
+    height: number,
+    source: CanvasEventSource
+  ): void {
+    const node = this.findNodeByGUID(nodeGuid);
+    if (!node) {
+      return;
+    }
+
+    node.width = Math.max(0, width);
+    node.height = Math.max(0, height);
+    this.selectedNodeWorldPos = this.selectedNode === node ? this.getAbsolutePosition(node) : this.selectedNodeWorldPos;
+
+    this.render();
+    this.notifyDataChanged();
+    this.syncRuntimeFromCurrentData(source);
+  }
+
+  private emitNodeCollapseEvent(nodeGuid: string, collapsed: boolean, source: CanvasEventSource): void {
+    if (!nodeGuid) {
+      return;
+    }
+    this.emitCanvasEvent({
+      type: collapsed ? 'CollapseNode' : 'ExpandNode',
+      nodeId: nodeGuid,
+      source,
+      timestamp: Date.now()
+    });
+  }
+
+  private emitNodeMovementEvent(node: HierarchicalNode, source: CanvasEventSource): void {
+    if (!node?.GUID) {
+      return;
+    }
+    const absolute = this.getAbsolutePosition(node);
+    this.emitCanvasEvent({
+      type: 'NodeMoved',
+      nodeId: node.GUID,
+      x: absolute.x,
+      y: absolute.y,
+      source,
+      timestamp: Date.now()
+    });
+  }
+
+  private emitNodeResizeEvent(node: HierarchicalNode, source: CanvasEventSource): void {
+    if (!node?.GUID) {
+      return;
+    }
+    this.emitCanvasEvent({
+      type: 'ResizeNode',
+      nodeId: node.GUID,
+      width: node.width,
+      height: node.height,
+      source,
+      timestamp: Date.now()
+    });
+  }
+
+  private emitCameraChangedEvent(source: CanvasEventSource): void {
+    this.emitCanvasEvent({
+      type: 'CameraChanged',
+      canvasId: this.canvasId,
+      camera: this.cameraSystem.getCamera(),
+      source,
+      timestamp: Date.now()
+    });
+  }
+
   private publishState(type: CanvasMutationType, nodeGuid?: string, payload?: Record<string, unknown>): void {
     if (!this.canvasViewStateService || this.applyingExternalState) {
       return;
@@ -852,7 +1087,10 @@ export class ComposableHierarchicalCanvasEngine {
     });
   }
 
-  private publishCameraState(source: CanvasMutationType | 'camera' = 'camera'): void {
+  private publishCameraState(
+    source: CanvasMutationType | 'camera' = 'camera',
+    eventSource: CanvasEventSource = 'system'
+  ): void {
     if (!this.canvasViewStateService) {
       return;
     }
@@ -860,6 +1098,7 @@ export class ComposableHierarchicalCanvasEngine {
     this.data.camera = camera;
     this.suppressStateSync = true;
     this.canvasViewStateService.updateCamera(this.canvasId, camera, 'engine');
+    this.emitCameraChangedEvent(eventSource);
   }
 
   // Drag operations - FIXED COORDINATE SYSTEM BUG
@@ -918,13 +1157,18 @@ export class ComposableHierarchicalCanvasEngine {
   }
 
   stopDrag(): void {
+    const node = this.selectedNode;
     if (this.selectedNode) {
       this.selectedNode.dragging = false;
     }
     this.isDragging = false;
-    const nodeGuid = this.selectedNode?.GUID;
+    const nodeGuid = node?.GUID;
     this.publishState('position', nodeGuid);
     this.notifyDataChanged();
+    if (node) {
+      this.emitNodeMovementEvent(node, 'user');
+    }
+    this.syncRuntimeFromCurrentData('user');
   }
 
   // Node manipulation operations
@@ -934,6 +1178,8 @@ export class ComposableHierarchicalCanvasEngine {
     this.render();
     this.notifyDataChanged();
     this.publishState('position', node.GUID);
+    this.emitNodeMovementEvent(node, 'system');
+    this.syncRuntimeFromCurrentData('system');
   }
 
   resizeNode(node: HierarchicalNode, newWidth: number, newHeight: number): void {
@@ -942,6 +1188,8 @@ export class ComposableHierarchicalCanvasEngine {
     this.render();
     this.notifyDataChanged();
     this.publishState('resize', node.GUID);
+    this.emitNodeResizeEvent(node, 'system');
+    this.syncRuntimeFromCurrentData('system');
   }
 
   // Utility methods
@@ -1238,7 +1486,9 @@ export class ComposableHierarchicalCanvasEngine {
     this.notifyDataChanged();
     if (node.GUID) {
       this.publishState('resize', node.GUID);
+      this.emitNodeResizeEvent(node, 'user');
     }
+    this.syncRuntimeFromCurrentData('user');
   }
 
   // COPIED EXACT CONSTRAINT METHODS FROM WORKING MONOLITHIC SYSTEM
@@ -1554,6 +1804,10 @@ export class ComposableHierarchicalCanvasEngine {
     }
   }
 
+  private inferEngineFromData(data: CanvasData): string {
+    return data.nodes.some(node => node.metadata?.['displayMode'] === 'tree') ? 'tree' : 'containment-grid';
+  }
+
   private resolveEdgeNode(
     identifier: string | undefined,
     nodesByGuid: Map<string, HierarchicalNode>,
@@ -1590,6 +1844,10 @@ export class ComposableHierarchicalCanvasEngine {
 
   destroy(): void {
     this.canvasStateSubscription?.unsubscribe();
+    this.canvasEventSubscription?.unsubscribe();
+    if (this.eventHub) {
+      this.eventHub.unregisterCanvas(this.canvasId);
+    }
   }
 
 }

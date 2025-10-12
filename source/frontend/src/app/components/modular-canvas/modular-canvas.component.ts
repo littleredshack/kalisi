@@ -1,7 +1,7 @@
 import { Component, ElementRef, ViewChild, AfterViewInit, OnInit, OnDestroy, ChangeDetectorRef, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Subscription } from 'rxjs';
 import { Neo4jDataService } from '../../core/services/neo4j-data.service';
 import { ViewNodeStateService } from '../../core/services/view-node-state.service';
 import { DynamicLayoutService } from '../../core/services/dynamic-layout.service';
@@ -66,6 +66,10 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
 
   // Level selector state
   availableLevels: number[] = [];
+  private historySubscription?: Subscription;
+  private restoringHistory = false;
+  private canUndoState = false;
+  private canRedoState = false;
   
   constructor(
     private cdr: ChangeDetectorRef,
@@ -99,6 +103,8 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     // No automatic saving - layout persistence handled by explicit Save button
     // Unregister from control service
     this.canvasControlService.unregisterCanvas();
+    this.historySubscription?.unsubscribe();
+    this.canvasHistoryService.unregisterCanvas(this.canvasId);
     this.engine?.destroy();
   }
 
@@ -436,6 +442,10 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     }
 
     const canvas = this.canvasRef.nativeElement;
+
+    this.engine?.destroy();
+    this.historySubscription?.unsubscribe();
+    this.canvasHistoryService.unregisterCanvas(this.canvasId);
     
     // Set initial canvas size
     this.resizeCanvas();
@@ -488,11 +498,27 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       this.canvasViewStateService.initialize(this.canvasId, this.data!, 'engine');
     }
 
-    this.engine = new ComposableHierarchicalCanvasEngine(canvas, renderer, layoutEngine, this.data!, this.canvasId);
+    this.engine = new ComposableHierarchicalCanvasEngine(
+      canvas,
+      renderer,
+      layoutEngine,
+      this.data!,
+      this.canvasId,
+      this.canvasEventHubService
+    );
 
     // Inject services for dynamic layout behavior
     this.engine.setServices(this.viewNodeState, this.dynamicLayoutService);
     this.engine.setCanvasViewStateService(this.canvasViewStateService);
+    this.canvasHistoryService.registerCanvas(this.canvasId, this.engine.getData());
+    this.historySubscription = this.canvasHistoryService
+      .state$(this.canvasId)
+      .subscribe(state => {
+        this.canUndoState = state.canUndo;
+        this.canRedoState = state.canRedo;
+        this.canvasControlService.notifyStateChange();
+      });
+    this.refreshHistoryState();
 
     const defaultCollapseLevel = this.selectedViewNode?.defaultCollapseLevel;
     const hasSavedLayout = !!this.selectedViewNode?.layout;
@@ -515,9 +541,16 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     // Setup callbacks for camera updates and notify parent
     this.engine.setOnDataChanged((data) => {
       this.updateCameraInfo();
+      this.updateAvailableLevels();
       // Notify parent component that engine data changed
       this.notifyDataChanged();
+      if (!this.restoringHistory) {
+        this.canvasHistoryService.record(this.canvasId, data);
+      }
+      this.canvasControlService.notifyStateChange();
     });
+
+    this.canvasControlService.notifyStateChange();
     
     // Watch for canvas container size changes
     const resizeObserver = new ResizeObserver(() => {
@@ -570,7 +603,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       this.loadData();
       
       // Reset camera to origin
-      this.engine.setCamera({ x: 0, y: 0, zoom: 1.0 });
+      this.engine.setCamera({ x: 0, y: 0, zoom: 1.0 }, 'system');
       
       this.updateCameraInfo();
     }
@@ -1046,8 +1079,74 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     return this.availableLevels;
   }
 
+  getCanvasId(): string {
+    return this.canvasId;
+  }
+
+  getAvailableLayoutEngines(): string[] {
+    return this.engine?.getAvailableLayoutEngines() ?? [];
+  }
+
+  getActiveLayoutEngine(): string | null {
+    return this.engine?.getActiveLayoutEngine() ?? null;
+  }
+
+  switchLayoutEngine(engineName: string): void {
+    if (!this.engine) {
+      return;
+    }
+    this.engine.switchLayoutEngine(engineName, 'user');
+    this.canvasControlService.notifyStateChange();
+  }
+
+  undo(): void {
+    if (!this.engine) {
+      return;
+    }
+    const snapshot = this.canvasHistoryService.undo(this.canvasId);
+    if (snapshot) {
+      this.restoringHistory = true;
+      try {
+        this.engine.setData(snapshot, 'history');
+      } finally {
+        this.restoringHistory = false;
+      }
+    }
+    this.refreshHistoryState();
+  }
+
+  redo(): void {
+    if (!this.engine) {
+      return;
+    }
+    const snapshot = this.canvasHistoryService.redo(this.canvasId);
+    if (snapshot) {
+      this.restoringHistory = true;
+      try {
+        this.engine.setData(snapshot, 'history');
+      } finally {
+        this.restoringHistory = false;
+      }
+    }
+    this.refreshHistoryState();
+  }
+
+  canUndo(): boolean {
+    return this.canUndoState;
+  }
+
+  canRedo(): boolean {
+    return this.canRedoState;
+  }
+
   getCameraInfo(): CameraInfo {
     return this.cameraInfo;
+  }
+
+  private refreshHistoryState(): void {
+    this.canUndoState = this.canvasHistoryService.canUndo(this.canvasId);
+    this.canRedoState = this.canvasHistoryService.canRedo(this.canvasId);
+    this.canvasControlService.notifyStateChange();
   }
 
   // FR-030: ViewNode is now set via ViewNodeStateService subscription

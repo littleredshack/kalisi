@@ -31,7 +31,7 @@ export class CameraSystemAdapter implements ICameraController {
   }
 
   reset(): void {
-    this.engine.setCamera({ x: 0, y: 0, zoom: 1.0 });
+    this.engine.setCamera({ x: 0, y: 0, zoom: 1.0 }, 'system');
   }
 
   getDisplayInfo(): string {
