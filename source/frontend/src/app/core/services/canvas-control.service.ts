@@ -115,8 +115,25 @@ export class CanvasControlService {
     if (!this.activeCanvas) {
       return;
     }
-    this.activeCanvas.switchLayoutEngine(engineName);
-    this.updateState();
+    const option = this.resolveEngineOption(engineName);
+    if (option) {
+      this.activeLayoutEngineSubject.next(option);
+    }
+
+    const canvasId = this.getActiveCanvasId();
+    if (canvasId) {
+      this.canvasEventHubService.emitEvent(canvasId, {
+        type: 'EngineSwitched',
+        engineName,
+        previousEngineName: this.activeCanvas.getActiveLayoutEngine() ?? undefined,
+        canvasId,
+        source: 'user',
+        timestamp: Date.now()
+      });
+    } else {
+      this.activeCanvas.switchLayoutEngine(engineName);
+      this.updateState();
+    }
   }
 
   undo(): void {

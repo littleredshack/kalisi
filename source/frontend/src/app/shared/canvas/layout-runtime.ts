@@ -81,9 +81,14 @@ export class CanvasLayoutRuntime {
   }
 
   runLayout(options: LayoutRunOptions = {}): CanvasData {
+    const normalisedEngine = options.engineName ? this.normaliseEngineName(options.engineName) : undefined;
+    if (normalisedEngine) {
+      this.orchestrator.setActiveEngine(this.canvasId, normalisedEngine, options.source ?? 'system');
+    }
+
     const result = this.orchestrator.runLayout(this.canvasId, this.layoutGraph, {
       ...options,
-      engineName: options.engineName ? this.normaliseEngineName(options.engineName) : undefined
+      engineName: normalisedEngine
     });
     this.layoutGraph = result.graph;
     this.canvasData = layoutResultToCanvasData(result, this.canvasData);
