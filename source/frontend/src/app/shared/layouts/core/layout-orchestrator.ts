@@ -34,6 +34,10 @@ export class LayoutOrchestrator {
     return Array.from(this.engines.keys());
   }
 
+  getEngine(engineName: string): LayoutEngine | undefined {
+    return this.engines.get(engineName);
+  }
+
   getEventBus(canvasId: string): CanvasEventBus {
     return this.ensureContext(canvasId).eventBus;
   }

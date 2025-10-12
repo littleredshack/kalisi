@@ -2,12 +2,13 @@ import { CanvasData } from './types';
 import { LayoutOrchestrator, LayoutRunOptions } from '../layouts/core/layout-orchestrator';
 import { registerDefaultLayoutEngines } from '../layouts/engine-registry';
 import { canvasDataToLayoutGraph } from '../layouts/core/layout-graph-utils';
-import { LayoutGraph } from '../layouts/core/layout-contract';
+import { LayoutGraph, RawDataInput } from '../layouts/core/layout-contract';
 import { GraphStore } from '../graph/graph-store';
 import { PresentationFrame, buildPresentationFrame } from '../render/presentation-frame';
 import { CanvasEventBus, CanvasEventSource } from '../layouts/core/layout-events';
 import { LayoutWorkerBridge } from '../layouts/async/layout-worker-bridge';
 import { ensureRelativeNodeCoordinates } from './utils/relative-coordinates';
+import { processRawDataToGraph, validateRawData } from '../layouts/utils/raw-data-processor';
 
 export interface CanvasLayoutRuntimeConfig {
   readonly defaultEngine?: string;
@@ -117,6 +118,75 @@ export class CanvasLayoutRuntime {
 
     if (runLayout) {
       this.runLayout({ reason: 'data-update', source });
+    }
+  }
+
+  /**
+   * Set data from raw entities and relationships
+   * Uses the current engine's processRawData() if available,
+   * otherwise falls back to default transformation
+   */
+  setRawData(input: RawDataInput, runLayout = true, source: CanvasEventSource = 'system'): void {
+    // Validate input
+    const validation = validateRawData(input);
+    if (!validation.valid) {
+      console.error('[LayoutRuntime] Invalid raw data:', validation.errors);
+      throw new Error(`Invalid raw data: ${validation.errors.join(', ')}`);
+    }
+
+    console.debug('[LayoutRuntime] Processing raw data:', {
+      entities: input.entities.length,
+      relationships: input.relationships.length,
+      canvasId: this.canvasId
+    });
+
+    // Check if current engine supports raw data processing
+    const engineName = this.orchestrator.getActiveEngineName(this.canvasId);
+    const engine = engineName ? this.orchestrator.getEngine(engineName) : null;
+
+    let graph: LayoutGraph;
+
+    if (engine && engine.processRawData) {
+      // Use engine's custom processing
+      console.debug('[LayoutRuntime] Using engine processRawData:', engineName);
+      graph = engine.processRawData(input);
+    } else {
+      // Use default transformation
+      console.debug('[LayoutRuntime] Using default processRawDataToGraph');
+      graph = processRawDataToGraph(input);
+    }
+
+    // Update store with processed graph
+    this.store.replace({
+      ...graph,
+      metadata: {
+        ...graph.metadata,
+        layoutVersion: this.store.current.version + 1
+      }
+    });
+
+    // Build initial presentation frame
+    this.frame = {
+      version: this.store.current.version,
+      camera: undefined,
+      canvasData: this.cloneCanvasData(this.canvasData),
+      lastResult: {
+        graph: this.store.current.graph,
+        camera: undefined,
+        diagnostics: undefined
+      },
+      delta: {
+        nodes: [],
+        edges: []
+      },
+      lensId: this.lensId
+    };
+
+    console.debug('[LayoutRuntime] Raw data processed, graph nodes:', Object.keys(this.store.current.graph.nodes).length);
+
+    // Run layout to position nodes
+    if (runLayout) {
+      this.runLayout({ reason: 'initial', source });
     }
   }
 
