@@ -1,6 +1,7 @@
-import { LayoutEngine, LayoutGraph, LayoutOptions, LayoutResult } from '../core/layout-contract';
+import { LayoutEngine, LayoutGraph, LayoutOptions, LayoutResult, RawDataInput } from '../core/layout-contract';
 import { layoutGraphToHierarchical, hierarchicalToLayoutGraph } from '../core/layout-graph-utils';
 import { HierarchicalNode, Camera } from '../../canvas/types';
+import { processRawDataToGraph } from '../utils/raw-data-processor';
 
 const NODE_WIDTH = 220;
 const NODE_HEIGHT = 64;
@@ -44,6 +45,37 @@ export class TreeLayoutEngine implements LayoutEngine {
     return {
       graph: updatedGraph,
       camera
+    };
+  }
+
+  /**
+   * Process raw entities and relationships into a LayoutGraph
+   * Implements the optional processRawData interface for direct data loading
+   */
+  processRawData(input: RawDataInput, _options?: LayoutOptions): LayoutGraph {
+    console.debug('[TreeLayoutEngine] Processing raw data:', {
+      entities: input.entities.length,
+      relationships: input.relationships.length
+    });
+
+    // Use default transformation utility
+    const graph = processRawDataToGraph(input);
+
+    // Add tree specific metadata
+    const enhancedNodes: Record<string, typeof graph.nodes[string]> = {};
+    Object.entries(graph.nodes).forEach(([nodeId, node]) => {
+      enhancedNodes[nodeId] = {
+        ...node,
+        metadata: {
+          ...node.metadata,
+          displayMode: 'tree'
+        }
+      };
+    });
+
+    return {
+      ...graph,
+      nodes: enhancedNodes
     };
   }
 
