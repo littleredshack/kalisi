@@ -1109,6 +1109,7 @@ export class ComposableHierarchicalCanvasEngine {
     node.x = absoluteX - parentPos.x;
     node.y = absoluteY - parentPos.y;
     this.selectedNodeWorldPos = this.selectedNode === node ? this.getAbsolutePosition(node) : this.selectedNodeWorldPos;
+    this.updateWorldMetadata(node);
 
     this.render();
     this.notifyDataChanged();
@@ -1129,6 +1130,7 @@ export class ComposableHierarchicalCanvasEngine {
     node.width = Math.max(0, width);
     node.height = Math.max(0, height);
     this.selectedNodeWorldPos = this.selectedNode === node ? this.getAbsolutePosition(node) : this.selectedNodeWorldPos;
+    this.updateWorldMetadata(node);
 
     this.render();
     this.notifyDataChanged();
@@ -1275,6 +1277,9 @@ export class ComposableHierarchicalCanvasEngine {
     }
     this.isDragging = false;
     const nodeGuid = node?.GUID;
+    if (node) {
+      this.updateWorldMetadata(node);
+    }
     this.publishState('position', nodeGuid);
     this.notifyDataChanged();
     if (node) {
@@ -1287,6 +1292,7 @@ export class ComposableHierarchicalCanvasEngine {
   moveNode(node: HierarchicalNode, newX: number, newY: number): void {
     node.x = newX;
     node.y = newY;
+    this.updateWorldMetadata(node);
     this.render();
     this.notifyDataChanged();
     this.publishState('position', node.GUID);
@@ -1297,6 +1303,7 @@ export class ComposableHierarchicalCanvasEngine {
   resizeNode(node: HierarchicalNode, newWidth: number, newHeight: number): void {
     node.width = newWidth;
     node.height = newHeight;
+    this.updateWorldMetadata(node);
     this.render();
     this.notifyDataChanged();
     this.publishState('resize', node.GUID);
@@ -2095,6 +2102,19 @@ export class ComposableHierarchicalCanvasEngine {
       }
     }
     return null;
+  }
+
+  private updateWorldMetadata(node: HierarchicalNode, parentWorld?: Point): void {
+    const parent = parentWorld ?? this.getParentAbsolutePosition(node);
+    const worldX = parent.x + node.x;
+    const worldY = parent.y + node.y;
+    if (!node.metadata) {
+      node.metadata = {};
+    }
+    const metadata = node.metadata as Record<string, any>;
+    metadata['worldPosition'] = { x: worldX, y: worldY };
+    metadata['__relative'] = true;
+    node.children?.forEach(child => this.updateWorldMetadata(child, { x: worldX, y: worldY }));
   }
 
   private trimEdgesToVisible(data: CanvasData): void {
