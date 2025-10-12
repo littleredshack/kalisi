@@ -65,10 +65,11 @@ export class ComposableHierarchicalCanvasEngine {
     };
     this.normaliseCanvasData(this.data);
 
-    const initialEngineName =
+    const legacyEngineName =
       typeof initialLayoutEngine?.getName === 'function'
         ? initialLayoutEngine.getName()
-        : this.inferEngineFromData(initialData);
+        : undefined;
+    const initialEngineName = this.normaliseEngineName(legacyEngineName, initialData);
 
     this.layoutRuntime = new CanvasLayoutRuntime(canvasId, this.data, {
       defaultEngine: initialEngineName,
@@ -147,25 +148,29 @@ export class ComposableHierarchicalCanvasEngine {
       return null;
     }
 
+    const targetEngine = this.normaliseEngineName(engineName, this.data);
+
     this.suppressCanvasEvents = true;
     try {
-      this.layoutRuntime.setActiveEngine(engineName, source);
+      this.layoutRuntime.setActiveEngine(targetEngine, source);
     } finally {
       this.suppressCanvasEvents = false;
     }
 
-    this.currentEngineName = this.layoutRuntime.getActiveEngineName() ?? engineName;
-    return this.runLayout({ reason: 'engine-switch', engineName, source });
+    this.currentEngineName = this.layoutRuntime.getActiveEngineName() ?? targetEngine;
+    return this.runLayout({ reason: 'engine-switch', engineName: targetEngine, source });
   }
 
   runLayout(options: LayoutRunOptions = {}): CanvasData {
     const source = options.source ?? 'system';
     this.syncRuntimeFromCurrentData(source);
-
+    const targetEngine = options.engineName
+      ? this.normaliseEngineName(options.engineName, this.data)
+      : undefined;
     this.suppressCanvasEvents = true;
     let result: CanvasData;
     try {
-      result = this.layoutRuntime.runLayout({ ...options, source });
+      result = this.layoutRuntime.runLayout({ ...options, engineName: targetEngine, source });
     } finally {
       this.suppressCanvasEvents = false;
     }
@@ -1806,6 +1811,34 @@ export class ComposableHierarchicalCanvasEngine {
 
   private inferEngineFromData(data: CanvasData): string {
     return data.nodes.some(node => node.metadata?.['displayMode'] === 'tree') ? 'tree' : 'containment-grid';
+  }
+
+  private normaliseEngineName(legacyName: string | undefined, data: CanvasData): string {
+    if (!legacyName) {
+      return this.inferEngineFromData(data);
+    }
+
+    switch (legacyName) {
+      case 'tree':
+      case 'code-model-tree':
+      case 'tree-table':
+        return 'tree';
+      case 'orthogonal':
+      case 'containment-orthogonal':
+        return 'orthogonal';
+      case 'flat-graph':
+      case 'force-directed':
+      case 'force':
+        return 'force';
+      case 'containment-grid':
+      case 'hierarchical':
+      case 'grid':
+      case 'codebase-hierarchical':
+      case 'containment':
+        return 'containment-grid';
+      default:
+        return this.inferEngineFromData(data);
+    }
   }
 
   private resolveEdgeNode(
