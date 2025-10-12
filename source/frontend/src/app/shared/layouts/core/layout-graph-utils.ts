@@ -48,28 +48,6 @@ function createNodeFromLayout(layoutNode: LayoutNode): HierarchicalNode {
   };
 }
 
-function convertToRelativeCoordinates(nodes: HierarchicalNode[], parentWorldX: number, parentWorldY: number): void {
-  nodes.forEach(node => {
-    const worldX = node.x;
-    const worldY = node.y;
-
-    node.metadata = {
-      ...(node.metadata ?? {}),
-      worldPosition: {
-        x: worldX,
-        y: worldY
-      }
-    };
-
-    node.x = worldX - parentWorldX;
-    node.y = worldY - parentWorldY;
-
-    if (node.children && node.children.length > 0) {
-      convertToRelativeCoordinates(node.children, worldX, worldY);
-    }
-  });
-}
-
 export function layoutGraphToHierarchical(graph: LayoutGraph): HierarchicalGraphSnapshot {
   const nodeMap = new Map<string, HierarchicalNode>();
 
@@ -104,8 +82,6 @@ export function layoutGraphToHierarchical(graph: LayoutGraph): HierarchicalGraph
     metadata: { ...edge.metadata }
   }));
 
-  convertToRelativeCoordinates(roots, 0, 0);
-
   return {
     nodes: roots,
     edges,
@@ -125,7 +101,7 @@ export function hierarchicalToLayoutGraph(snapshot: HierarchicalGraphSnapshot): 
     return acc;
   }, {});
 
-  const visit = (node: HierarchicalNode, parentWorldX: number, parentWorldY: number): void => {
+  const visit = (node: HierarchicalNode): void => {
     const nodeId = node.GUID ?? node.id;
     if (!nodeId) return;
 
@@ -133,21 +109,13 @@ export function hierarchicalToLayoutGraph(snapshot: HierarchicalGraphSnapshot): 
       .map(child => child.GUID ?? child.id)
       .filter((value): value is string => Boolean(value));
 
-    const worldX = parentWorldX + node.x;
-    const worldY = parentWorldY + node.y;
-
-    const metadata = { ...(node.metadata ?? {}) };
-    if ('worldPosition' in metadata) {
-      delete (metadata as Record<string, unknown>)['worldPosition'];
-    }
-
     nodesRecord[nodeId] = {
       id: nodeId,
       label: node.text ?? node.id,
       type: node.type,
       geometry: {
-        x: worldX,
-        y: worldY,
+        x: node.x,
+        y: node.y,
         width: node.width,
         height: node.height
       },
@@ -157,17 +125,17 @@ export function hierarchicalToLayoutGraph(snapshot: HierarchicalGraphSnapshot): 
         selected: node.selected ?? false
       },
       metadata: {
-        ...metadata,
+        ...(node.metadata ?? {}),
         style: node.style
       },
       children: childrenIds,
       edges: []
     };
 
-    node.children.forEach(child => visit(child, worldX, worldY));
+    node.children.forEach(child => visit(child));
   };
 
-  snapshot.nodes.forEach(node => visit(node, 0, 0));
+  snapshot.nodes.forEach(node => visit(node));
 
   Object.values(edgesRecord).forEach(edge => {
     const fromNode = nodesRecord[edge.from];
