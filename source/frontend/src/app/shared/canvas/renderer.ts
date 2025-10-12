@@ -1,9 +1,10 @@
 import { HierarchicalNode, Edge, Camera, Point, Bounds, NodeEvent } from './types';
+import { PresentationFrame } from '../render/presentation-frame';
 
 // Base interface for all renderers
 export interface IRenderer {
   // Core rendering
-  render(ctx: CanvasRenderingContext2D, nodes: HierarchicalNode[], edges: Edge[], camera: Camera): void;
+  render(ctx: CanvasRenderingContext2D, nodes: HierarchicalNode[], edges: Edge[], camera: Camera, frame?: PresentationFrame): void;
   
   // Hit testing
   hitTest(worldX: number, worldY: number, nodes: HierarchicalNode[]): NodeEvent | null;

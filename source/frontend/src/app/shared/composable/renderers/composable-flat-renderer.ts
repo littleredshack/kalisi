@@ -1,5 +1,6 @@
 import { BaseRenderer } from '../../canvas/renderer';
 import { HierarchicalNode, Edge, Camera, Point, Bounds, NodeEvent } from '../../canvas/types';
+import { PresentationFrame } from '../../render/presentation-frame';
 import { FlatNodePrimitive } from '../primitives/flat-node-primitive';
 import { FlatEdgePrimitive } from '../primitives/flat-edge-primitive';
 import { OrthogonalRoutingService } from '../../../core/services/orthogonal-routing.service';
@@ -36,7 +37,7 @@ export class ComposableFlatRenderer extends BaseRenderer {
   /**
    * Main render method - orchestrates primitives in exact same order as FlatGraphRenderingStrategy
    */
-  render(ctx: CanvasRenderingContext2D, nodes: HierarchicalNode[], edges: Edge[], camera: Camera): void {
+  render(ctx: CanvasRenderingContext2D, nodes: HierarchicalNode[], edges: Edge[], camera: Camera, frame?: PresentationFrame): void {
     // Step 1: Calculate waypoints for all edges (EXACT same as original)
     // This recalculates on every render for node movement
     this.calculateWaypointsForEdges(edges, nodes);

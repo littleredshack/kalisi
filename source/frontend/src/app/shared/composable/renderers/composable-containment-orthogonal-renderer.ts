@@ -1,5 +1,6 @@
 import { BaseRenderer } from '../../canvas/renderer';
 import { HierarchicalNode, Edge, Camera, Point, Bounds, NodeEvent } from '../../canvas/types';
+import { PresentationFrame } from '../../render/presentation-frame';
 import { HierarchicalNodePrimitive } from '../primitives/hierarchical-node-primitive';
 import { FlatEdgePrimitive } from '../primitives/flat-edge-primitive';
 import { OrthogonalRoutingService } from '../../../core/services/orthogonal-routing.service';
@@ -53,7 +54,7 @@ export class ComposableContainmentOrthogonalRenderer extends BaseRenderer {
   /**
    * Main render method - combines hierarchical nodes with orthogonal edges
    */
-  render(ctx: CanvasRenderingContext2D, nodes: HierarchicalNode[], edges: Edge[], camera: Camera): void {
+  render(ctx: CanvasRenderingContext2D, nodes: HierarchicalNode[], edges: Edge[], camera: Camera, frame?: PresentationFrame): void {
     // Calculate orthogonal waypoints for ALL edges (including inherited) BEFORE rendering
     // The engine already puts inherited edges in the edges array when nodes are collapsed
     this.calculateWaypointsForEdges(edges, nodes);

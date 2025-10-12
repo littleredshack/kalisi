@@ -1,5 +1,6 @@
 import { BaseRenderer } from '../../canvas/renderer';
 import { HierarchicalNode, Edge, Camera, Bounds } from '../../canvas/types';
+import { PresentationFrame } from '../../render/presentation-frame';
 import { TreeTableColumn } from '../../tree-table/tree-table.types';
 
 export class ComposableTreeTableRenderer extends BaseRenderer {
@@ -17,7 +18,7 @@ export class ComposableTreeTableRenderer extends BaseRenderer {
     };
   }
 
-  override render(ctx: CanvasRenderingContext2D, nodes: HierarchicalNode[], _edges: Edge[], camera: Camera): void {
+  override render(ctx: CanvasRenderingContext2D, nodes: HierarchicalNode[], _edges: Edge[], camera: Camera, frame?: PresentationFrame): void {
     ctx.save();
     ctx.font = `${14 * camera.zoom}px "Inter", "Roboto", sans-serif`;
     ctx.textBaseline = 'middle';
