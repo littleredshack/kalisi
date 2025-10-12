@@ -1013,6 +1013,11 @@ export class ComposableHierarchicalCanvasEngine {
           this.setGraphLens(event.lensId);
         }
         break;
+      case 'CollapseToLevel':
+        if (event.canvasId === this.canvasId) {
+          this.withEventSuppressed(() => this.collapseToLevel(event.level));
+        }
+        break;
     }
   }
 

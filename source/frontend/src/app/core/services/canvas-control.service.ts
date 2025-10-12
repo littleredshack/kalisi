@@ -123,9 +123,20 @@ export class CanvasControlService {
     if (!this.activeCanvas) {
       return;
     }
-    const mockEvent = { target: { value: level.toString() } } as any as Event;
-    this.activeCanvas.onLevelSelect(mockEvent);
-    this.updateState();
+    const canvasId = this.getActiveCanvasId();
+    if (canvasId) {
+      this.canvasEventHubService.emitEvent(canvasId, {
+        type: 'CollapseToLevel',
+        canvasId,
+        level,
+        source: 'user',
+        timestamp: Date.now()
+      });
+    } else {
+      const mockEvent = { target: { value: level.toString() } } as any as Event;
+      this.activeCanvas.onLevelSelect(mockEvent);
+      this.updateState();
+    }
   }
 
   changeLayoutEngine(engineName: string): void {

@@ -81,6 +81,13 @@ export type CanvasEvent =
       readonly lensId: string;
       readonly source: CanvasEventSource;
       readonly timestamp: number;
+    }
+  | {
+      readonly type: 'CollapseToLevel';
+      readonly canvasId: string;
+      readonly level: number;
+      readonly source: CanvasEventSource;
+      readonly timestamp: number;
     };
 
 export class CanvasEventBus {
