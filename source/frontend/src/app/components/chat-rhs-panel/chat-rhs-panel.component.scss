@@ -1,34 +1,32 @@
-// Match exact styling of Library and Properties panels with resizing capability
 .chat-rhs-panel {
   position: fixed;
-  right: -340px; // Hidden by default
+  right: -340px;
   top: 0;
   bottom: 0;
-  width: 340px; // Default width, will be overridden by resizing
-  min-width: 280px; // Minimum width
-  max-width: 600px; // Maximum width
-  background: var(--app-background); // Use theme variable
-  border-left: 1px solid rgba(110, 168, 254, 0.2); // Match exact border
+  width: 340px;
+  min-width: 280px;
+  max-width: 600px;
+  background: var(--app-background);
+  border-left: 1px solid rgba(110, 168, 254, 0.2);
   backdrop-filter: blur(10px);
-  transform: translateX(100%); // Match transform pattern (opposite direction)
-  transition: transform 600ms ease, right 400ms cubic-bezier(0.23, 1, 0.32, 1); // Match exact timing
-  z-index: 90; // Match z-index of other panels
+  transform: translateX(100%);
+  transition: transform 600ms ease, right 400ms cubic-bezier(0.23, 1, 0.32, 1);
+  z-index: 90;
   display: flex;
   flex-direction: column;
-  overflow: hidden; // Prevent content overflow during resize
+  overflow: hidden;
 
   &.visible {
-    transform: translateX(0); // Match transform pattern
+    transform: translateX(0);
     right: 0;
   }
 
   &.resizing {
-    user-select: none; // Prevent text selection during resize
-    pointer-events: auto; // Ensure drag works
+    user-select: none;
+    pointer-events: auto;
   }
 }
 
-// Resize Handle
 .resize-handle {
   position: absolute;
   left: -5px;
@@ -40,10 +38,8 @@
   z-index: 100;
   
   &:hover {
-    background: rgba(110, 168, 254, 0.2); // Highlight on hover
+    background: rgba(110, 168, 254, 0.2);
   }
-  
-  // Add a visual indicator line
   &::after {
     content: '';
     position: absolute;
@@ -70,13 +66,12 @@
   width: 100vw;
   height: 100vh;
   background: rgba(0, 0, 0, 0.2);
-  z-index: 89; // Behind the panel (which is z-index 90)
+  z-index: 89;
 }
 
-// Header - Match exact panel-header styling
 .chat-header {
-  padding: 16px 20px; // Match exact padding
-  border-bottom: 1px solid rgba(110, 168, 254, 0.2); // Match exact border
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(110, 168, 254, 0.2);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -87,15 +82,15 @@
     gap: 8px;
     
     h3.title-text {
-      margin: 0; // Match panel h3 margin
-      font-family: var(--font-heading); // Match panel h3 styling
-      color: #6ea8fe; // Match exact color
-      font-size: 1.1rem; // Match exact size
-      font-weight: normal; // Match panel h3 weight
+      margin: 0;
+      font-family: var(--font-heading);
+      color: #6ea8fe;
+      font-size: 1.1rem;
+      font-weight: normal;
     }
     
     .header-icon {
-      color: #6ea8fe; // Match title color
+      color: #6ea8fe;
       font-size: 1.1rem;
     }
   }
@@ -106,8 +101,8 @@
     
     .control-btn {
       background: transparent;
-      border: 1px solid #30363d; // Match input border color
-      color: #e6edf3; // Match text color
+      border: 1px solid #30363d;
+      color: #e6edf3;
       padding: 6px;
       border-radius: 4px;
       cursor: pointer;
@@ -126,11 +121,10 @@
   }
 }
 
-// Status Line - Match panel content styling
 .status-line {
-  padding: 8px 20px; // Match panel content padding
-  background: var(--app-background); // Use theme variable
-  border-bottom: 1px solid rgba(110, 168, 254, 0.2); // Match exact border
+  padding: 8px 20px;
+  background: var(--app-background);
+  border-bottom: 1px solid rgba(110, 168, 254, 0.2);
   
   .status-info {
     display: flex;
@@ -139,7 +133,7 @@
     font-size: 0.85em;
     
     .model-name {
-      color: #7d8590; // Match mode-label color
+      color: #7d8590;
       font-family: 'Courier New', monospace;
     }
     
@@ -162,11 +156,76 @@
   }
 }
 
-// Messages Container - Match panel content styling
+.canvas-context {
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(110, 168, 254, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  .context-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #9baebb;
+    font-size: 0.85rem;
+
+    .context-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #6ea8fe;
+    }
+
+    .context-active {
+      font-size: 0.82rem;
+      color: #cbd5f5;
+      strong {
+        color: #e0ecff;
+      }
+    }
+  }
+
+  .quick-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+
+    .quick-action {
+      background: rgba(30, 41, 59, 0.4);
+      border: 1px solid rgba(110, 168, 254, 0.25);
+      color: #cbd5f5;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      &:hover {
+        background: rgba(110, 168, 254, 0.2);
+        border-color: rgba(110, 168, 254, 0.4);
+      }
+
+      &.active {
+        background: rgba(110, 168, 254, 0.35);
+        border-color: rgba(110, 168, 254, 0.6);
+        color: #f8fbff;
+      }
+    }
+  }
+
+  .canvas-context__history {
+    margin-top: 8px;
+  }
+}
+
 .messages-container {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 20px; // Match panel content padding
+  padding: 16px 20px;
   
   .messages-list {
     display: flex;
@@ -196,49 +255,47 @@
   }
   
   .message-text {
-    background: #21262d; // Match input background
-    border: 1px solid #30363d; // Match input border
+    background: #21262d;
+    border: 1px solid #30363d;
     padding: 12px;
-    border-radius: 6px; // Match input border radius
+    border-radius: 6px;
     margin-bottom: 8px;
     line-height: 1.5;
     word-wrap: break-word;
-    color: #e6edf3; // Match text color
+    color: #e6edf3;
   }
   
   .message-timestamp {
     font-size: 0.75em;
-    color: #7d8590; // Match secondary text color
+    color: #7d8590;
     text-align: right;
   }
   
   &.user-message {
     .message-avatar {
-      background: #6ea8fe; // Match primary blue color
+      background: #6ea8fe;
       color: white;
     }
     
     .message-text {
-      background: rgba(110, 168, 254, 0.15); // Match toggle background
+      background: rgba(110, 168, 254, 0.15);
       color: #6ea8fe;
-      border: 1px solid rgba(110, 168, 254, 0.4); // Match toggle border
+      border: 1px solid rgba(110, 168, 254, 0.4);
     }
   }
   
   &.assistant-message {
     .message-avatar {
-      background: #30363d; // Match border color
-      color: #7d8590; // Match secondary color
+      background: #30363d;
+      color: #7d8590;
     }
     
     .message-text {
-      background: #21262d; // Already set above
-      border: 1px solid #30363d; // Already set above
+      background: #21262d;
+      border: 1px solid #30363d;
     }
   }
 }
-
-// Cypher Query Block
 .cypher-block {
   margin-top: 12px;
   border: 1px solid var(--border-color);
@@ -251,13 +308,13 @@
     align-items: center;
     justify-content: space-between;
     padding: 8px 12px;
-    background: var(--app-background); // Use theme variable
+    background: var(--app-background);
     border-bottom: 1px solid rgba(110, 168, 254, 0.2);
     
     .cypher-label {
       font-size: 0.85em;
       font-weight: 600;
-      color: #7d8590; // Match secondary text
+      color: #7d8590;
     }
     
     .header-badges {
@@ -267,7 +324,7 @@
       
       .read-only-indicator {
         font-size: 0.75em;
-        color: #22c55e; // Green for read-only
+        color: #22c55e;
         font-weight: 600;
         padding: 2px 6px;
         background: rgba(34, 197, 94, 0.15);
@@ -365,8 +422,6 @@
     }
   }
 }
-
-// Typing Indicator
 .typing-message {
   .typing-indicator {
     display: flex;
@@ -401,12 +456,10 @@
     transform: scale(1);
   }
 }
-
-// Input Area - Match panel styling
 .input-area {
-  padding: 16px 20px; // Match panel padding
-  border-top: 1px solid rgba(110, 168, 254, 0.2); // Match border
-  background: var(--app-background); // Use theme variable
+  padding: 16px 20px;
+  border-top: 1px solid rgba(110, 168, 254, 0.2);
+  background: var(--app-background);
   
   .input-container {
     display: flex;
@@ -415,21 +468,21 @@
     
     .message-input {
       flex: 1;
-      padding: 8px 12px; // Match search input padding
-      border: 1px solid #30363d; // Match search input border
-      border-radius: 6px; // Match search input border radius
-      background: #21262d; // Match search input background
-      color: #e6edf3; // Match search input color
+      padding: 8px 12px;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      background: #21262d;
+      color: #e6edf3;
       resize: none;
       min-height: 20px;
       max-height: 100px;
       font-family: inherit;
-      font-size: 14px; // Match search input font size
+      font-size: 14px;
       
       &:focus {
         outline: none;
-        border-color: #6ea8fe; // Match search input focus
-        box-shadow: 0 0 0 2px rgba(110, 168, 254, 0.25); // Match search input focus shadow
+        border-color: #6ea8fe;
+        box-shadow: 0 0 0 2px rgba(110, 168, 254, 0.25);
       }
       
       &:disabled {
@@ -438,16 +491,16 @@
       }
       
       &::placeholder {
-        color: #7d8590; // Match secondary text color
+        color: #7d8590;
       }
     }
     
     .send-button {
-      padding: 8px 12px; // Match button proportions
-      border: 1px solid #6ea8fe; // Match primary color
-      background: rgba(110, 168, 254, 0.15); // Match toggle background
-      color: #6ea8fe; // Match primary text
-      border-radius: 6px; // Match input border radius
+      padding: 8px 12px;
+      border: 1px solid #6ea8fe;
+      background: rgba(110, 168, 254, 0.15);
+      color: #6ea8fe;
+      border-radius: 6px;
       cursor: pointer;
       transition: all 0.2s ease;
       display: flex;
@@ -455,7 +508,7 @@
       justify-content: center;
       
       &:hover:not(:disabled) {
-        background: rgba(110, 168, 254, 0.25); // Match toggle hover
+        background: rgba(110, 168, 254, 0.25);
         border-color: rgba(110, 168, 254, 0.6);
       }
       
@@ -470,26 +523,22 @@
     }
   }
 }
-
-// Scrollbar Styling - Match existing panel scrollbars
 .messages-container::-webkit-scrollbar {
-  width: 8px; // Slightly wider for better visibility
+  width: 8px;
 }
 
 .messages-container::-webkit-scrollbar-track {
-  background: #21262d; // Match input background
+  background: #21262d;
 }
 
 .messages-container::-webkit-scrollbar-thumb {
-  background: #30363d; // Match border color
+  background: #30363d;
   border-radius: 4px;
   
   &:hover {
-    background: #6ea8fe; // Match primary color on hover
+    background: #6ea8fe;
   }
 }
-
-// Risk Level Tags
 ::ng-deep .p-tag {
   font-size: 0.75em;
   

@@ -92,8 +92,11 @@
 
       <div class="layout-engine-control" *ngIf="layoutEngines$ | async as engines">
         <label class="control-label">Layout Engine:</label>
-        <select class="layout-engine-selector" (change)="onLayoutEngineChange($any($event.target).value)">
-          <option *ngFor="let engine of engines" [selected]="engine === (activeLayoutEngine$ | async)" [value]="engine">
+        <select
+          class="layout-engine-selector"
+          [ngModel]="activeLayoutEngine$ | async"
+          (ngModelChange)="onLayoutEngineChange($event)">
+          <option *ngFor="let engine of engines" [value]="engine">
             {{ formatLayoutEngine(engine) }}
           </option>
         </select>

@@ -9,6 +9,10 @@ import { TooltipModule } from 'primeng/tooltip';
 import { TagModule } from 'primeng/tag';
 import { SafetyGuardService, QueryClassification } from '../../core/services/safety-guard.service';
 import { GptChatService } from '../../core/services/gpt-chat.service';
+import { CanvasControlService } from '../../core/services/canvas-control.service';
+import { Observable, combineLatest } from 'rxjs';
+import { map } from 'rxjs/operators';
+import { CanvasEventHistoryComponent } from '../canvas-event-history/canvas-event-history.component';
 // Neo4j parsing now handled in Neo4jDataService
 
 export interface ChatMessage {
@@ -28,6 +32,12 @@ export interface CypherProposal {
   canExecute: boolean;
 }
 
+interface LayoutQuickAction {
+  readonly engineName: string;
+  readonly label: string;
+  readonly active: boolean;
+}
+
 @Component({
   selector: 'app-chat-rhs-panel',
   standalone: true,
@@ -38,7 +48,8 @@ export interface CypherProposal {
     InputTextModule,
     ScrollPanelModule,
     TooltipModule,
-    TagModule
+    TagModule,
+    CanvasEventHistoryComponent
   ],
   templateUrl: './chat-rhs-panel.component.html',
   styleUrls: ['./chat-rhs-panel.component.scss']
@@ -48,6 +59,10 @@ export class ChatRhsPanelComponent implements OnInit, OnDestroy, OnChanges, Afte
   @Output() panelToggled = new EventEmitter<boolean>();
   @ViewChild('messagesContainer') messagesContainer!: ElementRef;
   @ViewChild('messageInput') messageInput!: ElementRef;
+
+  readonly layoutEngines$: Observable<string[]>;
+  readonly activeLayoutEngine$: Observable<string | null>;
+  readonly layoutQuickActions$: Observable<LayoutQuickAction[]>;
 
   isVisible = false;
   messages: ChatMessage[] = [];
@@ -70,8 +85,22 @@ export class ChatRhsPanelComponent implements OnInit, OnDestroy, OnChanges, Afte
     private safetyGuard: SafetyGuardService,
     private gptChat: GptChatService,
     private http: HttpClient,
+    private canvasControlService: CanvasControlService,
     // Neo4j parsing now handled internally in Neo4jDataService
-  ) {}
+  ) {
+    this.layoutEngines$ = this.canvasControlService.layoutEngines$;
+    this.activeLayoutEngine$ = this.canvasControlService.activeLayoutEngine$;
+
+    this.layoutQuickActions$ = combineLatest([this.layoutEngines$, this.activeLayoutEngine$]).pipe(
+      map(([engines, active]) =>
+        engines.map(engine => ({
+          engineName: engine,
+          label: this.formatLayoutLabel(engine),
+          active: engine === active
+        }))
+      )
+    );
+  }
 
   ngOnInit(): void {
     // Load safety configuration from environment
@@ -180,6 +209,13 @@ export class ChatRhsPanelComponent implements OnInit, OnDestroy, OnChanges, Afte
     });
   }
 
+  applyLayout(engineName: string): void {
+    if (!engineName) {
+      return;
+    }
+    this.canvasControlService.changeLayoutEngine(engineName);
+  }
+
   executeCypherQuery(proposal: CypherProposal): void {
     
     if (!proposal.canExecute) {
@@ -243,6 +279,13 @@ export class ChatRhsPanelComponent implements OnInit, OnDestroy, OnChanges, Afte
         });
       }
     });
+  }
+
+  formatLayoutLabel(engineName: string): string {
+    return engineName
+      .split('-')
+      .map(segment => segment.charAt(0).toUpperCase() + segment.slice(1))
+      .join(' ');
   }
 
   private formatQueryResults(response: any, executionTime: number): string {
