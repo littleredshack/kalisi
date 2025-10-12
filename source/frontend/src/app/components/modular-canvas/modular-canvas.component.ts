@@ -16,6 +16,7 @@ import { CanvasHistoryService } from '../../core/services/canvas-history.service
 import { CanvasEventHubService } from '../../core/services/canvas-event-hub.service';
 import { LayoutModuleDescriptor, LayoutModuleRegistry } from '../../shared/layouts/layout-module-registry';
 import { ComponentFactoryResult } from '../../shared/canvas/component-factory';
+import { GraphLensRegistry, GraphLensDescriptor } from '../../shared/graph/lens-registry';
 
 @Component({
   selector: 'app-modular-canvas',
@@ -68,6 +69,8 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   private currentLayoutModule?: LayoutModuleDescriptor;
   private currentRendererId?: string;
   private runtimeEngineId: string = 'containment-grid';
+  private availableLenses: ReadonlyArray<GraphLensDescriptor> = [];
+  private currentLensId = 'full-graph';
 
   // Level selector state
   availableLevels: number[] = [];
@@ -89,6 +92,8 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     private canvasEventHubService: CanvasEventHubService
   ) {
     // Engine-only mode - no reactive effects
+    this.availableLenses = GraphLensRegistry.list();
+    this.currentLensId = this.availableLenses[0]?.id ?? 'full-graph';
   }
   
   public engine: ComposableHierarchicalCanvasEngine | null = null;
@@ -516,6 +521,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     // Inject services for dynamic layout behavior
     this.engine.setServices(this.viewNodeState, this.dynamicLayoutService);
     this.engine.setCanvasViewStateService(this.canvasViewStateService);
+    this.engine.setGraphLens(this.currentLensId);
     this.canvasHistoryService.registerCanvas(this.canvasId, this.engine.getData());
     this.historySubscription = this.canvasHistoryService
       .state$(this.canvasId)
@@ -1152,6 +1158,22 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
 
   getCameraInfo(): CameraInfo {
     return this.cameraInfo;
+  }
+
+  getActiveGraphLens(): string | null {
+    return this.currentLensId;
+  }
+
+  getAvailableGraphLenses(): string[] {
+    return this.availableLenses.map(lens => lens.id);
+  }
+
+  setGraphLens(lensId: string): void {
+    if (!lensId || lensId === this.currentLensId) {
+      return;
+    }
+    this.currentLensId = lensId;
+    this.engine?.setGraphLens(lensId);
   }
 
   private refreshHistoryState(): void {

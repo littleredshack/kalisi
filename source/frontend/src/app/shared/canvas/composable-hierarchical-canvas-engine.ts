@@ -29,6 +29,7 @@ export class ComposableHierarchicalCanvasEngine {
   private suppressCanvasEvents = false;
   private readonly eventHub?: CanvasEventHubService;
   private currentEngineName: string;
+  private currentLensId = 'full-graph';
   
   // Event handlers
   private onDataChanged?: (data: CanvasData) => void;
@@ -141,6 +142,22 @@ export class ComposableHierarchicalCanvasEngine {
 
   getActiveLayoutEngine(): string | null {
     return this.layoutRuntime.getActiveEngineName();
+  }
+
+  getActiveGraphLens(): string {
+    return this.currentLensId;
+  }
+
+  setGraphLens(lensId: string): void {
+    if (!lensId || lensId === this.currentLensId) {
+      return;
+    }
+    this.currentLensId = lensId;
+    console.debug('[CanvasEngine] Graph lens set', {
+      canvasId: this.canvasId,
+      lensId
+    });
+    // TODO: integrate lens filtering and runtime subgraph selection
   }
 
   switchLayoutEngine(engineName: string, source: CanvasEventSource = 'user'): CanvasData | null {

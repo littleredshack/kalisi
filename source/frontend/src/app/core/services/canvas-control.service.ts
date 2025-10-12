@@ -21,6 +21,9 @@ export interface CanvasController {
   getAvailableLayoutEngines(): string[];
   getActiveLayoutEngine(): string | null;
   switchLayoutEngine(engineName: string): void;
+  getActiveGraphLens?(): string | null;
+  setGraphLens?(lensId: string): void;
+  getAvailableGraphLenses?(): string[];
   undo(): void;
   redo(): void;
   canUndo(): boolean;
