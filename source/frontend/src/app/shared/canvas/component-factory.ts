@@ -1,27 +1,26 @@
 import { ILayoutEngine } from './layout';
 import { IRenderer } from './renderer';
-import { GridLayoutEngine } from '../layouts/grid-layout';
-import { FlatGraphLayoutEngine } from '../layouts/flat-graph-layout';
-import { ComposableFlatRenderer } from '../composable/renderers/composable-flat-renderer';
-import { ComposableHierarchicalRenderer } from '../composable/renderers/composable-hierarchical-renderer';
-import { ComposableContainmentOrthogonalRenderer } from '../composable/renderers/composable-containment-orthogonal-renderer';
-import { ComposableTreeTableRenderer } from '../composable/renderers/composable-tree-table-renderer';
-import { TreeTableLayoutEngine } from '../layouts/tree-table-layout';
-import { CodebaseHierarchicalLayoutEngine } from '../layouts/codebase-hierarchical-layout';
-import { CodeModelTreeLayoutEngine } from '../layouts/code-model-tree-layout';
-import { ComposableTreeRenderer } from '../composable/renderers/composable-tree-renderer';
+import { LayoutModuleRegistry, LayoutModuleDescriptor } from '../layouts/layout-module-registry';
 
-// New composable services
-import { LayoutEngineAdapter } from './layout-adapter';
-import { GraphDataTransformerService } from '../../core/services/graph-data-transformer.service';
-import { GridLayoutService } from '../../core/services/grid-layout.service';
-import { ForceDirectedLayoutService } from '../../core/services/force-directed-layout.service';
+class RuntimeLayoutPlaceholder implements ILayoutEngine {
+  constructor(private readonly engineName: string) {}
 
-// Create service instances for the adapter
-// In a real app these would be injected, but factory is static
-const transformer = new GraphDataTransformerService();
-const gridLayout = new GridLayoutService();
-const forceLayout = new ForceDirectedLayoutService();
+  applyLayout(): never {
+    throw new Error(`[RuntimeLayoutPlaceholder] applyLayout invoked for engine "${this.engineName}". This placeholder should only be used for metadata.`);
+  }
+
+  getName(): string {
+    return this.engineName;
+  }
+}
+
+export interface ComponentFactoryResult {
+  layoutEngine: ILayoutEngine;
+  renderer: IRenderer;
+  module: LayoutModuleDescriptor;
+  runtimeEngine: string;
+  rendererId: string;
+}
 
 /**
  * Factory for creating layout engines based on ViewNode specifications
@@ -32,35 +31,19 @@ export class LayoutEngineFactory {
    * Create layout engine based on ViewNode layoutEngine property
    */
   static create(layoutEngineType: string): ILayoutEngine {
-    switch (layoutEngineType) {
-      case 'code-model-tree':
-        return new CodeModelTreeLayoutEngine();
-      case 'codebase-hierarchical':
-        return new CodebaseHierarchicalLayoutEngine();
-      case 'hierarchical':
-        return new LayoutEngineAdapter(transformer, gridLayout);
-      case 'grid':
-        // Use new adapter with composable services for grid layout
-        return new LayoutEngineAdapter(transformer, gridLayout);
-
-      case 'flat-graph':
-        // Use FlatGraphLayoutEngine with FlatGraphLayoutStrategy for uniform 120x80 nodes
-        return new FlatGraphLayoutEngine();
-
-      case 'tree-table':
-        return new TreeTableLayoutEngine();
-
-      default:
-        console.warn(`Unknown layout engine type: ${layoutEngineType}, using default grid layout`);
-        return new LayoutEngineAdapter(transformer, gridLayout);
+    const module = LayoutModuleRegistry.getModule(layoutEngineType);
+    if (module?.createLegacyLayout) {
+      return module.createLegacyLayout();
     }
+    const fallback = module ?? LayoutModuleRegistry.getModule('containment-grid');
+    return new RuntimeLayoutPlaceholder(fallback?.runtimeEngine ?? 'containment-grid');
   }
   
   /**
    * Get available layout engine types
    */
   static getAvailableTypes(): string[] {
-    return ['hierarchical', 'grid', 'flat-graph', 'code-model-tree'];
+    return LayoutModuleRegistry.listModules().map(module => module.id);
   }
 }
 
@@ -73,36 +56,25 @@ export class RendererFactory {
    * Create renderer based on ViewNode renderer property
    */
   static create(rendererType: string): IRenderer {
-    console.log('🎨 DEBUG: RendererFactory.create called with:', rendererType);
-    switch (rendererType) {
-      case 'composable-flat':
-        return new ComposableFlatRenderer();
-
-      case 'composable-hierarchical':
-        return new ComposableHierarchicalRenderer();
-
-      case 'composable-containment-orthogonal':
-        console.log('🎨 DEBUG: Creating ComposableContainmentOrthogonalRenderer');
-        return new ComposableContainmentOrthogonalRenderer();
-
-      case 'composable-tree':
-        return new ComposableTreeRenderer();
-
-      case 'tree-table':
-        console.log('🎨 DEBUG: Creating ComposableTreeTableRenderer');
-        return new ComposableTreeTableRenderer();
-
-      default:
-        console.warn(`[RendererFactory] Unknown renderer type: ${rendererType}, using default composable-flat renderer`);
-        return new ComposableFlatRenderer();
+    const lookup = LayoutModuleRegistry.getRenderer(rendererType);
+    if (lookup) {
+      return lookup.renderer.factory();
     }
+    const fallbackModule = LayoutModuleRegistry.getModule('containment-grid');
+    const fallbackRenderer = fallbackModule?.renderers.find(renderer => renderer.id === fallbackModule.defaultRenderer);
+    console.warn(`[RendererFactory] Unknown renderer type: ${rendererType}, falling back to ${fallbackRenderer?.id ?? 'composable-flat'}`);
+    return (fallbackRenderer ?? LayoutModuleRegistry.getRenderer('composable-flat')?.renderer ?? {
+      factory: () => {
+        throw new Error('No renderer registered for fallback "composable-flat".');
+      }
+    }).factory();
   }
   
   /**
    * Get available renderer types
    */
   static getAvailableTypes(): string[] {
-    return ['composable-flat', 'composable-hierarchical', 'composable-containment-orthogonal', 'composable-tree'];
+    return LayoutModuleRegistry.listRenderers().map(entry => entry.renderer.id);
   }
 }
 
@@ -117,17 +89,34 @@ export class ComponentFactory {
   static createComponents(
     layoutEngineType: string = 'hierarchical',
     rendererType: string = 'shape'
-  ): { layoutEngine: ILayoutEngine; renderer: IRenderer } {
+  ): ComponentFactoryResult {
+    const module = LayoutModuleRegistry.getModule(layoutEngineType) ?? LayoutModuleRegistry.getModule('containment-grid');
+    const runtimeEngine = module?.runtimeEngine ?? 'containment-grid';
+
+    const targetRendererId = rendererType === 'shape' || !rendererType
+      ? module?.defaultRenderer ?? 'composable-hierarchical'
+      : rendererType;
+
+    const rendererLookup = LayoutModuleRegistry.getRenderer(targetRendererId)
+      ?? (module ? { module, renderer: module.renderers.find(item => item.id === module.defaultRenderer)! } : undefined)
+      ?? LayoutModuleRegistry.getRenderer('composable-hierarchical');
+
+    const resolvedModule = rendererLookup?.module ?? module ?? LayoutModuleRegistry.getModule('containment-grid')!;
+    const resolvedRenderer = rendererLookup?.renderer ?? resolvedModule.renderers[0];
+
     return {
-      layoutEngine: LayoutEngineFactory.create(layoutEngineType),
-      renderer: RendererFactory.create(rendererType)
+      layoutEngine: resolvedModule.createLegacyLayout?.() ?? new RuntimeLayoutPlaceholder(runtimeEngine),
+      renderer: resolvedRenderer.factory(),
+      module: resolvedModule,
+      runtimeEngine: resolvedModule.runtimeEngine,
+      rendererId: resolvedRenderer.id
     };
   }
   
   /**
    * Create components from ViewNode object using dynamic properties
    */
-  static createFromViewNode(viewNode: any): { layoutEngine: ILayoutEngine; renderer: IRenderer } {
+  static createFromViewNode(viewNode: any): ComponentFactoryResult {
     let layoutEngineType = viewNode.layout_engine ||
                               viewNode.layoutEngine ||
                               (viewNode.properties && viewNode.properties.layoutEngine) ||
