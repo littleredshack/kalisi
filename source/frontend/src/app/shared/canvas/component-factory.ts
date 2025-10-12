@@ -15,11 +15,11 @@ class RuntimeLayoutPlaceholder implements ILayoutEngine {
 }
 
 export interface ComponentFactoryResult {
-  layoutEngine: ILayoutEngine;
   renderer: IRenderer;
   module: LayoutModuleDescriptor;
   runtimeEngine: string;
   rendererId: string;
+  legacyLayout?: ILayoutEngine;
 }
 
 /**
@@ -30,13 +30,9 @@ export class LayoutEngineFactory {
   /**
    * Create layout engine based on ViewNode layoutEngine property
    */
-  static create(layoutEngineType: string): ILayoutEngine {
+  static createLegacyLayout(layoutEngineType: string): ILayoutEngine | undefined {
     const module = LayoutModuleRegistry.getModule(layoutEngineType);
-    if (module?.createLegacyLayout) {
-      return module.createLegacyLayout();
-    }
-    const fallback = module ?? LayoutModuleRegistry.getModule('containment-grid');
-    return new RuntimeLayoutPlaceholder(fallback?.runtimeEngine ?? 'containment-grid');
+    return module?.createLegacyLayout?.();
   }
   
   /**
@@ -105,7 +101,7 @@ export class ComponentFactory {
     const resolvedRenderer = rendererLookup?.renderer ?? resolvedModule.renderers[0];
 
     return {
-      layoutEngine: resolvedModule.createLegacyLayout?.() ?? new RuntimeLayoutPlaceholder(runtimeEngine),
+      legacyLayout: resolvedModule.createLegacyLayout?.(),
       renderer: resolvedRenderer.factory(),
       module: resolvedModule,
       runtimeEngine: resolvedModule.runtimeEngine,

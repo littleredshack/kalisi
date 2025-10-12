@@ -471,7 +471,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       layoutComponents = ComponentFactory.createComponents('containment-grid', 'composable-hierarchical');
     }
 
-    const { layoutEngine, renderer, module, runtimeEngine, rendererId } = layoutComponents;
+    const { legacyLayout, renderer, module, runtimeEngine, rendererId } = layoutComponents;
     this.currentLayoutModule = module;
     this.currentRendererId = rendererId;
     this.runtimeEngineId = runtimeEngine;
@@ -481,24 +481,14 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       (renderer as any).setViewNodeStateService(this.viewNodeState);
     }
 
-    // Set viewport bounds for layout services to prevent huge initial containers
-    const viewportBounds = { width: canvas.width, height: canvas.height };
-    if (layoutEngine && 'setViewportBounds' in layoutEngine) {
-      (layoutEngine as any).setViewportBounds(viewportBounds);
-    }
-    
     // If we have raw ViewNode data, process it with the selected layout engine
-    if (this.rawViewNodeData && this.selectedViewNode && module?.createLegacyLayout) {
-      const viewportBounds = {
-        width: canvas.width,
-        height: canvas.height,
-      };
-      if (layoutEngine && 'setViewportBounds' in layoutEngine) {
-        (layoutEngine as any).setViewportBounds(viewportBounds);
+    if (this.rawViewNodeData && this.selectedViewNode && legacyLayout) {
+      if ('setViewportBounds' in legacyLayout) {
+        (legacyLayout as any).setViewportBounds({ width: canvas.width, height: canvas.height });
       }
       const processedData = this.convertDataWithLayoutEngine(
         this.rawViewNodeData,
-        layoutEngine
+        legacyLayout
       );
       this.data = processedData;
     }
@@ -512,7 +502,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     this.engine = new ComposableHierarchicalCanvasEngine(
       canvas,
       renderer,
-      layoutEngine,
+      this.runtimeEngineId,
       this.data!,
       this.canvasId,
       this.canvasEventHubService
@@ -927,7 +917,11 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   }
 
   // Process raw ViewNode data with dynamically selected layout strategy
-  private convertDataWithLayoutEngine(rawData: {entities: any[], relationships: any[]}, layoutEngine: any): CanvasData {
+  private convertDataWithLayoutEngine(rawData: {entities: any[], relationships: any[]}, layoutEngine?: any): CanvasData {
+    if (!layoutEngine) {
+      console.warn('[ModularCanvas] No legacy layout engine available; returning existing data.');
+      return this.data ?? this.createDefaultData();
+    }
     // Check if this is the new adapter (doesn't have layoutStrategy) or old engine
     if (layoutEngine.layoutStrategy) {
       // Old layout engine path

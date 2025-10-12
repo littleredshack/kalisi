@@ -2,7 +2,6 @@ import { HierarchicalNode, Edge, CanvasData, Camera, Point, InteractionEvent, Bo
 import { CanvasViewStateService, CanvasMutationType } from './state/canvas-view-state.service';
 import { CameraSystem } from './camera';
 import { IRenderer } from './renderer';
-import { ILayoutEngine } from './layout';
 import { NodeVisibilityState } from '../../core/services/view-node-state.service';
 import { ViewNodeStateService } from '../../core/services/view-node-state.service';
 import { DynamicLayoutService } from '../../core/services/dynamic-layout.service';
@@ -52,7 +51,7 @@ export class ComposableHierarchicalCanvasEngine {
   constructor(
     canvas: HTMLCanvasElement,
     renderer: IRenderer,
-    initialLayoutEngine: ILayoutEngine,
+    initialEngineId: string,
     initialData: CanvasData,
     canvasId: string,
     eventHub?: CanvasEventHubService
@@ -68,11 +67,7 @@ export class ComposableHierarchicalCanvasEngine {
     this.normaliseCanvasData(this.data);
     this.lensBaseData = this.cloneCanvasData(this.data);
 
-    const legacyEngineName =
-      typeof initialLayoutEngine?.getName === 'function'
-        ? initialLayoutEngine.getName()
-        : undefined;
-    const initialEngineName = this.normaliseEngineName(legacyEngineName, initialData);
+    const initialEngineName = this.normaliseEngineName(initialEngineId, initialData);
 
     this.layoutRuntime = new CanvasLayoutRuntime(canvasId, this.data, {
       defaultEngine: initialEngineName,
