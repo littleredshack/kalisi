@@ -4,7 +4,7 @@ import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 import { FormsModule } from '@angular/forms';
 import { PropertiesPanelComponent } from '../properties-panel/properties-panel.component';
-import { CanvasControlService, CameraInfo, LayoutEngineOption } from '../../core/services/canvas-control.service';
+import { CanvasControlService, CameraInfo, LayoutEngineOption, GraphLensOption } from '../../core/services/canvas-control.service';
 import { Observable, combineLatest, map } from 'rxjs';
 import { CanvasEventHistoryComponent } from '../canvas-event-history/canvas-event-history.component';
 
@@ -46,6 +46,7 @@ export class PropertiesRhsPanelComponent implements OnInit, OnDestroy, OnChanges
   layoutEngines$: Observable<LayoutEngineOption[]>;
   activeLayoutEngine$: Observable<LayoutEngineOption | null>;
   layoutEngineOptions$: Observable<{ options: LayoutEngineOption[]; activeId: string | null }>;
+  graphLensOptions$: Observable<{ options: GraphLensOption[]; activeId: string | null }>;
   levelOptions$: Observable<any[]>;
   selectedLevel: number | null = null;
 
@@ -60,6 +61,15 @@ export class PropertiesRhsPanelComponent implements OnInit, OnDestroy, OnChanges
     this.layoutEngines$ = this.canvasControlService.layoutEngines$;
     this.activeLayoutEngine$ = this.canvasControlService.activeLayoutEngine$;
     this.layoutEngineOptions$ = combineLatest([this.layoutEngines$, this.activeLayoutEngine$]).pipe(
+      map(([options, active]) => ({
+        options,
+        activeId: active?.id ?? null
+      }))
+    );
+    this.graphLensOptions$ = combineLatest([
+      this.canvasControlService.graphLensOptions$,
+      this.canvasControlService.activeGraphLens$
+    ]).pipe(
       map(([options, active]) => ({
         options,
         activeId: active?.id ?? null
@@ -174,6 +184,12 @@ export class PropertiesRhsPanelComponent implements OnInit, OnDestroy, OnChanges
   onLayoutEngineChange(engineId: string): void {
     if (engineId) {
       this.canvasControlService.changeLayoutEngine(engineId);
+    }
+  }
+
+  onGraphLensChange(lensId: string): void {
+    if (lensId) {
+      this.canvasControlService.changeGraphLens(lensId);
     }
   }
 }

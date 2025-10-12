@@ -43,8 +43,12 @@
         <i class="pi pi-sitemap"></i>
         <span>Canvas Orchestrator</span>
       </div>
-      <div class="context-active" *ngIf="activeLayoutEngine$ | async as activeEngine">
-        Active: <strong>{{ activeEngine.label }}</strong>
+      <div class="context-active">
+        <span *ngIf="activeLayoutEngine$ | async as activeEngine">Layout: <strong>{{ activeEngine.label }}</strong></span>
+        <span *ngIf="activeLens$ | async as activeLens">
+          <span *ngIf="activeLayoutEngine$ | async"> · </span>
+          Lens: <strong>{{ activeLens.label }}</strong>
+        </span>
       </div>
     </div>
 
@@ -56,6 +60,18 @@
         type="button"
         (click)="applyLayout(action.engineName)"
         pTooltip="Switch layout engine">
+        {{ action.label }}
+      </button>
+    </div>
+
+    <div class="quick-actions quick-actions--lens" *ngIf="lensQuickActions$ | async as lensActions">
+      <button
+        *ngFor="let action of lensActions"
+        class="quick-action"
+        [class.active]="action.active"
+        type="button"
+        (click)="applyLens(action.lensId)"
+        pTooltip="Switch graph lens">
         {{ action.label }}
       </button>
     </div>

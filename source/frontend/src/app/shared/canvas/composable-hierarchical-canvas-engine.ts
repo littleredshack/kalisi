@@ -1001,6 +1001,11 @@ export class ComposableHierarchicalCanvasEngine {
           // Future: implement batched history replay processing.
         }
         break;
+      case 'GraphLensChanged':
+        if (event.canvasId === this.canvasId) {
+          this.setGraphLens(event.lensId);
+        }
+        break;
     }
   }
 

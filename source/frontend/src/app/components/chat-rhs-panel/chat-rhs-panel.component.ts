@@ -9,7 +9,7 @@ import { TooltipModule } from 'primeng/tooltip';
 import { TagModule } from 'primeng/tag';
 import { SafetyGuardService, QueryClassification } from '../../core/services/safety-guard.service';
 import { GptChatService } from '../../core/services/gpt-chat.service';
-import { CanvasControlService, LayoutEngineOption } from '../../core/services/canvas-control.service';
+import { CanvasControlService, LayoutEngineOption, GraphLensOption } from '../../core/services/canvas-control.service';
 import { Observable, combineLatest } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { CanvasEventHistoryComponent } from '../canvas-event-history/canvas-event-history.component';
@@ -34,6 +34,12 @@ export interface CypherProposal {
 
 interface LayoutQuickAction {
   readonly engineName: string;
+  readonly label: string;
+  readonly active: boolean;
+}
+
+interface LensQuickAction {
+  readonly lensId: string;
   readonly label: string;
   readonly active: boolean;
 }
@@ -63,6 +69,9 @@ export class ChatRhsPanelComponent implements OnInit, OnDestroy, OnChanges, Afte
   readonly layoutEngines$: Observable<LayoutEngineOption[]>;
   readonly activeLayoutEngine$: Observable<LayoutEngineOption | null>;
   readonly layoutQuickActions$: Observable<LayoutQuickAction[]>;
+  readonly lensOptions$: Observable<GraphLensOption[]>;
+  readonly activeLens$: Observable<GraphLensOption | null>;
+  readonly lensQuickActions$: Observable<LensQuickAction[]>;
 
   isVisible = false;
   messages: ChatMessage[] = [];
@@ -90,6 +99,8 @@ export class ChatRhsPanelComponent implements OnInit, OnDestroy, OnChanges, Afte
   ) {
     this.layoutEngines$ = this.canvasControlService.layoutEngines$;
     this.activeLayoutEngine$ = this.canvasControlService.activeLayoutEngine$;
+    this.lensOptions$ = this.canvasControlService.graphLensOptions$;
+    this.activeLens$ = this.canvasControlService.activeGraphLens$;
 
     this.layoutQuickActions$ = combineLatest([this.layoutEngines$, this.activeLayoutEngine$]).pipe(
       map(([engines, active]) =>
@@ -97,6 +108,16 @@ export class ChatRhsPanelComponent implements OnInit, OnDestroy, OnChanges, Afte
           engineName: engine.id,
           label: engine.label,
           active: engine.id === (active?.id ?? null)
+        }))
+      )
+    );
+
+    this.lensQuickActions$ = combineLatest([this.lensOptions$, this.activeLens$]).pipe(
+      map(([lenses, active]) =>
+        lenses.map(lens => ({
+          lensId: lens.id,
+          label: lens.label,
+          active: lens.id === (active?.id ?? null)
         }))
       )
     );
@@ -214,6 +235,13 @@ export class ChatRhsPanelComponent implements OnInit, OnDestroy, OnChanges, Afte
       return;
     }
     this.canvasControlService.changeLayoutEngine(engineName);
+  }
+
+  applyLens(lensId: string): void {
+    if (!lensId) {
+      return;
+    }
+    this.canvasControlService.changeGraphLens(lensId);
   }
 
   executeCypherQuery(proposal: CypherProposal): void {

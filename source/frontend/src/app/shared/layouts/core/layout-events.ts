@@ -74,6 +74,13 @@ export type CanvasEvent =
       readonly untilVersion: number;
       readonly source: CanvasEventSource;
       readonly timestamp: number;
+    }
+  | {
+      readonly type: 'GraphLensChanged';
+      readonly canvasId: string;
+      readonly lensId: string;
+      readonly source: CanvasEventSource;
+      readonly timestamp: number;
     };
 
 export class CanvasEventBus {

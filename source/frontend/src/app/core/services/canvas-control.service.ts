@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { CanvasEventHubService } from './canvas-event-hub.service';
 import { LayoutModuleRegistry } from '../../shared/layouts/layout-module-registry';
+import { GraphLensRegistry } from '../../shared/graph/lens-registry';
 
 export interface CameraInfo {
   x: number;
@@ -38,6 +39,13 @@ export interface LayoutEngineOption {
   readonly tags?: ReadonlyArray<string>;
 }
 
+export interface GraphLensOption {
+  readonly id: string;
+  readonly label: string;
+  readonly description?: string;
+  readonly tags?: ReadonlyArray<string>;
+}
+
 @Injectable({ providedIn: 'root' })
 export class CanvasControlService {
   private activeCanvas: CanvasController | null = null;
@@ -49,6 +57,8 @@ export class CanvasControlService {
   private readonly hasActiveCanvasSubject = new BehaviorSubject<boolean>(false);
   private readonly layoutEnginesSubject = new BehaviorSubject<LayoutEngineOption[]>([]);
   private readonly activeLayoutEngineSubject = new BehaviorSubject<LayoutEngineOption | null>(null);
+  private readonly graphLensOptionsSubject = new BehaviorSubject<GraphLensOption[]>([]);
+  private readonly activeGraphLensSubject = new BehaviorSubject<GraphLensOption | null>(null);
   private readonly activeCanvasIdSubject = new BehaviorSubject<string | null>(null);
   private readonly canUndoSubject = new BehaviorSubject<boolean>(false);
   private readonly canRedoSubject = new BehaviorSubject<boolean>(false);
@@ -59,6 +69,8 @@ export class CanvasControlService {
   readonly hasActiveCanvas$ = this.hasActiveCanvasSubject.asObservable();
   readonly layoutEngines$ = this.layoutEnginesSubject.asObservable();
   readonly activeLayoutEngine$ = this.activeLayoutEngineSubject.asObservable();
+  readonly graphLensOptions$ = this.graphLensOptionsSubject.asObservable();
+  readonly activeGraphLens$ = this.activeGraphLensSubject.asObservable();
   readonly activeCanvasId$ = this.activeCanvasIdSubject.asObservable();
   readonly canUndo$ = this.canUndoSubject.asObservable();
   readonly canRedo$ = this.canRedoSubject.asObservable();
@@ -83,6 +95,8 @@ export class CanvasControlService {
     this.autoLayoutStateSubject.next('Auto Layout: OFF');
     this.layoutEnginesSubject.next([]);
     this.activeLayoutEngineSubject.next(null);
+    this.graphLensOptionsSubject.next([]);
+    this.activeGraphLensSubject.next(null);
     this.activeCanvasIdSubject.next(null);
     this.canUndoSubject.next(false);
     this.canRedoSubject.next(false);
@@ -139,6 +153,31 @@ export class CanvasControlService {
     }
   }
 
+  changeGraphLens(lensId: string): void {
+    if (!lensId) {
+      return;
+    }
+
+    const option = this.resolveLensOption(lensId);
+    if (option) {
+      this.activeGraphLensSubject.next(option);
+    }
+
+    const canvasId = this.getActiveCanvasId();
+    if (canvasId) {
+      this.canvasEventHubService.emitEvent(canvasId, {
+        type: 'GraphLensChanged',
+        canvasId,
+        lensId,
+        source: 'user',
+        timestamp: Date.now()
+      });
+    } else if (this.activeCanvas?.setGraphLens) {
+      this.activeCanvas.setGraphLens(lensId);
+      this.notifyStateChange();
+    }
+  }
+
   undo(): void {
     this.activeCanvas?.undo();
     this.updateState();
@@ -176,6 +215,9 @@ export class CanvasControlService {
     const engineOptions = this.resolveEngineOptions(this.activeCanvas.getAvailableLayoutEngines());
     this.layoutEnginesSubject.next(engineOptions);
     this.activeLayoutEngineSubject.next(this.resolveEngineOption(this.activeCanvas.getActiveLayoutEngine()));
+    const lensIds = this.activeCanvas.getAvailableGraphLenses?.() ?? GraphLensRegistry.list().map(lens => lens.id);
+    this.graphLensOptionsSubject.next(this.resolveLensOptions(lensIds));
+    this.activeGraphLensSubject.next(this.resolveLensOption(this.activeCanvas.getActiveGraphLens?.() ?? null));
     this.canUndoSubject.next(this.activeCanvas.canUndo());
     this.canRedoSubject.next(this.activeCanvas.canRedo());
   }
@@ -218,5 +260,32 @@ export class CanvasControlService {
       .split(/[-_]/g)
       .map(segment => segment.charAt(0).toUpperCase() + segment.slice(1))
       .join(' ');
+  }
+
+  private resolveLensOptions(lensIds: string[]): GraphLensOption[] {
+    if (!lensIds || lensIds.length === 0) {
+      return GraphLensRegistry.list().map(lens => this.mapLensDescriptor(lens));
+    }
+    return lensIds.map(id => this.resolveLensOption(id) ?? this.mapLensDescriptor({ id, label: this.formatLabel(id) }));
+  }
+
+  private resolveLensOption(id: string | null): GraphLensOption | null {
+    if (!id) {
+      return null;
+    }
+    const descriptor = GraphLensRegistry.get(id);
+    if (descriptor) {
+      return this.mapLensDescriptor(descriptor);
+    }
+    return this.mapLensDescriptor({ id, label: this.formatLabel(id) });
+  }
+
+  private mapLensDescriptor(descriptor: { id: string; label: string; description?: string; tags?: ReadonlyArray<string> }): GraphLensOption {
+    return {
+      id: descriptor.id,
+      label: descriptor.label,
+      description: descriptor.description,
+      tags: descriptor.tags
+    };
   }
 }

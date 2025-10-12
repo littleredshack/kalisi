@@ -102,6 +102,18 @@
         </select>
       </div>
 
+      <div class="layout-engine-control" *ngIf="graphLensOptions$ | async as lensVm">
+        <label class="control-label">Graph Lens:</label>
+        <select
+          class="layout-engine-selector"
+          [ngModel]="lensVm.activeId"
+          (ngModelChange)="onGraphLensChange($event)">
+          <option *ngFor="let lens of lensVm.options" [value]="lens.id">
+            {{ lens.label }}
+          </option>
+        </select>
+      </div>
+
       <div class="camera-info">
         <span class="info-label">Camera:</span>
         <span class="info-value">
