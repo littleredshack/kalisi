@@ -17,6 +17,7 @@ import { CanvasEventHubService } from '../../core/services/canvas-event-hub.serv
 import { LayoutModuleDescriptor, LayoutModuleRegistry } from '../../shared/layouts/layout-module-registry';
 import { ComponentFactoryResult } from '../../shared/canvas/component-factory';
 import { GraphLensRegistry, GraphLensDescriptor } from '../../shared/graph/lens-registry';
+import { ensureRelativeNodeCoordinates } from '../../shared/canvas/utils/relative-coordinates';
 
 @Component({
   selector: 'app-modular-canvas',
@@ -266,7 +267,13 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   private applyViewNodeLayout(layoutJson: string): void {
     try {
       const layout = JSON.parse(layoutJson);
+      if ((globalThis as any).__LAYOUT_DEBUG__) {
+        console.debug('[VIEWNODE LAYOUT] raw root', JSON.stringify(layout.nodes?.[0] ?? null));
+      }
       this.normaliseCanvasData(layout);
+      if ((globalThis as any).__LAYOUT_DEBUG__) {
+        console.debug('[VIEWNODE LAYOUT] normalised root', JSON.stringify(layout.nodes?.[0] ?? null));
+      }
       // Apply layout directly to engine if it exists, otherwise store for later
       if (this.engine) {
         this.canvasViewStateService.initialize(this.canvasId, layout, 'external');
@@ -1010,6 +1017,8 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
 
     data.nodes = data.nodes || [];
     data.nodes.forEach(ensureNode);
+
+    ensureRelativeNodeCoordinates(data.nodes, 0, 0);
 
     const ensureEdge = (edge: Edge) => {
       const edgeAny = edge as any;

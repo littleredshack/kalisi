@@ -652,6 +652,22 @@ export class ComposableHierarchicalCanvasEngine {
 
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
+    if (frame) {
+      this.logHierarchyDiagnostics(frame);
+    } else if (this.data) {
+      this.logHierarchyDiagnostics({
+        version: -1,
+        camera: this.data.camera,
+        canvasData: this.cloneCanvasData(this.data),
+        lastResult: {
+          graph: this.layoutRuntime.getLayoutGraph(),
+          camera: this.data.camera
+        }
+      } as unknown as PresentationFrame);
+    } else {
+      console.warn('[LAYOUT-DIAG] no data available to log diagnostics');
+    }
+
     this.renderer.render(this.ctx, this.data.nodes, this.data.edges, camera, frame ?? undefined);
 
     if (this.selectedNode) {
@@ -662,6 +678,34 @@ export class ComposableHierarchicalCanvasEngine {
     this.lastRenderedFrameVersion = frame?.version ?? this.lastRenderedFrameVersion;
     this.lastRenderedCamera = { ...camera };
     this.lastRenderedLensId = frame?.lensId ?? this.lastRenderedLensId;
+  }
+
+  private logHierarchyDiagnostics(frame: PresentationFrame): void {
+    const walk = (node: HierarchicalNode, parentId: string | null, depth: number, parentAbs: { x: number; y: number }): void => {
+      const nodeId = node.GUID ?? node.id ?? 'unknown';
+      const worldX = parentAbs.x + node.x;
+      const worldY = parentAbs.y + node.y;
+      const metaWorld = node.metadata && typeof node.metadata === 'object' ? (node.metadata as Record<string, any>)['worldPosition'] : undefined;
+      console.info(
+        '[LAYOUT-DIAG] ' +
+        JSON.stringify({
+          canvasId: this.canvasId,
+          frameVersion: frame.version,
+          lensId: frame.lensId,
+          nodeId,
+          parentId,
+          depth,
+          relative: { x: node.x, y: node.y },
+          computedWorld: { x: worldX, y: worldY },
+          metadataWorld: metaWorld ?? null
+        })
+      );
+
+      const nextParent = { x: worldX, y: worldY };
+      node.children?.forEach(child => walk(child, nodeId, depth + 1, nextParent));
+    };
+
+    frame.canvasData.nodes.forEach(root => walk(root, null, 0, { x: 0, y: 0 }));
   }
 
   centerOnNode(node: HierarchicalNode): void {

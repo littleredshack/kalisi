@@ -7,6 +7,7 @@ import { GraphStore } from '../graph/graph-store';
 import { PresentationFrame, buildPresentationFrame } from '../render/presentation-frame';
 import { CanvasEventBus, CanvasEventSource } from '../layouts/core/layout-events';
 import { LayoutWorkerBridge } from '../layouts/async/layout-worker-bridge';
+import { ensureRelativeNodeCoordinates } from './utils/relative-coordinates';
 
 export interface CanvasLayoutRuntimeConfig {
   readonly defaultEngine?: string;
@@ -30,6 +31,8 @@ export class CanvasLayoutRuntime {
     this.workerBridge = new LayoutWorkerBridge(this.orchestrator, { useWorker: config.useWorker });
     const initialGraph = canvasDataToLayoutGraph(initialData);
     this.store = new GraphStore(initialGraph);
+    ensureRelativeNodeCoordinates(initialData.nodes, 0, 0);
+
     this.canvasData = {
       ...initialData,
       nodes: initialData.nodes.map(node => ({ ...node })),
@@ -93,6 +96,7 @@ export class CanvasLayoutRuntime {
       edges: data.edges.map(edge => ({ ...edge })),
       originalEdges: data.originalEdges ?? data.edges.map(edge => ({ ...edge }))
     };
+    ensureRelativeNodeCoordinates(this.canvasData.nodes, 0, 0);
     const graph = canvasDataToLayoutGraph(this.canvasData, this.store.current.version + 1);
     this.store.replace(graph);
     this.frame = {

@@ -1,6 +1,7 @@
 import { LayoutResult } from '../layouts/core/layout-contract';
 import { layoutGraphToHierarchical } from '../layouts/core/layout-graph-utils';
 import { Camera, CanvasData, HierarchicalNode, Edge } from '../canvas/types';
+import { ensureRelativeNodeCoordinates } from '../canvas/utils/relative-coordinates';
 
 export interface PresentationFrame {
   readonly version: number;
@@ -30,6 +31,7 @@ export interface PresentationDelta {
 
 export function buildPresentationFrame(result: LayoutResult, previous?: PresentationFrame, lensId?: string): PresentationFrame {
   const snapshot = layoutGraphToHierarchical(result.graph);
+  ensureRelativeNodeCoordinates(snapshot.nodes, 0, 0);
   const camera = result.camera ?? previous?.camera;
 
   const canvasData: CanvasData = {
