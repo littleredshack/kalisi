@@ -21,6 +21,7 @@ export class ComposableHierarchicalCanvasEngine {
   private cameraSystem: CameraSystem;
   private renderer: IRenderer;
   private presentationFrame: PresentationFrame | null = null;
+  private lastRenderedFrameVersion = -1;
   private viewNodeStateService?: ViewNodeStateService;
   private dynamicLayoutService?: DynamicLayoutService;
   private data: CanvasData;
@@ -163,6 +164,7 @@ export class ComposableHierarchicalCanvasEngine {
     });
     const filtered = this.applyLensToData(lensId);
     this.setData(filtered, 'system', false);
+    this.lastRenderedFrameVersion = -1;
   }
 
   switchLayoutEngine(engineName: string, source: CanvasEventSource = 'user'): CanvasData | null {
@@ -629,17 +631,23 @@ export class ComposableHierarchicalCanvasEngine {
 
   // Rendering
   render(): void {
+    this.presentationFrame = this.layoutRuntime.getPresentationFrame() ?? this.presentationFrame;
+    const frame = this.presentationFrame;
+    if (frame && frame.version === this.lastRenderedFrameVersion && (!frame.delta || (frame.delta.nodes.length === 0 && frame.delta.edges.length === 0))) {
+      return;
+    }
+
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
     const camera = this.cameraSystem.getCamera();
-    this.renderer.render(this.ctx, this.data.nodes, this.data.edges, camera);
+    this.renderer.render(this.ctx, this.data.nodes, this.data.edges, camera, frame ?? undefined);
 
-
-    // Render selection if any
     if (this.selectedNode) {
       const worldPos = this.selectedNodeWorldPos || this.getAbsolutePosition(this.selectedNode);
       this.renderSelectionAtPosition(this.selectedNode, worldPos, camera);
     }
+
+    this.lastRenderedFrameVersion = frame?.version ?? this.lastRenderedFrameVersion;
   }
 
   centerOnNode(node: HierarchicalNode): void {
@@ -784,6 +792,7 @@ export class ComposableHierarchicalCanvasEngine {
         camera: this.cameraSystem.getCamera()
       });
     }
+    this.lastRenderedFrameVersion = -1;
   }
 
   private ensureCameraWithinBounds(_reason: 'set-data' | 'external-state' | 'initialize' = 'set-data'): void {
