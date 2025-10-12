@@ -69,9 +69,50 @@ export interface LayoutResult {
   readonly diagnostics?: LayoutDiagnostics;
 }
 
+/**
+ * Raw entity data from data sources (e.g., Neo4j queries)
+ */
+export interface RawEntity {
+  readonly id: string;
+  readonly name?: string;
+  readonly type?: string;
+  readonly properties?: Readonly<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+/**
+ * Raw relationship data from data sources
+ */
+export interface RawRelationship {
+  readonly id: string;
+  readonly source: string;
+  readonly target: string;
+  readonly type: string;
+  readonly properties?: Readonly<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+/**
+ * Raw data input for layout engines that support initial data processing
+ */
+export interface RawDataInput {
+  readonly entities: ReadonlyArray<RawEntity>;
+  readonly relationships: ReadonlyArray<RawRelationship>;
+}
+
 export interface LayoutEngine {
   readonly name: string;
   readonly capabilities: LayoutCapabilities;
 
+  /**
+   * Core layout method - transforms a layout graph according to engine rules
+   */
   layout(graph: LayoutGraph, options: LayoutOptions): LayoutResult;
+
+  /**
+   * Optional method to process raw data from data sources
+   * Engines that implement this can handle initial data loading directly
+   * without requiring pre-processed hierarchical structures
+   */
+  processRawData?(input: RawDataInput, options?: LayoutOptions): LayoutGraph;
 }
