@@ -93,9 +93,10 @@ export class ComposableHierarchicalCanvasEngine {
     this.canvasEventSubscription = this.canvasEventBus.events$.subscribe(event => this.handleCanvasEvent(event));
     this.currentEngineName = this.layoutRuntime.getActiveEngineName() ?? initialEngineName;
 
-    const initialResult = this.layoutRuntime.runLayout({ reason: 'initial', source: 'system' });
-    this.data = initialResult;
-    this.normaliseCanvasData(this.data);
+    this.layoutRuntime.runLayout({ reason: 'initial', source: 'system' });
+    const initialFrame = this.layoutRuntime.getPresentationFrame();
+    const initialCanvasData = initialFrame?.canvasData ?? this.layoutRuntime.getCanvasData();
+    this.setData(initialCanvasData, 'system');
     this.lensBaseData = this.cloneCanvasData(this.data);
 
     this.setupEventHandlers();
@@ -198,8 +199,8 @@ export class ComposableHierarchicalCanvasEngine {
     } finally {
       this.suppressCanvasEvents = false;
     }
-
-    this.setData(result, source);
+    const frame = this.layoutRuntime.getPresentationFrame();
+    this.setData(frame?.canvasData ?? result, source);
     this.currentEngineName = this.layoutRuntime.getActiveEngineName() ?? this.currentEngineName;
     return this.getData();
   }

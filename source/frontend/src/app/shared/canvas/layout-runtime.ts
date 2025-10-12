@@ -64,7 +64,18 @@ export class CanvasLayoutRuntime {
   }
 
   getCanvasData(): CanvasData {
-    return this.canvasData;
+    return this.cloneCanvasData(this.canvasData);
+  }
+
+  getPresentationFrame(): PresentationFrame | null {
+    if (!this.frame) {
+      return null;
+    }
+    return {
+      version: this.frame.version,
+      camera: this.frame.camera ? { ...this.frame.camera } : undefined,
+      canvasData: this.cloneCanvasData(this.frame.canvasData)
+    };
   }
 
   getLayoutGraph(): LayoutGraph {
