@@ -17,29 +17,53 @@ export class LayoutWorkerBridge {
   }
 
   async run(canvasId: string, graph: LayoutGraph, options: LayoutRunOptions): Promise<LayoutResult> {
+    const activeEngine = options.engineName ?? this.orchestrator.getActiveEngineName(canvasId) ?? undefined;
+    const effectiveOptions: LayoutRunOptions = {
+      ...options,
+      engineName: activeEngine
+    };
+
     if (!this.worker) {
-      return this.orchestrator.runLayout(canvasId, graph, options);
+      return this.orchestrator.runLayout(canvasId, graph, effectiveOptions);
     }
 
     return new Promise<LayoutResult>((resolve, reject) => {
-      const handleMessage = (event: MessageEvent) => {
-        if (event.data?.error) {
-          this.worker?.removeEventListener('message', handleMessage);
-          reject(new Error(event.data.error));
-          return;
-        }
-        this.worker?.removeEventListener('message', handleMessage);
-        // Worker integration TODO
-        resolve(this.orchestrator.runLayout(canvasId, graph, options));
-      };
-
       const worker = this.worker;
       if (!worker) {
         reject(new Error('worker not initialised'));
         return;
       }
+
+      const handleMessage = (event: MessageEvent) => {
+        const data = event.data as { result?: LayoutResult; error?: string };
+        if (!data) {
+          return;
+        }
+        cleanup();
+        if (data.error) {
+          reject(new Error(data.error));
+          return;
+        }
+        if (data.result) {
+          resolve(data.result);
+          return;
+        }
+        reject(new Error('layout worker returned an empty response'));
+      };
+
+      const handleError = (event: ErrorEvent) => {
+        cleanup();
+        reject(event.error ?? new Error(event.message));
+      };
+
+      const cleanup = () => {
+        worker.removeEventListener('message', handleMessage);
+        worker.removeEventListener('error', handleError);
+      };
+
       worker.addEventListener('message', handleMessage, { once: true });
-      worker.postMessage({ canvasId, graph, options });
+      worker.addEventListener('error', handleError, { once: true });
+      worker.postMessage({ canvasId, graph, options: effectiveOptions });
     });
   }
 }

@@ -77,7 +77,8 @@ export class CanvasLayoutRuntime {
       camera: this.frame.camera ? { ...this.frame.camera } : undefined,
       canvasData: this.cloneCanvasData(this.frame.canvasData),
       lastResult: this.frame.lastResult,
-      delta: this.frame.delta
+      delta: this.frame.delta,
+      lensId: this.frame.lensId
     };
   }
 
@@ -106,7 +107,8 @@ export class CanvasLayoutRuntime {
       delta: {
         nodes: [],
         edges: []
-      }
+      },
+      lensId: this.lensId
     };
 
     if (runLayout) {
@@ -120,6 +122,12 @@ export class CanvasLayoutRuntime {
 
   setLens(lensId: string | undefined): void {
     this.lensId = lensId;
+    if (this.frame) {
+      this.frame = {
+        ...this.frame,
+        lensId
+      };
+    }
   }
 
   async runLayout(options: LayoutRunOptions = {}): Promise<CanvasData> {

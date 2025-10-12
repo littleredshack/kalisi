@@ -23,6 +23,11 @@ export class ComposableContainmentOrthogonalRenderer extends BaseRenderer {
   private routingService = new OrthogonalRoutingService();
   private viewNodeStateService?: ViewNodeStateService;
   private collapseBehavior: CollapseBehavior = 'full-size';
+  private edgeWaypointCache = new Map<string, Point[]>();
+  private nodeBoundsCache = new Map<string, Bounds>();
+  private flattenedNodeBounds: Array<{ id: string; bounds: Bounds }> = [];
+  private lastFrameVersion = -1;
+  private lastLensId: string | null = null;
 
   /**
    * Set the ViewNodeStateService instance
@@ -55,9 +60,66 @@ export class ComposableContainmentOrthogonalRenderer extends BaseRenderer {
    * Main render method - combines hierarchical nodes with orthogonal edges
    */
   render(ctx: CanvasRenderingContext2D, nodes: HierarchicalNode[], edges: Edge[], camera: Camera, frame?: PresentationFrame): void {
-    // Calculate orthogonal waypoints for ALL edges (including inherited) BEFORE rendering
-    // The engine already puts inherited edges in the edges array when nodes are collapsed
-    this.calculateWaypointsForEdges(edges, nodes);
+    const frameVersion = frame?.version ?? -1;
+    const lensId = frame?.lensId ?? null;
+    const delta = frame?.delta;
+
+    const dirtyNodeIds = new Set<string>();
+    const dirtyEdgeIds = new Set<string>();
+
+    if (delta?.nodes) {
+      delta.nodes
+        .filter(nodeDelta => nodeDelta.hasGeometryChange)
+        .forEach(nodeDelta => dirtyNodeIds.add(nodeDelta.nodeId));
+    }
+
+    if (delta?.edges) {
+      delta.edges
+        .filter(edgeDelta => edgeDelta.hasChange)
+        .forEach(edgeDelta => dirtyEdgeIds.add(edgeDelta.edgeId));
+    }
+
+    const cacheInvalidated =
+      frameVersion < this.lastFrameVersion ||
+      lensId !== this.lastLensId ||
+      !delta ||
+      this.lastFrameVersion === -1;
+
+    if (cacheInvalidated || dirtyNodeIds.size > 0) {
+      this.rebuildNodeBounds(nodes);
+    }
+
+    const currentEdgeIds = new Set(edges.map(edge => edge.id));
+    for (const cachedId of Array.from(this.edgeWaypointCache.keys())) {
+      if (!currentEdgeIds.has(cachedId)) {
+        this.edgeWaypointCache.delete(cachedId);
+      }
+    }
+
+    edges.forEach(edge => {
+      const fromId = this.getEdgeNodeIdentifier(edge.fromGUID, edge.from);
+      const toId = this.getEdgeNodeIdentifier(edge.toGUID, edge.to);
+      const requiresUpdate =
+        cacheInvalidated ||
+        !this.edgeWaypointCache.has(edge.id) ||
+        dirtyEdgeIds.has(edge.id) ||
+        (fromId !== null && dirtyNodeIds.has(fromId)) ||
+        (toId !== null && dirtyNodeIds.has(toId));
+
+      if (!requiresUpdate) {
+        return;
+      }
+
+      const waypoints = this.calculateEdgeWaypoints(edge, edges.length);
+      if (waypoints) {
+        this.edgeWaypointCache.set(edge.id, waypoints);
+      } else {
+        this.edgeWaypointCache.delete(edge.id);
+      }
+    });
+
+    this.lastFrameVersion = frameVersion;
+    this.lastLensId = lensId;
 
     // 2-pass rendering for proper z-order:
     // 1. Draw all nodes (hierarchical with containment)
@@ -65,14 +127,16 @@ export class ComposableContainmentOrthogonalRenderer extends BaseRenderer {
 
     // 2. Draw all edges with orthogonal routing (includes inherited edges from collapsed nodes)
     edges.forEach(edge => {
-      // Inherited edges have semi-transparent styling
+      const renderEdge = this.edgeWaypointCache.has(edge.id)
+        ? { ...edge, waypoints: this.edgeWaypointCache.get(edge.id)! }
+        : edge;
       if (edge.id.startsWith('inherited-')) {
         ctx.save();
         ctx.globalAlpha = 0.6;
-        this.renderOrthogonalEdge(ctx, edge, nodes, camera);
+        this.renderOrthogonalEdge(ctx, renderEdge, nodes, camera);
         ctx.restore();
       } else {
-        this.renderOrthogonalEdge(ctx, edge, nodes, camera);
+        this.renderOrthogonalEdge(ctx, renderEdge, nodes, camera);
       }
     });
   }
@@ -85,76 +149,102 @@ export class ComposableContainmentOrthogonalRenderer extends BaseRenderer {
     HierarchicalNodePrimitive.draw(ctx, node, parentX, parentY, camera, this.collapseBehavior);
   }
 
-  /**
-   * Calculate orthogonal waypoints for edges - from flat renderer
-   */
-  private calculateWaypointsForEdges(edges: Edge[], nodes: HierarchicalNode[]): void {
-    const useSimpleRouting = nodes.length > 600 || edges.length > 800;
+  private calculateEdgeWaypoints(edge: Edge, edgeCount: number): Point[] | null {
+    const fromId = this.getEdgeNodeIdentifier(edge.fromGUID, edge.from);
+    const toId = this.getEdgeNodeIdentifier(edge.toGUID, edge.to);
 
-    edges.forEach(edge => {
-      // Use fromGUID/toGUID if available, otherwise fall back to from/to
-      const fromId = edge.fromGUID || edge.from;
-      const toId = edge.toGUID || edge.to;
-      const fromNode = this.findNodeByGUID(fromId, nodes);
-      const toNode = this.findNodeByGUID(toId, nodes);
+    if (!fromId || !toId) {
+      return null;
+    }
 
-      if (!fromNode || !toNode) {
+    const fromBounds = this.nodeBoundsCache.get(fromId);
+    const toBounds = this.nodeBoundsCache.get(toId);
+
+    if (!fromBounds || !toBounds) {
+      return null;
+    }
+
+    const useSimpleRouting = this.flattenedNodeBounds.length > 600 || edgeCount > 800;
+
+    if (useSimpleRouting) {
+      const fromCenter = this.boundsCenter(fromBounds);
+      const toCenter = this.boundsCenter(toBounds);
+      return [
+        { x: fromCenter.x, y: fromCenter.y },
+        { x: toCenter.x, y: toCenter.y }
+      ];
+    }
+
+    const obstacles = this.flattenedNodeBounds
+      .filter(entry => entry.id !== fromId && entry.id !== toId)
+      .map(entry => ({
+        x: entry.bounds.x,
+        y: entry.bounds.y,
+        width: entry.bounds.width,
+        height: entry.bounds.height
+      }));
+
+    const waypoints = this.routingService.calculatePath(fromBounds, toBounds, obstacles);
+    const adjusted = waypoints.map(point => ({ x: point.x, y: point.y }));
+
+    if (adjusted.length >= 2) {
+      const fromCenter = this.boundsCenter(fromBounds);
+      const toCenter = this.boundsCenter(toBounds);
+      const toFirst = adjusted[1] ?? adjusted[0];
+      const fromLast = adjusted[adjusted.length - 2] ?? adjusted[adjusted.length - 1];
+      adjusted[0] = this.calculateBorderIntersection(fromBounds, fromCenter, toFirst);
+      adjusted[adjusted.length - 1] = this.calculateBorderIntersection(toBounds, toCenter, fromLast);
+    }
+
+    return adjusted;
+  }
+
+  private rebuildNodeBounds(nodes: HierarchicalNode[]): void {
+    this.nodeBoundsCache.clear();
+    this.flattenedNodeBounds = [];
+    this.collectNodeBounds(nodes, { x: 0, y: 0 });
+  }
+
+  private collectNodeBounds(nodes: HierarchicalNode[], offset: Point): void {
+    nodes.forEach(node => {
+      const id = this.getNodeIdentifier(node);
+      if (!id) {
         return;
       }
 
-      // Get absolute positions for nodes (important for hierarchical nodes)
-      const fromBounds = this.getAbsoluteNodeBounds(fromNode, nodes);
-      const toBounds = this.getAbsoluteNodeBounds(toNode, nodes);
+      const shouldShrink =
+        node.collapsed && node.children && node.children.length > 0 && this.collapseBehavior === 'shrink';
+      const width = shouldShrink ? 180 : node.width;
+      const height = shouldShrink ? 60 : node.height;
+      const absolute: Bounds = {
+        x: offset.x + node.x,
+        y: offset.y + node.y,
+        width,
+        height
+      };
 
-      if (useSimpleRouting) {
-        const fromCenter = {
-          x: fromBounds.x + fromBounds.width / 2,
-          y: fromBounds.y + fromBounds.height / 2
-        };
-        const toCenter = {
-          x: toBounds.x + toBounds.width / 2,
-          y: toBounds.y + toBounds.height / 2
-        };
+      this.nodeBoundsCache.set(id, absolute);
+      this.flattenedNodeBounds.push({ id, bounds: absolute });
 
-        edge.waypoints = [fromCenter, toCenter];
-        return;
+      if (!node.collapsed && node.children && node.children.length > 0) {
+        this.collectNodeBounds(node.children, { x: absolute.x, y: absolute.y });
       }
-
-
-      // Get obstacles (all nodes except source and target)
-      const obstacles = this.getAllNodeBounds(nodes)
-        .filter(n => n.id !== fromId && n.id !== toId)
-        .map(n => ({
-          x: n.x,
-          y: n.y,
-          width: n.width,
-          height: n.height
-        }));
-
-      // Calculate orthogonal path
-      const waypoints = this.routingService.calculatePath(
-        fromBounds,
-        toBounds,
-        obstacles
-      );
-
-      // Fix waypoints to attach at node borders instead of centers
-      if (waypoints.length >= 2) {
-        // Fix start point: calculate intersection with source node border
-        const fromCenter = { x: fromBounds.x + fromBounds.width / 2, y: fromBounds.y + fromBounds.height / 2 };
-        const toFirstWaypoint = waypoints[1] || waypoints[0];
-        const fromBorderPoint = this.calculateBorderIntersection(fromBounds, fromCenter, toFirstWaypoint);
-        waypoints[0] = fromBorderPoint;
-
-        // Fix end point: calculate intersection with target node border
-        const toCenter = { x: toBounds.x + toBounds.width / 2, y: toBounds.y + toBounds.height / 2 };
-        const fromLastWaypoint = waypoints[waypoints.length - 2] || waypoints[waypoints.length - 1];
-        const toBorderPoint = this.calculateBorderIntersection(toBounds, toCenter, fromLastWaypoint);
-        waypoints[waypoints.length - 1] = toBorderPoint;
-      }
-
-      edge.waypoints = waypoints;
     });
+  }
+
+  private getEdgeNodeIdentifier(guid: string | undefined, fallback: string): string | null {
+    return guid ?? fallback ?? null;
+  }
+
+  private getNodeIdentifier(node: HierarchicalNode): string | null {
+    return node.GUID || node.id || null;
+  }
+
+  private boundsCenter(bounds: Bounds): Point {
+    return {
+      x: bounds.x + bounds.width / 2,
+      y: bounds.y + bounds.height / 2
+    };
   }
 
   /**
@@ -268,95 +358,6 @@ export class ComposableContainmentOrthogonalRenderer extends BaseRenderer {
     }
 
     return null;
-  }
-
-  /**
-   * Get absolute bounds for a node (accounting for parent positions and collapse behavior)
-   */
-  private getAbsoluteNodeBounds(node: HierarchicalNode, allNodes: HierarchicalNode[]): Bounds {
-    // Determine if we should shrink this node
-    const shouldShrink = node.collapsed && node.children && node.children.length > 0 && this.collapseBehavior === 'shrink';
-
-    // Use smaller dimensions if collapsed and behavior is 'shrink'
-    const nodeWidth = shouldShrink ? 180 : node.width;
-    const nodeHeight = shouldShrink ? 60 : node.height;
-
-    // For hierarchical nodes, we need to add parent offsets
-    let x = node.x;
-    let y = node.y;
-
-    // Find parent and add its position (simplified - may need full path calculation)
-    const parent = this.findParentNode(node, allNodes);
-    if (parent) {
-      const parentBounds = this.getAbsoluteNodeBounds(parent, allNodes);
-      x += parentBounds.x;
-      y += parentBounds.y;
-    }
-
-    return { x, y, width: nodeWidth, height: nodeHeight };
-  }
-
-  /**
-   * Find parent node of a given node
-   */
-  private findParentNode(target: HierarchicalNode, nodes: HierarchicalNode[]): HierarchicalNode | null {
-    for (const node of nodes) {
-      if (node.children?.includes(target)) return node;
-      if (node.children) {
-        const found = this.findParentNode(target, node.children);
-        if (found) return found;
-      }
-    }
-    return null;
-  }
-
-  /**
-   * Get bounds for all nodes (flattened)
-   */
-  private getAllNodeBounds(nodes: HierarchicalNode[], parent?: { x: number, y: number }): Array<{ id: string, x: number, y: number, width: number, height: number }> {
-    const bounds: Array<{ id: string, x: number, y: number, width: number, height: number }> = [];
-    const offset = parent || { x: 0, y: 0 };
-
-    nodes.forEach(node => {
-      const absoluteX = offset.x + node.x;
-      const absoluteY = offset.y + node.y;
-
-      // Skip nodes without GUIDs (shouldn't happen in composable system)
-      if (!node.GUID) {
-        return;
-      }
-
-      // Determine if we should shrink this node
-      const shouldShrink = node.collapsed && node.children && node.children.length > 0 && this.collapseBehavior === 'shrink';
-
-      // Use smaller dimensions if collapsed and behavior is 'shrink'
-      const nodeWidth = shouldShrink ? 180 : node.width;
-      const nodeHeight = shouldShrink ? 60 : node.height;
-
-      bounds.push({
-        id: node.GUID,  // Use GUID only for composable system
-        x: absoluteX,
-        y: absoluteY,
-        width: nodeWidth,
-        height: nodeHeight
-      });
-
-      if (!node.collapsed && node.children) {
-        bounds.push(...this.getAllNodeBounds(node.children, { x: absoluteX, y: absoluteY }));
-      }
-    });
-
-    return bounds;
-  }
-
-  /**
-   * Get center point of a node
-   */
-  private getNodeCenter(node: HierarchicalNode): Point {
-    return {
-      x: node.x + node.width / 2,
-      y: node.y + node.height / 2
-    };
   }
 
   /**

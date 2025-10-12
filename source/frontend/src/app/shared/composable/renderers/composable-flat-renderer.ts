@@ -17,6 +17,9 @@ import { OrthogonalRoutingService } from '../../../core/services/orthogonal-rout
  */
 export class ComposableFlatRenderer extends BaseRenderer {
   private routingService = new OrthogonalRoutingService();
+  private edgeWaypointCache = new Map<string, Point[]>();
+  private lastFrameVersion = -1;
+  private lastLensId: string | null = null;
 
   getName(): string {
     return 'composable-flat';
@@ -38,15 +41,77 @@ export class ComposableFlatRenderer extends BaseRenderer {
    * Main render method - orchestrates primitives in exact same order as FlatGraphRenderingStrategy
    */
   render(ctx: CanvasRenderingContext2D, nodes: HierarchicalNode[], edges: Edge[], camera: Camera, frame?: PresentationFrame): void {
-    // Step 1: Calculate waypoints for all edges (EXACT same as original)
-    // This recalculates on every render for node movement
-    this.calculateWaypointsForEdges(edges, nodes);
+    const frameVersion = frame?.version ?? -1;
+    const lensId = frame?.lensId ?? null;
+    const delta = frame?.delta;
+
+    const dirtyNodeIds = new Set<string>();
+    const dirtyEdgeIds = new Set<string>();
+
+    if (delta?.nodes) {
+      delta.nodes
+        .filter(nodeDelta => nodeDelta.hasGeometryChange)
+        .forEach(nodeDelta => dirtyNodeIds.add(nodeDelta.nodeId));
+    }
+
+    if (delta?.edges) {
+      delta.edges
+        .filter(edgeDelta => edgeDelta.hasChange)
+        .forEach(edgeDelta => dirtyEdgeIds.add(edgeDelta.edgeId));
+    }
+
+    const cacheInvalidated =
+      frameVersion < this.lastFrameVersion ||
+      lensId !== this.lastLensId ||
+      !delta ||
+      this.lastFrameVersion === -1;
+
+    if (cacheInvalidated) {
+      this.edgeWaypointCache.clear();
+    }
+
+    const currentEdgeIds = new Set(edges.map(edge => edge.id));
+    for (const cachedId of Array.from(this.edgeWaypointCache.keys())) {
+      if (!currentEdgeIds.has(cachedId)) {
+        this.edgeWaypointCache.delete(cachedId);
+      }
+    }
+
+    const nodeIndex = this.buildNodeIndex(nodes);
+
+    edges.forEach(edge => {
+      const fromId = this.getEdgeNodeIdentifier(edge.fromGUID, edge.from);
+      const toId = this.getEdgeNodeIdentifier(edge.toGUID, edge.to);
+
+      const requiresUpdate =
+        cacheInvalidated ||
+        !this.edgeWaypointCache.has(edge.id) ||
+        dirtyEdgeIds.has(edge.id) ||
+        (fromId !== null && dirtyNodeIds.has(fromId)) ||
+        (toId !== null && dirtyNodeIds.has(toId));
+
+      if (!requiresUpdate) {
+        return;
+      }
+
+      const waypoints = this.calculateWaypoints(edge, nodes, nodeIndex);
+      if (waypoints) {
+        this.edgeWaypointCache.set(edge.id, waypoints);
+      } else {
+        this.edgeWaypointCache.delete(edge.id);
+      }
+    });
+
+    this.lastFrameVersion = frameVersion;
+    this.lastLensId = lensId;
 
     // Step 2: Render edges first (behind nodes) - EXACT same z-order
     edges.forEach(edge => {
-      const fromNode = this.findNodeById(edge.from, nodes);
-      const toNode = this.findNodeById(edge.to, nodes);
-      FlatEdgePrimitive.draw(ctx, edge, fromNode, toNode, camera);
+      const fromNode = this.findNodeByIdentifier(this.getEdgeNodeIdentifier(edge.fromGUID, edge.from), nodeIndex);
+      const toNode = this.findNodeByIdentifier(this.getEdgeNodeIdentifier(edge.toGUID, edge.to), nodeIndex);
+      const cachedWaypoints = this.edgeWaypointCache.get(edge.id);
+      const renderEdge = cachedWaypoints ? { ...edge, waypoints: cachedWaypoints } : edge;
+      FlatEdgePrimitive.draw(ctx, renderEdge, fromNode, toNode, camera);
     });
 
     // Step 3: Render nodes on top of edges
@@ -107,45 +172,65 @@ export class ComposableFlatRenderer extends BaseRenderer {
   /**
    * Calculate orthogonal waypoints for edges - EXACT copy from FlatGraphRenderingStrategy
    */
-  private calculateWaypointsForEdges(edges: Edge[], nodes: HierarchicalNode[]): void {
-    edges.forEach(edge => {
-      // Always recalculate waypoints to handle node movement
-      // Use fromGUID/toGUID if available, otherwise fall back to from/to
-      const fromId = edge.fromGUID || edge.from;
-      const toId = edge.toGUID || edge.to;
-      const fromNode = this.findNodeById(fromId, nodes);
-      const toNode = this.findNodeById(toId, nodes);
+  private calculateWaypoints(
+    edge: Edge,
+    nodes: HierarchicalNode[],
+    nodeIndex: Map<string, HierarchicalNode>
+  ): Point[] | null {
+    const fromId = this.getEdgeNodeIdentifier(edge.fromGUID, edge.from);
+    const toId = this.getEdgeNodeIdentifier(edge.toGUID, edge.to);
+    const fromNode = this.findNodeByIdentifier(fromId, nodeIndex);
+    const toNode = this.findNodeByIdentifier(toId, nodeIndex);
 
-      if (!fromNode || !toNode) {
-        return;
-      }
+    if (!fromNode || !toNode) {
+      return null;
+    }
 
-      // Get obstacles (all nodes except source and target)
-      const obstacles = nodes
-        .filter(n => n.id !== edge.from && n.id !== edge.to)
-        .map(n => ({
-          x: n.x,
-          y: n.y,
-          width: n.width,
-          height: n.height
-        }));
+    const fromBounds = { x: fromNode.x, y: fromNode.y, width: fromNode.width, height: fromNode.height };
+    const toBounds = { x: toNode.x, y: toNode.y, width: toNode.width, height: toNode.height };
 
-      // Calculate orthogonal path
-      const waypoints = this.routingService.calculatePath(
-        { x: fromNode.x, y: fromNode.y, width: fromNode.width, height: fromNode.height },
-        { x: toNode.x, y: toNode.y, width: toNode.width, height: toNode.height },
-        obstacles
-      );
+    const obstacles = nodes
+      .filter(node => {
+        const id = this.getNodeIdentifier(node);
+        return id !== null && id !== fromId && id !== toId;
+      })
+      .map(node => ({
+        x: node.x,
+        y: node.y,
+        width: node.width,
+        height: node.height
+      }));
 
-      edge.waypoints = waypoints;
-    });
+    const waypoints = this.routingService.calculatePath(fromBounds, toBounds, obstacles);
+    return waypoints.map(point => ({ x: point.x, y: point.y }));
   }
 
   /**
    * Find node by GUID - the ONLY way to identify nodes
    */
-  private findNodeById(guid: string, nodes: HierarchicalNode[]): HierarchicalNode | null {
-    // ONLY use GUID for node identification
-    return nodes.find(node => node.GUID === guid) || null;
+  private findNodeByIdentifier(identifier: string | null, nodeIndex: Map<string, HierarchicalNode>): HierarchicalNode | null {
+    if (!identifier) {
+      return null;
+    }
+    return nodeIndex.get(identifier) ?? null;
+  }
+
+  private buildNodeIndex(nodes: HierarchicalNode[]): Map<string, HierarchicalNode> {
+    const map = new Map<string, HierarchicalNode>();
+    nodes.forEach(node => {
+      const id = this.getNodeIdentifier(node);
+      if (id) {
+        map.set(id, node);
+      }
+    });
+    return map;
+  }
+
+  private getNodeIdentifier(node: HierarchicalNode): string | null {
+    return node.GUID || node.id || null;
+  }
+
+  private getEdgeNodeIdentifier(guid: string | undefined, fallback: string): string | null {
+    return guid ?? fallback ?? null;
   }
 }

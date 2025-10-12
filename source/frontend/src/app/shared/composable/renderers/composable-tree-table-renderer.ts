@@ -6,6 +6,9 @@ import { TreeTableColumn } from '../../tree-table/tree-table.types';
 export class ComposableTreeTableRenderer extends BaseRenderer {
   private labelAreaRatio = 0.45;
   private rowCornerRadius = 6;
+  private renderCache: Array<{ node: HierarchicalNode; worldX: number; worldY: number }> = [];
+  private lastFrameVersion = -1;
+  private lastLensId: string | null = null;
 
   getName(): string {
     return 'ComposableTreeTableRenderer';
@@ -19,38 +22,62 @@ export class ComposableTreeTableRenderer extends BaseRenderer {
   }
 
   override render(ctx: CanvasRenderingContext2D, nodes: HierarchicalNode[], _edges: Edge[], camera: Camera, frame?: PresentationFrame): void {
+    const frameVersion = frame?.version ?? -1;
+    const lensId = frame?.lensId ?? null;
+    const delta = frame?.delta;
+
+    let shouldRebuild =
+      this.renderCache.length === 0 ||
+      frameVersion !== this.lastFrameVersion ||
+      lensId !== this.lastLensId ||
+      !frame;
+
+    if (!shouldRebuild && delta?.nodes) {
+      shouldRebuild = delta.nodes.some(nodeDelta =>
+        nodeDelta.hasGeometryChange || nodeDelta.hasStateChange || nodeDelta.hasMetadataChange
+      );
+    }
+
+    if (shouldRebuild) {
+      this.rebuildRenderCache(nodes);
+      this.lastFrameVersion = frameVersion;
+      this.lastLensId = lensId;
+    }
+
     ctx.save();
     ctx.font = `${14 * camera.zoom}px "Inter", "Roboto", sans-serif`;
     ctx.textBaseline = 'middle';
 
-    const renderNode = (node: HierarchicalNode, path: HierarchicalNode[]) => {
-      if (node.visible === false) {
-        return;
-      }
-
-      const worldPos = this.getAbsolutePositionFromPath(path);
-      const screenPos = this.worldToScreen(worldPos, camera);
+    this.renderCache.forEach(entry => {
+      const { node, worldX, worldY } = entry;
+      const screenPos = this.worldToScreen({ x: worldX, y: worldY }, camera);
       const screenWidth = node.width * camera.zoom;
       const screenHeight = node.height * camera.zoom;
 
-      const metadata = node.metadata || {} as any;
+      if (
+        screenPos.x + screenWidth < 0 ||
+        screenPos.y + screenHeight < 0 ||
+        screenPos.x > ctx.canvas.width ||
+        screenPos.y > ctx.canvas.height
+      ) {
+        return;
+      }
+
+      const metadata = node.metadata || ({} as any);
       const rowIndex = metadata.rowIndex ?? 0;
       const depth = metadata.depth ?? 0;
       const columns = (metadata.columns ?? []) as TreeTableColumn[];
       const values = metadata.values ?? {};
 
-      // Row background
       ctx.beginPath();
       ctx.fillStyle = rowIndex % 2 === 0 ? 'rgba(24, 32, 46, 0.9)' : 'rgba(20, 27, 40, 0.9)';
       this.roundRect(ctx, screenPos.x, screenPos.y, screenWidth, screenHeight, this.rowCornerRadius * camera.zoom);
       ctx.fill();
 
-      // Border line
       ctx.strokeStyle = 'rgba(68, 102, 150, 0.35)';
       ctx.lineWidth = 1 * camera.zoom;
       ctx.stroke();
 
-      // Expand/collapse icon
       const iconSize = 10 * camera.zoom;
       if (node.children && node.children.length > 0) {
         ctx.fillStyle = '#9fb5d4';
@@ -70,14 +97,12 @@ export class ComposableTreeTableRenderer extends BaseRenderer {
         ctx.fill();
       }
 
-      // Label text (with depth indentation)
       const labelIndent = (depth * 18 + 36) * camera.zoom;
       const textX = screenPos.x + labelIndent;
       const textY = screenPos.y + screenHeight / 2;
       ctx.fillStyle = '#e6edf7';
       ctx.fillText(node.text ?? '', textX, textY);
 
-      // Column values
       const labelAreaWidth = screenWidth * this.labelAreaRatio;
       const remainingWidth = Math.max(screenWidth - labelAreaWidth, 100 * camera.zoom);
       const columnWidth = columns.length > 0 ? remainingWidth / columns.length : 0;
@@ -89,7 +114,6 @@ export class ComposableTreeTableRenderer extends BaseRenderer {
         ctx.fillStyle = '#c2d4f2';
         ctx.fillText(String(formatted), columnX + 12 * camera.zoom, textY);
 
-        // Divider line
         ctx.beginPath();
         ctx.strokeStyle = 'rgba(90, 118, 155, 0.35)';
         ctx.moveTo(columnX, screenPos.y);
@@ -98,13 +122,8 @@ export class ComposableTreeTableRenderer extends BaseRenderer {
 
         columnX += columnWidth;
       });
+    });
 
-      if (!node.collapsed) {
-        node.children.forEach(child => renderNode(child, [...path, child]));
-      }
-    };
-
-    nodes.forEach(node => renderNode(node, [node]));
     ctx.restore();
   }
 
@@ -143,5 +162,23 @@ export class ComposableTreeTableRenderer extends BaseRenderer {
     ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
     ctx.lineTo(x, y + radius);
     ctx.quadraticCurveTo(x, y, x + radius, y);
+  }
+
+  private rebuildRenderCache(nodes: HierarchicalNode[]): void {
+    this.renderCache = [];
+    const traverse = (nodeList: HierarchicalNode[], parentWorldX: number, parentWorldY: number): void => {
+      nodeList.forEach(node => {
+        if (node.visible === false) {
+          return;
+        }
+        const worldX = parentWorldX + node.x;
+        const worldY = parentWorldY + node.y;
+        this.renderCache.push({ node, worldX, worldY });
+        if (!node.collapsed && node.children && node.children.length > 0) {
+          traverse(node.children, worldX, worldY);
+        }
+      });
+    };
+    traverse(nodes, 0, 0);
   }
 }

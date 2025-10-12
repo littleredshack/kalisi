@@ -13,6 +13,10 @@ const SECONDARY_LABEL_COLOR = '#9ca3af';
  * indented children and connecting lines. Designed for the Code Model view.
  */
 export class ComposableTreeRenderer extends BaseRenderer {
+  private renderCache: Array<{ node: HierarchicalNode; worldX: number; worldY: number }> = [];
+  private lastFrameVersion = -1;
+  private lastLensId: string | null = null;
+
   getName(): string {
     return 'composable-tree';
   }
@@ -25,8 +29,44 @@ export class ComposableTreeRenderer extends BaseRenderer {
   }
 
   render(ctx: CanvasRenderingContext2D, nodes: HierarchicalNode[], _edges: Edge[], camera: Camera, frame?: PresentationFrame): void {
-    nodes.forEach(node => {
-      this.renderNodeRecursive(ctx, node, 0, 0, camera);
+    const frameVersion = frame?.version ?? -1;
+    const lensId = frame?.lensId ?? null;
+    const delta = frame?.delta;
+
+    let shouldRebuild =
+      this.renderCache.length === 0 ||
+      frameVersion !== this.lastFrameVersion ||
+      lensId !== this.lastLensId ||
+      !frame;
+
+    if (!shouldRebuild && delta?.nodes) {
+      shouldRebuild = delta.nodes.some(nodeDelta =>
+        nodeDelta.hasGeometryChange || nodeDelta.hasStateChange || nodeDelta.hasMetadataChange
+      );
+    }
+
+    if (shouldRebuild) {
+      this.rebuildRenderCache(nodes);
+      this.lastFrameVersion = frameVersion;
+      this.lastLensId = lensId;
+    }
+
+    this.renderCache.forEach(entry => {
+      const { node, worldX, worldY } = entry;
+
+      const screenX = (worldX - camera.x) * camera.zoom;
+      const screenY = (worldY - camera.y) * camera.zoom;
+      const screenWidth = node.width * camera.zoom;
+      const screenHeight = node.height * camera.zoom;
+
+      if (this.isCulled(screenX, screenY, screenWidth, screenHeight, ctx)) {
+        return;
+      }
+
+      this.drawConnections(ctx, node, worldX, worldY, camera);
+      this.drawNode(ctx, node, screenX, screenY, screenWidth, screenHeight, camera);
+      this.drawLabels(ctx, node, screenX, screenY, screenWidth, camera);
+      this.drawCollapseIndicator(ctx, node, screenX, screenY, screenWidth, camera);
     });
   }
 
@@ -38,35 +78,22 @@ export class ComposableTreeRenderer extends BaseRenderer {
     return super.getNodeBounds(node);
   }
 
-  private renderNodeRecursive(
-    ctx: CanvasRenderingContext2D,
-    node: HierarchicalNode,
-    parentWorldX: number,
-    parentWorldY: number,
-    camera: Camera
-  ): void {
-    const worldX = parentWorldX + node.x;
-    const worldY = parentWorldY + node.y;
-
-    const screenX = (worldX - camera.x) * camera.zoom;
-    const screenY = (worldY - camera.y) * camera.zoom;
-    const screenWidth = node.width * camera.zoom;
-    const screenHeight = node.height * camera.zoom;
-
-    if (this.isCulled(screenX, screenY, screenWidth, screenHeight, ctx)) {
-      return;
-    }
-
-    this.drawConnections(ctx, node, worldX, worldY, camera);
-    this.drawNode(ctx, node, screenX, screenY, screenWidth, screenHeight, camera);
-    this.drawLabels(ctx, node, screenX, screenY, screenWidth, camera);
-    this.drawCollapseIndicator(ctx, node, screenX, screenY, screenWidth, camera);
-
-    if (!node.collapsed) {
-      node.children.forEach(child => {
-        this.renderNodeRecursive(ctx, child, worldX, worldY, camera);
+  private rebuildRenderCache(nodes: HierarchicalNode[]): void {
+    this.renderCache = [];
+    const traverse = (nodeList: HierarchicalNode[], parentWorldX: number, parentWorldY: number): void => {
+      nodeList.forEach(node => {
+        if (node.visible === false) {
+          return;
+        }
+        const worldX = parentWorldX + node.x;
+        const worldY = parentWorldY + node.y;
+        this.renderCache.push({ node, worldX, worldY });
+        if (!node.collapsed && node.children && node.children.length > 0) {
+          traverse(node.children, worldX, worldY);
+        }
       });
-    }
+    };
+    traverse(nodes, 0, 0);
   }
 
   private drawNode(

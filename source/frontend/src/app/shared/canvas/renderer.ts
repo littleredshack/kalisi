@@ -23,7 +23,13 @@ export interface IRenderer {
 // Abstract base renderer with common functionality
 export abstract class BaseRenderer implements IRenderer {
   
-  abstract render(ctx: CanvasRenderingContext2D, nodes: HierarchicalNode[], edges: Edge[], camera: Camera): void;
+  abstract render(
+    ctx: CanvasRenderingContext2D,
+    nodes: HierarchicalNode[],
+    edges: Edge[],
+    camera: Camera,
+    frame?: PresentationFrame
+  ): void;
   abstract getName(): string;
   abstract getDefaultNodeStyle(type: string): any;
 

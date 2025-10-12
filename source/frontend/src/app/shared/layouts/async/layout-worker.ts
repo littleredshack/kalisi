@@ -1,5 +1,6 @@
-import { LayoutRunOptions } from '../core/layout-orchestrator';
+import { LayoutOrchestrator, LayoutRunOptions } from '../core/layout-orchestrator';
 import { LayoutGraph, LayoutResult } from '../core/layout-contract';
+import { registerDefaultLayoutEngines } from '../engine-registry';
 
 interface LayoutWorkerRequest {
   canvasId: string;
@@ -9,7 +10,26 @@ interface LayoutWorkerRequest {
 
 declare const self: DedicatedWorkerGlobalScope;
 
-self.onmessage = async event => {
+const orchestrator = registerDefaultLayoutEngines(new LayoutOrchestrator());
+
+self.onmessage = event => {
   const payload = event.data as LayoutWorkerRequest;
-  self.postMessage({ error: 'worker stub not implemented', payload });
+  try {
+    const resolvedEngine =
+      payload.options.engineName ??
+      orchestrator.getActiveEngineName(payload.canvasId) ??
+      'containment-grid';
+
+    orchestrator.setActiveEngine(payload.canvasId, resolvedEngine, payload.options.source ?? 'system');
+
+    const result = orchestrator.runLayout(payload.canvasId, payload.graph, {
+      ...payload.options,
+      engineName: resolvedEngine
+    });
+
+    self.postMessage({ result });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    self.postMessage({ error: message });
+  }
 };
