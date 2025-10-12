@@ -1,3 +1,133 @@
+Claude assessment:
+1. Current challenges: Dual engine stacks, renderer coupling, event surface limitations, performance issues, and
+  composability problems
+  2. Target improvements: Unified layout engine contract, stateful runtime, renderer pipeline overhaul, interaction
+  parity, subgraph manipulation, performance foundations, and composable UI shell
+  3. Implementation path: 7-step migration from legacy to new architecture
+  4. Session notes from 2025-10-10: Debugging work to fix Code Model canvas rendering issues, including state
+  isolation per view to prevent cross-canvas interference
+
+  The main theme is transitioning from a legacy system to a declarative, event-driven architecture where layout
+  engines are pluggable modules operating on immutable graphs.
+
+> analysse the codebase and tell me how we are against that plan 
+
+● I'll analyze the codebase to assess progress against the architectural plan outlined in sessions.md.
+
+● Task(Analyze codebase architecture progress)
+  ⎿  Done (42 tool uses · 97.8k tokens · 1m 59s)                                                                     
+
+● Based on my analysis of the codebase against the architectural plan in sessions.md, here's the assessment:
+
+  Overall Progress: ~60% Complete
+
+  1. Unified Layout Engine Contract — 85% ✓
+
+  Strong foundation established:
+  - Formal LayoutEngine interface with LayoutCapabilities in frontend/src/app/shared/layouts/core/layout-contract.ts
+  - 4 runtime engines: Tree, ContainmentGrid, Orthogonal, Force (all registered)
+  - Immutable graph structures (LayoutGraph, LayoutResult)
+
+  Gaps:
+  - Legacy engines still run via ComponentFactory (dual execution paths)
+  - Worker execution exists but disabled by default
+  - Incremental layout declared but not implemented
+
+  2. Stateful, Data-Driven Runtime — 70%
+
+  Good progress:
+  - LayoutRuntime with LayoutOrchestrator + GraphStore + PresentationFrame
+  - Versioned snapshots and per-canvas contexts
+  - CanvasViewStateService with canvas-specific channels
+
+  Gaps:
+  - Services bypass runtime (DynamicLayoutService, history)
+  - No backend/worker coordination
+  - Runtime not yet the single entry point — ComposableHierarchicalCanvasEngine (2244 lines) still has significant
+  logic
+
+  3. Renderer Pipeline Overhaul — 60%
+
+  Partial implementation:
+  - PresentationFrame calculates deltas between frames
+  - Multiple composable renderers exist
+  - Renderer registry maps layouts to renderers
+
+  Critical gaps:
+  - Renderers not read-only — canvas engine still mutates extensively
+  - No WebGL/WebGPU — only Canvas2D (guide exists but not implemented)
+  - Delta calculation exists but incremental rendering not used
+
+  4. Interaction & Automation Parity — 75% ✓
+
+  Well implemented:
+  - 11 declarative event types in CanvasEventBus
+  - AI integration via CanvasEventHub.processAssistantMessage()
+  - History service with undo/redo (50-state limit)
+  - Chat panel dispatches canvas events
+
+  Gaps:
+  - Legacy imperative methods coexist (toggleNodeCollapsed)
+  - No unified timeline (history separate from event bus)
+  - AI doesn't receive runtime metrics feedback
+
+  5. Subgraph Manipulation — 50%
+
+  Basic implementation:
+  - 3 graph lenses: full-graph, selected-root-neighborhood, active-containment
+  - CanvasLayoutRuntime.setLens() support
+
+  Major gaps:
+  - Lenses are client-side filters, not streaming queries
+  - Hard-coded logic, no declarative API
+  - No AI-requestable dynamic lenses
+  - Filtering in canvas engine, not data layer
+
+  6. Performance Foundations — 20% ⚠️
+
+  Minimal progress:
+  - Worker bridge exists but unused
+  - Worker implementation file present
+
+  Critical missing:
+  - All layouts run synchronously in UI thread
+  - No caching (geometry, text metrics, hit-testing)
+  - No virtualization (renders all nodes)
+  - No LOD (level-of-detail)
+  - No GPU acceleration
+  - No scheduling/priorities
+
+  7. Composable UI Shell — 65%
+
+  Decent foundation:
+  - Modular panels (chat, properties, event history)
+  - Panels subscribe to event bus observables
+  - CanvasControlService for centralized control
+
+  Gaps:
+  - No docking/layout management
+  - Not true micro-frontends (just Angular components)
+  - No canvas embedding in other routes
+  - Limited theming/transitions
+
+  ---
+  Key Blockers to "World-Class" Goal
+
+  1. Performance is the biggest gap — everything synchronous, no optimizations, will stutter on large graphs
+  2. Dual execution paths — legacy ComponentFactory vs. new runtime fighting each other
+  3. Canvas engine still owns too much — not following read-only renderer pattern
+  4. Subgraph queries not first-class — just client-side filters, can't power AI requests
+
+  What's Working Well
+
+  ✓ Layout contract is clean and formal✓ Event system enables AI/automation✓ State isolation per canvas (fixed in
+  recent session)✓ Immutable data structures in place
+
+  The architecture is solid but incomplete — good bones, needs the performance layer and full migration from legacy
+  patterns.
+  
+---------
+
   Where we stand
 
   - Dual engine stacks: the orchestrator knows only tree/containment/orthogonal/force, but the modular canvas still

@@ -291,11 +291,15 @@ export class ViewNodeStateService {
     }
     const state = this.captureNodeState(node);
     if (!state) {
+      console.warn('[ViewNodeStateService] Failed to capture state for node:', nodeGuid);
       return;
     }
+    // Create new Map instance to trigger RxJS change detection
     const currentStates = this.nodeVisibilityStates$.value;
-    currentStates.set(nodeGuid, state);
-    this.nodeVisibilityStates$.next(currentStates);
+    const newStates = new Map(currentStates);
+    newStates.set(nodeGuid, state);
+    this.nodeVisibilityStates$.next(newStates);
+    console.debug('[ViewNodeStateService] State saved for:', nodeGuid, 'Total states:', newStates.size);
   }
 
   /**
@@ -303,7 +307,13 @@ export class ViewNodeStateService {
    */
   restoreNodeVisibilityState(nodeGuid: string): NodeVisibilityState | null {
     const currentStates = this.nodeVisibilityStates$.value;
-    return currentStates.get(nodeGuid) || null;
+    const state = currentStates.get(nodeGuid) || null;
+    if (state) {
+      console.debug('[ViewNodeStateService] State found for:', nodeGuid, 'Children:', state.childrenStates?.size || 0);
+    } else {
+      console.debug('[ViewNodeStateService] No state found for:', nodeGuid, 'Available states:', currentStates.size);
+    }
+    return state;
   }
 
   /**

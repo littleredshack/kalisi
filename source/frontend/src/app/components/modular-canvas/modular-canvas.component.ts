@@ -788,23 +788,36 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       }
     }
 
-    // Check for double-click before starting drag
+    // Check for double-click BEFORE selecting node
     const currentTime = Date.now();
-    const clickedNode = this.engine.selectNode(worldX, worldY);
 
-    const clickedGuid = clickedNode?.GUID;
+    // First, do a hit test without selecting to get the GUID
+    const hitResult = this.engine.getRenderer().hitTest(worldX, worldY, this.engine.getData().nodes);
+    const clickedGuid = hitResult?.node.GUID;
 
-    if (clickedGuid && this.lastClickNodeGuid === clickedGuid && currentTime - this.lastClickTime < 300) {
-      // Double-click detected - toggle fold/unfold in engine directly using GUID
+    // Check if this is a double-click on the same node
+    const timeSinceLastClick = currentTime - this.lastClickTime;
+    const isDoubleClick = clickedGuid &&
+                          this.lastClickNodeGuid === clickedGuid &&
+                          timeSinceLastClick < 400; // Increased from 300ms to 400ms
+
+    if (isDoubleClick) {
+      console.debug('[DoubleClick] Detected on node:', clickedGuid, 'time:', timeSinceLastClick + 'ms');
+
+      // Double-click detected - toggle collapse without selecting
       this.engine.toggleNodeCollapsed(clickedGuid);
       this.updateCameraInfo();
 
-      this.lastClickTime = 0; // Reset to prevent triple-click
+      // Reset tracking to prevent triple-click
+      this.lastClickTime = 0;
       this.lastClickNodeGuid = null;
       return;
     }
 
-    // Update click tracking
+    // Not a double-click - proceed with normal selection
+    const clickedNode = this.engine.selectNode(worldX, worldY);
+
+    // Update click tracking for next potential double-click
     this.lastClickTime = currentTime;
     this.lastClickNodeGuid = clickedGuid || null;
 

@@ -552,6 +552,8 @@ export class ComposableHierarchicalCanvasEngine {
     }
 
     if (!targetCollapsed) {
+      // EXPANDING
+      console.debug('[Expand] Node:', nodeGuid, 'Attempting to restore state');
       node.collapsed = false;
       const lockedPosition = (node as any)._lockedPosition;
       if (lockedPosition) {
@@ -563,8 +565,12 @@ export class ComposableHierarchicalCanvasEngine {
       if (this.viewNodeStateService) {
         const savedState = this.viewNodeStateService.restoreNodeVisibilityState(nodeGuid);
         if (savedState) {
+          console.debug('[Expand] Restoring saved state with', savedState.childrenStates?.size || 0, 'children');
           this.restoreNodeStateRecursively(node, savedState);
         } else {
+          console.debug('[Expand] No saved state - showing immediate children in collapsed state');
+          // No saved state - show immediate children but keep them collapsed
+          // This preserves any existing grandchild states
           this.showImmediateChildren(node);
         }
       } else {
@@ -580,9 +586,12 @@ export class ComposableHierarchicalCanvasEngine {
         node.height = Math.max(node.height, requiredHeight);
       }
     } else {
+      // COLLAPSING
+      console.debug('[Collapse] Node:', nodeGuid, 'Saving state with', node.children?.length || 0, 'children');
       (node as any)._lockedPosition = { x: node.x, y: node.y };
       if (this.viewNodeStateService) {
         this.viewNodeStateService.saveNodeVisibilityState(nodeGuid, node);
+        console.debug('[Collapse] State saved for node:', nodeGuid);
       }
 
       node.collapsed = true;
