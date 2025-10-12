@@ -770,10 +770,18 @@ export class ComposableHierarchicalCanvasEngine {
   }
 
   private notifyDataChanged(): void {
-    this.onDataChanged?.({
-      ...this.data,
-      camera: this.cameraSystem.getCamera()
-    });
+    const frame = this.layoutRuntime.getPresentationFrame();
+    if (frame) {
+      this.onDataChanged?.({
+        ...frame.canvasData,
+        camera: this.cameraSystem.getCamera()
+      });
+    } else {
+      this.onDataChanged?.({
+        ...this.data,
+        camera: this.cameraSystem.getCamera()
+      });
+    }
   }
 
   private ensureCameraWithinBounds(_reason: 'set-data' | 'external-state' | 'initialize' = 'set-data'): void {

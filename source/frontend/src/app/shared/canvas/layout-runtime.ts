@@ -46,7 +46,8 @@ export class CanvasLayoutRuntime {
         source: 'system'
       });
       this.store.update(result);
-      this.frame = buildPresentationFrame(result);
+      const built = buildPresentationFrame(result);
+      this.frame = built.frame;
       this.canvasData = this.cloneCanvasData(this.frame.canvasData);
     }
   }
@@ -74,7 +75,9 @@ export class CanvasLayoutRuntime {
     return {
       version: this.frame.version,
       camera: this.frame.camera ? { ...this.frame.camera } : undefined,
-      canvasData: this.cloneCanvasData(this.frame.canvasData)
+      canvasData: this.cloneCanvasData(this.frame.canvasData),
+      lastResult: this.frame.lastResult,
+      delta: this.frame.delta
     };
   }
 
@@ -94,7 +97,16 @@ export class CanvasLayoutRuntime {
     this.frame = {
       version: this.store.current.version,
       camera: this.canvasData.camera,
-      canvasData: this.cloneCanvasData(this.canvasData)
+      canvasData: this.cloneCanvasData(this.canvasData),
+      lastResult: {
+        graph,
+        camera: this.canvasData.camera,
+        diagnostics: undefined
+      },
+      delta: {
+        nodes: [],
+        edges: []
+      }
     };
 
     if (runLayout) {
@@ -117,7 +129,8 @@ export class CanvasLayoutRuntime {
       engineName: normalisedEngine
     });
     this.store.update(result);
-    this.frame = buildPresentationFrame(result, this.frame ?? undefined);
+    const built = buildPresentationFrame(result, this.frame ?? undefined);
+    this.frame = built.frame;
     this.canvasData = this.cloneCanvasData(this.frame.canvasData);
     return this.canvasData;
   }
