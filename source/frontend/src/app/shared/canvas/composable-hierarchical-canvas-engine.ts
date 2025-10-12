@@ -80,19 +80,19 @@ export class ComposableHierarchicalCanvasEngine {
     if (this.eventHub) {
       this.eventHub.registerCanvas(this.canvasId, this.canvasEventBus);
     }
-    this.canvasEventSubscription = this.canvasEventBus.events$.subscribe(event => this.handleCanvasEvent(event));
-    this.currentEngineName = this.layoutRuntime.getActiveEngineName() ?? initialEngineName;
-
-    const initialResult = this.layoutRuntime.runLayout({ reason: 'initial', source: 'system' });
-    this.data = initialResult;
-    this.normaliseCanvasData(this.data);
-
     this.cameraSystem = new CameraSystem(canvas.width, canvas.height);
     if (this.data.camera) {
       this.cameraSystem.setCamera(this.data.camera);
     } else if (initialData.camera) {
       this.cameraSystem.setCamera(initialData.camera);
     }
+
+    this.canvasEventSubscription = this.canvasEventBus.events$.subscribe(event => this.handleCanvasEvent(event));
+    this.currentEngineName = this.layoutRuntime.getActiveEngineName() ?? initialEngineName;
+
+    const initialResult = this.layoutRuntime.runLayout({ reason: 'initial', source: 'system' });
+    this.data = initialResult;
+    this.normaliseCanvasData(this.data);
 
     this.setupEventHandlers();
     this.ensureCameraWithinBounds('initialize');
@@ -1818,7 +1818,9 @@ export class ComposableHierarchicalCanvasEngine {
       return this.inferEngineFromData(data);
     }
 
-    switch (legacyName) {
+    const normalised = legacyName.trim().toLowerCase();
+
+    switch (normalised) {
       case 'tree':
       case 'code-model-tree':
       case 'tree-table':
@@ -1829,7 +1831,7 @@ export class ComposableHierarchicalCanvasEngine {
       case 'flat-graph':
       case 'force-directed':
       case 'force':
-        return 'force';
+        return 'force-directed';
       case 'containment-grid':
       case 'hierarchical':
       case 'grid':
@@ -1837,6 +1839,9 @@ export class ComposableHierarchicalCanvasEngine {
       case 'containment':
         return 'containment-grid';
       default:
+        if (normalised === 'tree' || normalised === 'orthogonal' || normalised === 'force-directed' || normalised === 'containment-grid') {
+          return normalised;
+        }
         return this.inferEngineFromData(data);
     }
   }

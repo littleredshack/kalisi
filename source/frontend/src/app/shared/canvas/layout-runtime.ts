@@ -28,7 +28,7 @@ export class CanvasLayoutRuntime {
       originalEdges: initialData.originalEdges ?? initialData.edges.map(edge => ({ ...edge }))
     };
 
-    const initialEngine = config.defaultEngine ?? this.inferEngineFromData(initialData);
+    const initialEngine = this.normaliseEngineName(config.defaultEngine ?? this.inferEngineFromData(initialData));
     this.orchestrator.setActiveEngine(canvasId, initialEngine);
     this.eventBus = this.orchestrator.getEventBus(canvasId);
 
@@ -77,11 +77,14 @@ export class CanvasLayoutRuntime {
   }
 
   setActiveEngine(engineName: string, source: CanvasEventSource = 'system'): void {
-    this.orchestrator.setActiveEngine(this.canvasId, engineName, source);
+    this.orchestrator.setActiveEngine(this.canvasId, this.normaliseEngineName(engineName), source);
   }
 
   runLayout(options: LayoutRunOptions = {}): CanvasData {
-    const result = this.orchestrator.runLayout(this.canvasId, this.layoutGraph, options);
+    const result = this.orchestrator.runLayout(this.canvasId, this.layoutGraph, {
+      ...options,
+      engineName: options.engineName ? this.normaliseEngineName(options.engineName) : undefined
+    });
     this.layoutGraph = result.graph;
     this.canvasData = layoutResultToCanvasData(result, this.canvasData);
     return this.canvasData;
@@ -89,5 +92,33 @@ export class CanvasLayoutRuntime {
 
   private inferEngineFromData(data: CanvasData): string {
     return data.nodes.some(node => node.metadata?.['displayMode'] === 'tree') ? 'tree' : 'containment-grid';
+  }
+
+  private normaliseEngineName(engineName: string): string {
+    const key = engineName.trim().toLowerCase();
+    switch (key) {
+      case 'tree':
+      case 'tree-table':
+      case 'code-model-tree':
+        return 'tree';
+      case 'force':
+      case 'force-directed':
+      case 'flat-graph':
+        return 'force-directed';
+      case 'orthogonal':
+      case 'containment-orthogonal':
+        return 'orthogonal';
+      case 'containment-grid':
+      case 'grid':
+      case 'hierarchical':
+      case 'codebase-hierarchical':
+      case 'containment':
+        return 'containment-grid';
+      default:
+        if (key === 'tree' || key === 'orthogonal' || key === 'force-directed' || key === 'containment-grid') {
+          return key;
+        }
+        return 'containment-grid';
+    }
   }
 }
