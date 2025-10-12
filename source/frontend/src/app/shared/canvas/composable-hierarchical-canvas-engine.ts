@@ -1110,6 +1110,7 @@ export class ComposableHierarchicalCanvasEngine {
     node.y = absoluteY - parentPos.y;
     this.selectedNodeWorldPos = this.selectedNode === node ? this.getAbsolutePosition(node) : this.selectedNodeWorldPos;
     this.updateWorldMetadata(node);
+    this.invalidateEdgeGeometry(nodeGuid);
     this.data.edges = this.computeEdgesWithInheritance(this.data.originalEdges);
 
     this.render();
@@ -1132,6 +1133,7 @@ export class ComposableHierarchicalCanvasEngine {
     node.height = Math.max(0, height);
     this.selectedNodeWorldPos = this.selectedNode === node ? this.getAbsolutePosition(node) : this.selectedNodeWorldPos;
     this.updateWorldMetadata(node);
+    this.invalidateEdgeGeometry(nodeGuid);
     this.data.edges = this.computeEdgesWithInheritance(this.data.originalEdges);
 
     this.render();
@@ -1267,6 +1269,7 @@ export class ComposableHierarchicalCanvasEngine {
 
     this.selectedNodeWorldPos = this.getAbsolutePosition(this.selectedNode);
     this.updateWorldMetadata(this.selectedNode);
+    this.invalidateEdgeGeometry(this.selectedNode.GUID ?? this.selectedNode.id);
     this.data.edges = this.computeEdgesWithInheritance(this.data.originalEdges);
 
     this.render();
@@ -1283,6 +1286,7 @@ export class ComposableHierarchicalCanvasEngine {
     const nodeGuid = node?.GUID;
     if (node) {
       this.updateWorldMetadata(node);
+      this.invalidateEdgeGeometry(nodeGuid ?? node.id);
     }
     this.data.edges = this.computeEdgesWithInheritance(this.data.originalEdges);
     this.publishState('position', nodeGuid);
@@ -1298,6 +1302,7 @@ export class ComposableHierarchicalCanvasEngine {
     node.x = newX;
     node.y = newY;
     this.updateWorldMetadata(node);
+    this.invalidateEdgeGeometry(node.GUID ?? node.id);
     this.data.edges = this.computeEdgesWithInheritance(this.data.originalEdges);
     this.render();
     this.notifyDataChanged();
@@ -1310,6 +1315,7 @@ export class ComposableHierarchicalCanvasEngine {
     node.width = newWidth;
     node.height = newHeight;
     this.updateWorldMetadata(node);
+    this.invalidateEdgeGeometry(node.GUID ?? node.id);
     this.data.edges = this.computeEdgesWithInheritance(this.data.originalEdges);
     this.render();
     this.notifyDataChanged();
@@ -2122,6 +2128,26 @@ export class ComposableHierarchicalCanvasEngine {
     metadata['worldPosition'] = { x: worldX, y: worldY };
     metadata['__relative'] = true;
     node.children?.forEach(child => this.updateWorldMetadata(child, { x: worldX, y: worldY }));
+  }
+
+  private invalidateEdgeGeometry(nodeGuid: string | undefined): void {
+    if (!nodeGuid) {
+      return;
+    }
+    const wipe = (edges?: Edge[]) => {
+      edges?.forEach(edge => {
+        if (
+          edge.fromGUID === nodeGuid ||
+          edge.toGUID === nodeGuid ||
+          edge.from === nodeGuid ||
+          edge.to === nodeGuid
+        ) {
+          delete (edge as any).waypoints;
+        }
+      });
+    };
+    wipe(this.data?.edges);
+    wipe(this.data?.originalEdges);
   }
 
   private trimEdgesToVisible(data: CanvasData): void {
