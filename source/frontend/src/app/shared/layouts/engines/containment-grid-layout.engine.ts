@@ -1,7 +1,8 @@
-import { LayoutEngine, LayoutGraph, LayoutOptions, LayoutResult } from '../core/layout-contract';
+import { LayoutEngine, LayoutGraph, LayoutOptions, LayoutResult, RawDataInput } from '../core/layout-contract';
 import { layoutGraphToHierarchical, hierarchicalToLayoutGraph } from '../core/layout-graph-utils';
 import { HierarchicalNode } from '../../canvas/types';
 import { LayoutPrimitives } from '../../canvas/layout-primitives';
+import { processRawDataToGraph } from '../utils/raw-data-processor';
 
 const CONTAINER_PADDING = 40;
 const CHILD_SPACING = 24;
@@ -29,6 +30,37 @@ export class ContainmentGridLayoutEngine implements LayoutEngine {
 
     return {
       graph: updatedGraph
+    };
+  }
+
+  /**
+   * Process raw entities and relationships into a LayoutGraph
+   * Implements the optional processRawData interface for direct data loading
+   */
+  processRawData(input: RawDataInput, _options?: LayoutOptions): LayoutGraph {
+    console.debug('[ContainmentGridLayoutEngine] Processing raw data:', {
+      entities: input.entities.length,
+      relationships: input.relationships.length
+    });
+
+    // Use default transformation utility
+    const graph = processRawDataToGraph(input);
+
+    // Add containment-grid specific metadata
+    const enhancedNodes: Record<string, typeof graph.nodes[string]> = {};
+    Object.entries(graph.nodes).forEach(([nodeId, node]) => {
+      enhancedNodes[nodeId] = {
+        ...node,
+        metadata: {
+          ...node.metadata,
+          displayMode: 'containment-grid'
+        }
+      };
+    });
+
+    return {
+      ...graph,
+      nodes: enhancedNodes
     };
   }
 
