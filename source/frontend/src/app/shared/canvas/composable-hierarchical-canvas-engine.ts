@@ -76,6 +76,7 @@ export class ComposableHierarchicalCanvasEngine {
       defaultEngine: initialEngineName,
       runLayoutOnInit: false
     });
+    this.layoutRuntime.setLens(this.currentLensId);
     this.canvasEventBus = this.layoutRuntime.getEventBus();
     this.eventHub = eventHub;
     if (this.eventHub) {
@@ -162,6 +163,7 @@ export class ComposableHierarchicalCanvasEngine {
       canvasId: this.canvasId,
       lensId
     });
+    this.layoutRuntime.setLens(lensId);
     const filtered = this.applyLensToData(lensId);
     this.setData(filtered, 'system', false);
     this.lastRenderedFrameVersion = -1;

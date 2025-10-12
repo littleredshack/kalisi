@@ -1097,17 +1097,18 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     return this.engine?.getActiveLayoutEngine() ?? null;
   }
 
-  switchLayoutEngine(engineName: string): void {
+  async switchLayoutEngine(engineName: string): Promise<CanvasData | null> {
     if (!this.engine) {
-      return;
+      return null;
     }
     const module = LayoutModuleRegistry.getModule(engineName);
     if (module) {
       this.currentLayoutModule = module;
       this.runtimeEngineId = module.runtimeEngine;
     }
-    this.engine.switchLayoutEngine(engineName, 'user');
+    const result = await this.engine.switchLayoutEngine(engineName, 'user');
     this.canvasControlService.notifyStateChange();
+    return result;
   }
 
   undo(): void {

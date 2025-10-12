@@ -22,6 +22,7 @@ export class CanvasLayoutRuntime {
   private readonly eventBus: CanvasEventBus;
   private frame: PresentationFrame | null = null;
   private readonly workerBridge: LayoutWorkerBridge;
+  private lensId: string | undefined;
 
   constructor(canvasId: string, initialData: CanvasData, config: CanvasLayoutRuntimeConfig = {}) {
     this.canvasId = canvasId;
@@ -46,7 +47,7 @@ export class CanvasLayoutRuntime {
         source: 'system'
       });
       this.store.update(result);
-      this.frame = buildPresentationFrame(result);
+      this.frame = buildPresentationFrame(result, undefined, this.lensId);
       this.canvasData = this.cloneCanvasData(this.frame.canvasData);
     }
   }
@@ -117,6 +118,10 @@ export class CanvasLayoutRuntime {
     this.orchestrator.setActiveEngine(this.canvasId, this.normaliseEngineName(engineName), source);
   }
 
+  setLens(lensId: string | undefined): void {
+    this.lensId = lensId;
+  }
+
   async runLayout(options: LayoutRunOptions = {}): Promise<CanvasData> {
     const normalisedEngine = options.engineName ? this.normaliseEngineName(options.engineName) : undefined;
     if (normalisedEngine) {
@@ -128,7 +133,7 @@ export class CanvasLayoutRuntime {
       engineName: normalisedEngine
     });
     this.store.update(result);
-    this.frame = buildPresentationFrame(result, this.frame ?? undefined);
+    this.frame = buildPresentationFrame(result, this.frame ?? undefined, this.lensId);
     this.canvasData = this.cloneCanvasData(this.frame.canvasData);
     return this.canvasData;
   }

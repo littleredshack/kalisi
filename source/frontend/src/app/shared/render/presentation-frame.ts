@@ -8,6 +8,7 @@ export interface PresentationFrame {
   readonly canvasData: CanvasData;
   readonly lastResult: LayoutResult;
   readonly delta?: PresentationDelta;
+  readonly lensId?: string;
 }
 
 export interface NodeDelta {
@@ -27,7 +28,7 @@ export interface PresentationDelta {
   readonly edges: ReadonlyArray<EdgeDelta>;
 }
 
-export function buildPresentationFrame(result: LayoutResult, previous?: PresentationFrame): PresentationFrame {
+export function buildPresentationFrame(result: LayoutResult, previous?: PresentationFrame, lensId?: string): PresentationFrame {
   const snapshot = layoutGraphToHierarchical(result.graph);
   const camera = result.camera ?? previous?.camera;
 
@@ -45,7 +46,8 @@ export function buildPresentationFrame(result: LayoutResult, previous?: Presenta
     camera,
     canvasData,
     lastResult: result,
-    delta
+    delta,
+    lensId: lensId ?? previous?.lensId
   };
 }
 
