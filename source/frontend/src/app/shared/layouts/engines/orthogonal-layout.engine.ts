@@ -1,7 +1,8 @@
-import { LayoutEngine, LayoutGraph, LayoutOptions, LayoutResult } from '../core/layout-contract';
+import { LayoutEngine, LayoutGraph, LayoutOptions, LayoutResult, RawDataInput } from '../core/layout-contract';
 import { layoutGraphToHierarchical, hierarchicalToLayoutGraph } from '../core/layout-graph-utils';
 import { HierarchicalNode, Camera } from '../../canvas/types';
 import { LayoutPrimitives } from '../../canvas/layout-primitives';
+import { processRawDataToGraph } from '../utils/raw-data-processor';
 
 const LAYER_HORIZONTAL_SPACING = 360;
 const NODE_VERTICAL_SPACING = 40;
@@ -61,6 +62,37 @@ export class OrthogonalLayoutEngine implements LayoutEngine {
     return {
       graph: updatedGraph,
       camera
+    };
+  }
+
+  /**
+   * Process raw entities and relationships into a LayoutGraph
+   * Implements the optional processRawData interface for direct data loading
+   */
+  processRawData(input: RawDataInput, _options?: LayoutOptions): LayoutGraph {
+    console.debug('[OrthogonalLayoutEngine] Processing raw data:', {
+      entities: input.entities.length,
+      relationships: input.relationships.length
+    });
+
+    // Use default transformation utility
+    const graph = processRawDataToGraph(input);
+
+    // Add orthogonal specific metadata
+    const enhancedNodes: Record<string, typeof graph.nodes[string]> = {};
+    Object.entries(graph.nodes).forEach(([nodeId, node]) => {
+      enhancedNodes[nodeId] = {
+        ...node,
+        metadata: {
+          ...node.metadata,
+          displayMode: 'orthogonal'
+        }
+      };
+    });
+
+    return {
+      ...graph,
+      nodes: enhancedNodes
     };
   }
 
