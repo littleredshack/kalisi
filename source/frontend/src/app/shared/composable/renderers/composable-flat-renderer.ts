@@ -50,6 +50,8 @@ export class ComposableFlatRenderer extends BaseRenderer {
    * Main render method - orchestrates primitives in exact same order as FlatGraphRenderingStrategy
    */
   render(ctx: CanvasRenderingContext2D, nodes: HierarchicalNode[], edges: Edge[], camera: Camera, frame?: PresentationFrame): void {
+    this.ensureRelativeCoordinates(nodes);
+
     const frameVersion = frame?.version ?? -1;
     const lensId = frame?.lensId ?? null;
     const delta = frame?.delta;
@@ -273,5 +275,35 @@ export class ComposableFlatRenderer extends BaseRenderer {
 
   private getEdgeNodeIdentifier(guid: string | undefined, fallback: string): string | null {
     return guid ?? fallback ?? null;
+  }
+
+  private ensureRelativeCoordinates(nodes: HierarchicalNode[], parentWorldX = 0, parentWorldY = 0): void {
+    nodes.forEach(node => {
+      if (!node) {
+        return;
+      }
+
+      if (!node.metadata) {
+        node.metadata = {};
+      }
+
+      const metadata = node.metadata as Record<string, any>;
+      const alreadyNormalised = metadata['__relative'] === true;
+      const storedWorld = metadata['worldPosition'] as { x: number; y: number } | undefined;
+
+      const worldX = storedWorld?.x ?? (alreadyNormalised ? parentWorldX + node.x : node.x);
+      const worldY = storedWorld?.y ?? (alreadyNormalised ? parentWorldY + node.y : node.y);
+
+      if (!alreadyNormalised) {
+        metadata['worldPosition'] = { x: worldX, y: worldY };
+        node.x = worldX - parentWorldX;
+        node.y = worldY - parentWorldY;
+        metadata['__relative'] = true;
+      }
+
+      if (node.children && node.children.length > 0) {
+        this.ensureRelativeCoordinates(node.children, worldX, worldY);
+      }
+    });
   }
 }
