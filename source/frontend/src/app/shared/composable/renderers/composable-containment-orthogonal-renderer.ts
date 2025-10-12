@@ -390,4 +390,12 @@ export class ComposableContainmentOrthogonalRenderer extends BaseRenderer {
   override renderSelection(ctx: CanvasRenderingContext2D, node: HierarchicalNode, camera: Camera): void {
     // Selection outline rendered by the canvas engine for accurate positioning.
   }
+
+  override invalidateCache(): void {
+    this.edgeWaypointCache.clear();
+    this.nodeBoundsCache.clear();
+    this.flattenedNodeBounds = [];
+    this.lastFrameVersion = -1;
+    this.lastLensId = null;
+  }
 }

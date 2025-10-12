@@ -274,4 +274,10 @@ export class ComposableFlatRenderer extends BaseRenderer {
   private getEdgeNodeIdentifier(guid: string | undefined, fallback: string): string | null {
     return guid ?? fallback ?? null;
   }
+
+  override invalidateCache(): void {
+    this.edgeWaypointCache.clear();
+    this.lastFrameVersion = -1;
+    this.lastLensId = null;
+  }
 }

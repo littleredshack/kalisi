@@ -14,6 +14,9 @@ export interface IRenderer {
   
   // Selection rendering
   renderSelection(ctx: CanvasRenderingContext2D, node: HierarchicalNode, camera: Camera): void;
+
+  // Allow renderers to drop cached state when geometry mutates outside layout frames
+  invalidateCache?(affectedNodeIds?: ReadonlyArray<string>): void;
   
   // Renderer-specific configuration
   getName(): string;
@@ -108,5 +111,9 @@ export abstract class BaseRenderer implements IRenderer {
     ctx.setLineDash([5 * camera.zoom, 5 * camera.zoom]);
     ctx.strokeRect(50, 50, screenWidth + 4, screenHeight + 4); // Fallback position
     ctx.setLineDash([]);
+  }
+
+  invalidateCache(_affectedNodeIds?: ReadonlyArray<string>): void {
+    // Default no-op; specific renderers can override
   }
 }
