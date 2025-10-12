@@ -346,7 +346,11 @@ export class ComposableHierarchicalCanvasEngine {
 
   private applyCollapsedNodeDimensions(nodes: HierarchicalNode[], clampSize = false): void {
     nodes.forEach(node => {
-      if (node.collapsed && node.children && node.children.length > 0) {
+      if (!node.children || node.children.length === 0) {
+        return;
+      }
+
+      if (node.collapsed) {
         if (clampSize) {
           const isTreeNode = node.metadata?.['displayMode'] === 'tree';
           if (isTreeNode) {
@@ -363,14 +367,14 @@ export class ComposableHierarchicalCanvasEngine {
             node.height = COLLAPSED_NODE_HEIGHT;
           }
         }
-        node.children.forEach(child => {
-          child.visible = false;
-          child.collapsed = true;
-          this.applyCollapsedNodeDimensions(child.children ?? [], clampSize);
-        });
-      } else if (node.children && node.children.length > 0) {
-        this.applyCollapsedNodeDimensions(node.children, clampSize);
       }
+
+      node.children.forEach((child, index) => {
+        const shouldShowChild = index === 0 || !node.collapsed;
+        child.visible = shouldShowChild;
+        child.collapsed = shouldShowChild ? false : true;
+        this.applyCollapsedNodeDimensions(child.children ?? [], clampSize);
+      });
     });
   }
 
@@ -655,22 +659,6 @@ export class ComposableHierarchicalCanvasEngine {
 
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-    if (frame) {
-      this.logHierarchyDiagnostics(frame);
-    } else if (this.data) {
-      this.logHierarchyDiagnostics({
-        version: -1,
-        camera: this.data.camera,
-        canvasData: this.cloneCanvasData(this.data),
-        lastResult: {
-          graph: this.layoutRuntime.getLayoutGraph(),
-          camera: this.data.camera
-        }
-      } as unknown as PresentationFrame);
-    } else {
-      console.warn('[LAYOUT-DIAG] no data available to log diagnostics');
-    }
-
     this.renderer.render(this.ctx, this.data.nodes, this.data.edges, camera, frame ?? undefined);
     this.pendingRendererInvalidation = false;
 
@@ -682,34 +670,6 @@ export class ComposableHierarchicalCanvasEngine {
     this.lastRenderedFrameVersion = frame?.version ?? this.lastRenderedFrameVersion;
     this.lastRenderedCamera = { ...camera };
     this.lastRenderedLensId = frame?.lensId ?? this.lastRenderedLensId;
-  }
-
-  private logHierarchyDiagnostics(frame: PresentationFrame): void {
-    const walk = (node: HierarchicalNode, parentId: string | null, depth: number, parentAbs: { x: number; y: number }): void => {
-      const nodeId = node.GUID ?? node.id ?? 'unknown';
-      const worldX = parentAbs.x + node.x;
-      const worldY = parentAbs.y + node.y;
-      const metaWorld = node.metadata && typeof node.metadata === 'object' ? (node.metadata as Record<string, any>)['worldPosition'] : undefined;
-      console.info(
-        '[LAYOUT-DIAG] ' +
-        JSON.stringify({
-          canvasId: this.canvasId,
-          frameVersion: frame.version,
-          lensId: frame.lensId,
-          nodeId,
-          parentId,
-          depth,
-          relative: { x: node.x, y: node.y },
-          computedWorld: { x: worldX, y: worldY },
-          metadataWorld: metaWorld ?? null
-        })
-      );
-
-      const nextParent = { x: worldX, y: worldY };
-      node.children?.forEach(child => walk(child, nodeId, depth + 1, nextParent));
-    };
-
-    frame.canvasData.nodes.forEach(root => walk(root, null, 0, { x: 0, y: 0 }));
   }
 
   centerOnNode(node: HierarchicalNode): void {
