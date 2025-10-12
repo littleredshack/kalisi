@@ -1,3 +1,108 @@
+  Where we stand
+
+  - Dual engine stacks: the orchestrator knows only tree/containment/orthogonal/force, but the modular canvas still
+    spins up legacy engines (code-model-tree, grid, etc.) through ComponentFactory. We’re translating engine names
+    on the fly rather than giving the orchestrator real, pluggable modules. That’s workable for a proof-of-life demo,
+    but brittle for performance tuning, feature parity, or onboarding new layouts.
+  - Renderer coupling: renderers are still ECS-style classes that mutate nodes in place and expect legacy data
+    shapes. We aren’t feeding the runtime’s immutable graph results directly to lean, mode-aware renderers. That’s a
+    big gap for FPS, incremental reflow, and GPU-friendly drawing.
+  - Event surface, not yet orchestration: the chat panel feeds from the event hub, but most commands still fall
+    through to old imperative methods (toggleNodeCollapsed, collapseToLevel). The AI can dispatch LayoutRequested,
+    but doesn’t get a canonical “subgraph handle” or derived metrics to reason about. Undo/redo is local; there’s no
+    shared timeline for AI vs. human actions.
+  - Subgraph views: the data transform pipeline still pulls entire view nodes, clones them, and normalises via legacy
+    adapters. We don’t have a streaming, query-based “extract subgraph/transform/present” flow that can be reused
+    across map, tree, or timeline views.
+  - Performance: layouts run synchronously in the UI thread; even the force engine just blasts through the entire
+    node set. There’s no scheduling, no use of Web Workers, no caching of static layers, and no hierarchical LOD. On
+    large graphs, we’ll stutter.
+  - Composability: the runtime is a good start, but it isn’t yet the single entry point for the canvas. Services
+    (history, dynamic layout, view state) still plug straight into the engine, bypassing the runtime. Without a
+    clean dependency graph, we can’t easily spin up multiple canvases, embed them in other routes, or hand off layout
+    requests to remote workers/AI agents.
+
+  ———
+
+  What we need for the “world-class” target
+
+  1. Unified layout engine contract
+      - Replace legacy adapters with thin wrappers (modules) that register into the runtime.
+      - Engines declare capabilities (incremental, subgraph filters, constraints) and operate on immutable graph
+        descriptors.
+      - Move layout execution to dedicated workers or the backend for heavy workloads; keep UI thread free for
+        rendering and interaction.
+  2. Stateful, data-driven runtime
+      - One authoritative graph store (versions, snapshots, derived indexes).
+      - Orchestrator handles command queue, event routing, history, and multi-canvas coordination.
+      - Subgraph queries (filters, clustering) are first-class so AI or the user can spin up a focused view without
+        rehydrating whole datasets.
+  3. Renderer pipeline overhaul
+      - Renderers consume render-ready structures (geometry, styles, transitions) produced by layout + presentation
+        transforms.
+      - Support multiple rendering backends (Canvas2D, WebGL, WebGPU) via an adapter layer.
+      - Incremental frame diffing: the renderer applies only the delta from the last layout, enabling smooth
+        transitions and high FPS on large graphs.
+  4. Interaction & automation parity
+      - All user actions emit declarative events (e.g., RequestCollapse, MoveNode{target, desiredPosition,
+        constraints}).
+      - Orchestrator resolves them (applying rules, re-running layout) and emits results.
+      - Undo/redo becomes timeline-aware (human and AI actions in the same log, branchable histories).
+      - Chat/AI layer operates entirely via events/commands, with feedback from runtime metrics (e.g., “layout took
+        32 ms, 12 nodes hidden”).
+  5. Subgraph manipulation
+      - Define per-view “graph lenses” that specify filters, aggregation, computed attributes (clustering,
+        containment, dependencies).
+      - Any lens can be attached to a canvas, minimap, or analytics widget.
+      - Provide an API for AI to request new lenses (“show me components impacting latency > 200 ms”) and visualise
+        results on the fly.
+  6. Performance foundations
+      - Asynchronous layout execution, prioritized updates (move 1 node vs. rerun entire layout).
+
+  - Shared caches for geometry, text metrics, hit-testing.
+  - Virtualisation for large graphs (only render nodes in view), adaptive level-of-detail.
+  - GPU-accelerated rendering path to handle thousands of nodes smoothly.
+
+  7. Composable UI shell
+      - Extract activity bar, properties, chat, and history panels into modular micro-frontends that all subscribe to
+        the event bus.
+      - Provide docking/layout management so users can arrange panels and canvases.
+      - Themeable, accessible design with smooth transitions.
+
+  ———
+
+  A path forward
+
+  - Step 1: Refine the runtime contract (layout engine interface, event taxonomy, graph store). Migrate one legacy
+    engine (e.g., grid) into the runtime fully to validate the pattern.
+  - Step 2: Build the rendering facade that takes LayoutResult + optional presentation transforms and draws via a
+    backend-agnostic renderer. Introduce incremental diffing.
+  - Step 3: Move layout execution to workers and add a scheduling layer to orchestrator (command queue, priorities,
+    async completion events).
+  - Step 4: Formalize the command/event API for AI (collapse/expand, subgraph request, layout switch) and ensure both
+    UI actions and chat commands go through the same path.
+  - Step 5: Introduce graph lenses/subgraph queries as reusable units; refactor the data loader so every view uses
+    them.
+  - Step 6: Iteratively upgrade each existing view (code-model, containment) to use the new pipeline; delete the
+    legacy adapters once parity is achieved.
+  - Step 7: Polish the UI shell: panel docking, canvas minimaps, timeline view, immersive interactions (hover
+    insights, command palette).
+
+  ———
+
+  Summary
+
+  Right now we’ve proven the runtime can host multiple engines and feed the UI, but we’re still straddling old and
+  new worlds. To reach the “world-class, immersive, AI-assisted graph UI” goal, we need to finish the consolidation
+  (all layout/rendering through the runtime), formalize subgraph handling, and invest in performance (async layout,
+  GPU rendering, diffed frames). That unlocks flexibility for the end user and makes the system truly composable and
+  automation-friendly.
+
+  If this direction sounds right, I can start by codifying the runtime contract and migrating one of the legacy
+  engines end-to-end, or sketch the orchestration scheduler. Let me know which slice you’d like tackled next.
+  
+-------------------
+
 What really gets you there
 
   1. Declarative, data-driven node model
