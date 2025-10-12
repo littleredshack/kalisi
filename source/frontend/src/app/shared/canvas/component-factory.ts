@@ -1,40 +1,20 @@
-import { ILayoutEngine } from './layout';
 import { IRenderer } from './renderer';
 import { LayoutModuleRegistry, LayoutModuleDescriptor } from '../layouts/layout-module-registry';
-
-class RuntimeLayoutPlaceholder implements ILayoutEngine {
-  constructor(private readonly engineName: string) {}
-
-  applyLayout(): never {
-    throw new Error(`[RuntimeLayoutPlaceholder] applyLayout invoked for engine "${this.engineName}". This placeholder should only be used for metadata.`);
-  }
-
-  getName(): string {
-    return this.engineName;
-  }
-}
 
 export interface ComponentFactoryResult {
   renderer: IRenderer;
   module: LayoutModuleDescriptor;
   runtimeEngine: string;
   rendererId: string;
-  legacyLayout?: ILayoutEngine;
+  // legacyLayout removed - all modules use runtime processing
 }
 
 /**
- * Factory for creating layout engines based on ViewNode specifications
+ * Factory for layout engine metadata
+ * Actual layout processing happens through LayoutRuntime
  */
 export class LayoutEngineFactory {
 
-  /**
-   * Create layout engine based on ViewNode layoutEngine property
-   */
-  static createLegacyLayout(layoutEngineType: string): ILayoutEngine | undefined {
-    const module = LayoutModuleRegistry.getModule(layoutEngineType);
-    return module?.createLegacyLayout?.();
-  }
-  
   /**
    * Get available layout engine types
    */
@@ -101,7 +81,6 @@ export class ComponentFactory {
     const resolvedRenderer = rendererLookup?.renderer ?? resolvedModule.renderers[0];
 
     return {
-      legacyLayout: resolvedModule.createLegacyLayout?.(),
       renderer: resolvedRenderer.factory(),
       module: resolvedModule,
       runtimeEngine: resolvedModule.runtimeEngine,

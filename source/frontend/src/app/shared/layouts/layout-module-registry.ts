@@ -1,4 +1,3 @@
-import { ILayoutEngine } from '../canvas/layout';
 import { IRenderer } from '../canvas/renderer';
 import { LayoutCapabilities } from './core/layout-contract';
 import { ComposableHierarchicalRenderer } from '../composable/renderers/composable-hierarchical-renderer';
@@ -6,13 +5,6 @@ import { ComposableContainmentOrthogonalRenderer } from '../composable/renderers
 import { ComposableFlatRenderer } from '../composable/renderers/composable-flat-renderer';
 import { ComposableTreeRenderer } from '../composable/renderers/composable-tree-renderer';
 import { ComposableTreeTableRenderer } from '../composable/renderers/composable-tree-table-renderer';
-import { LayoutEngineAdapter } from '../canvas/layout-adapter';
-import { GraphDataTransformerService } from '../../core/services/graph-data-transformer.service';
-import { GridLayoutService } from '../../core/services/grid-layout.service';
-import { FlatGraphLayoutEngine } from './flat-graph-layout';
-import { CodeModelTreeLayoutEngine } from './code-model-tree-layout';
-import { CodebaseHierarchicalLayoutEngine } from './codebase-hierarchical-layout';
-import { TreeTableLayoutEngine } from './tree-table-layout';
 
 export interface LayoutRendererDescriptor {
   readonly id: string;
@@ -32,16 +24,13 @@ export interface LayoutModuleDescriptor {
   readonly tags?: ReadonlyArray<string>;
   readonly capabilities: LayoutCapabilities;
   readonly renderers: ReadonlyArray<LayoutRendererDescriptor>;
-  readonly createLegacyLayout?: () => ILayoutEngine;
+  // createLegacyLayout removed - all modules use runtime processing
 }
 
 export interface LayoutModuleLookup {
   readonly module: LayoutModuleDescriptor;
   readonly renderer: LayoutRendererDescriptor;
 }
-
-const transformer = new GraphDataTransformerService();
-const gridLayout = new GridLayoutService();
 
 const MODULES: LayoutModuleDescriptor[] = [
   {

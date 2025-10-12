@@ -8,7 +8,6 @@ import { DynamicLayoutService } from '../../core/services/dynamic-layout.service
 import { MessageService } from 'primeng/api';
 import { ComposableHierarchicalCanvasEngine } from '../../shared/canvas/composable-hierarchical-canvas-engine';
 import { HierarchicalNode, Edge, CanvasData, Camera } from '../../shared/canvas/types';
-import { GridLayoutEngine } from '../../shared/layouts/grid-layout';
 import { ComponentFactory } from '../../shared/canvas/component-factory';
 import { CanvasControlService, CanvasController, CameraInfo } from '../../core/services/canvas-control.service';
 import { CanvasViewStateService } from '../../shared/canvas/state/canvas-view-state.service';
@@ -294,56 +293,26 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   }
 
   private convertToHierarchicalFormat(neo4jData: {entities: any[], relationships: any[]}): CanvasData {
-    // Use layout engine for positioning - no hardcoded coordinates
-    const layoutEngine = new GridLayoutEngine();
-    const layoutResult = layoutEngine.applyLayout(neo4jData.entities, neo4jData.relationships);
-    const rootNodes = layoutResult.nodes;
-
-    // Build nodeMap for edge creation
-    const nodeMap = new Map<string, HierarchicalNode>();
-    const addToMap = (nodes: HierarchicalNode[]) => {
-      nodes.forEach(node => {
-        // Find entity by name to get GUID
-        const entity = neo4jData.entities.find(e => e.name === node.id);
-        if (entity) {
-          if (!node.GUID) {
-            node.GUID = entity.id;
-          }
-          nodeMap.set(entity.id, node);
-        }
-        addToMap(node.children);
-      });
-    };
-    addToMap(rootNodes);
-
-    // Create edges from ALL non-CONTAINS relationships
-    const edges: Edge[] = [];
-    neo4jData.relationships.forEach(rel => {
-      if (rel.type !== 'CONTAINS') {
-        const fromNode = nodeMap.get(rel.source);
-        const toNode = nodeMap.get(rel.target);
-        if (fromNode && toNode) {
-          const edgeObj = {
-            id: rel.id,
-            from: fromNode.text,
-            to: toNode.text,
-            style: {
-              stroke: '#6ea8fe',
-              strokeWidth: 2,
-              strokeDashArray: null
-            },
-            ...rel
-          };
-          edges.push(edgeObj);
-        }
-      }
+    // Use runtime data processing instead of legacy layout engine
+    const tempRuntime = new CanvasLayoutRuntime(`${this.canvasId}-test`, this.data!, {
+      defaultEngine: 'containment-grid',
+      runLayoutOnInit: false
     });
 
+    tempRuntime.setRawData({
+      entities: neo4jData.entities,
+      relationships: neo4jData.relationships
+    }, false, 'system');
+
+    // Convert LayoutGraph back to CanvasData
+    const processedGraph = tempRuntime.getLayoutGraph();
+    const hierarchicalSnapshot = layoutGraphToHierarchical(processedGraph);
+
     const data: CanvasData = {
-      nodes: rootNodes,
-      edges,
-      originalEdges: edges,
-      camera: layoutResult.camera
+      nodes: hierarchicalSnapshot.nodes,
+      edges: hierarchicalSnapshot.edges,
+      originalEdges: hierarchicalSnapshot.edges,
+      camera: undefined
     };
 
     return this.normaliseCanvasData(data);
@@ -484,7 +453,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       layoutComponents = ComponentFactory.createComponents('containment-grid', 'composable-hierarchical');
     }
 
-    const { legacyLayout, renderer, module, runtimeEngine, rendererId } = layoutComponents;
+    const { renderer, module, runtimeEngine, rendererId } = layoutComponents;
     this.currentLayoutModule = module;
     this.currentRendererId = rendererId;
     this.runtimeEngineId = runtimeEngine;
@@ -526,17 +495,9 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
         };
 
         console.debug('[ModularCanvas] Runtime processing complete, nodes:', this.data.nodes.length);
-      } else if (legacyLayout) {
-        // Legacy path: use old layout engine adapter
-        console.debug('[ModularCanvas] Using legacy data processing');
-        if ('setViewportBounds' in legacyLayout) {
-          (legacyLayout as any).setViewportBounds({ width: canvas.width, height: canvas.height });
-        }
-        const processedData = this.convertDataWithLayoutEngine(
-          this.rawViewNodeData,
-          legacyLayout
-        );
-        this.data = processedData;
+      } else {
+        // Fallback: no ViewNode or legacy layout - data should be pre-initialized
+        console.debug('[ModularCanvas] Using pre-initialized data');
       }
     }
     
@@ -977,70 +938,6 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   }
 
   // Process raw ViewNode data with dynamically selected layout strategy
-  private convertDataWithLayoutEngine(rawData: {entities: any[], relationships: any[]}, layoutEngine?: any): CanvasData {
-    if (!layoutEngine) {
-      console.warn('[ModularCanvas] No legacy layout engine available; returning existing data.');
-      return this.data ?? this.createDefaultData();
-    }
-    // Check if this is the new adapter (doesn't have layoutStrategy) or old engine
-    if (layoutEngine.layoutStrategy) {
-      // Old layout engine path
-      const strategy = layoutEngine.layoutStrategy;
-      const canvasData = strategy.processEntities(rawData.entities, rawData.relationships);
-      return canvasData;
-    } else {
-      // New adapter path - use applyLayout and construct CanvasData
-      const layoutResult = layoutEngine.applyLayout(rawData.entities, rawData.relationships);
-      const nodes = layoutResult.nodes;
-      console.log('[Canvas] Layout nodes', nodes.length);
-
-      const nodeByGuid = new Map<string, HierarchicalNode>();
-      const collectNodes = (nodeList: HierarchicalNode[]) => {
-        nodeList.forEach(node => {
-          if (node.GUID) {
-            nodeByGuid.set(node.GUID, node);
-          }
-          if (node.children?.length) {
-            collectNodes(node.children);
-          }
-        });
-      };
-      collectNodes(nodes);
-
-      const edges: Edge[] = [];
-      rawData.relationships.forEach(rel => {
-        if (rel.type !== 'CONTAINS') {
-          const fromNode = nodeByGuid.get(rel.fromGUID || rel.source);
-          const toNode = nodeByGuid.get(rel.toGUID || rel.target);
-          if (fromNode && toNode) {
-            edges.push({
-              id: rel.GUID || rel.id,
-              from: fromNode.GUID!,
-              to: toNode.GUID!,
-              fromGUID: fromNode.GUID!,
-              toGUID: toNode.GUID!,
-              label: rel.label || rel.type,
-              style: {
-                stroke: '#6ea8fe',
-                strokeWidth: 2,
-                strokeDashArray: null
-              }
-            });
-          }
-        }
-      });
-
-      const canvasData = {
-        nodes,
-        edges,
-        originalEdges: edges,
-        camera: layoutResult.camera
-      };
-
-      return this.normaliseCanvasData(canvasData);
-    }
-  }
-
   private normaliseCanvasData(data: CanvasData): CanvasData {
     if (!data) {
       return data;
