@@ -1,14 +1,17 @@
 import { CanvasData } from './types';
 import { LayoutOrchestrator, LayoutRunOptions } from '../layouts/core/layout-orchestrator';
 import { registerDefaultLayoutEngines } from '../layouts/engine-registry';
-import { canvasDataToLayoutGraph, layoutResultToCanvasData } from '../layouts/core/layout-graph-utils';
+import { canvasDataToLayoutGraph } from '../layouts/core/layout-graph-utils';
 import { LayoutGraph } from '../layouts/core/layout-contract';
 import { GraphStore } from '../graph/graph-store';
+import { PresentationFrame, buildPresentationFrame } from '../render/presentation-frame';
 import { CanvasEventBus, CanvasEventSource } from '../layouts/core/layout-events';
+import { LayoutWorkerBridge } from '../layouts/async/layout-worker-bridge';
 
 export interface CanvasLayoutRuntimeConfig {
   readonly defaultEngine?: string;
   readonly runLayoutOnInit?: boolean;
+  readonly useWorker?: boolean;
 }
 
 export class CanvasLayoutRuntime {
@@ -17,10 +20,13 @@ export class CanvasLayoutRuntime {
   private readonly store: GraphStore;
   private canvasData: CanvasData;
   private readonly eventBus: CanvasEventBus;
+  private frame: PresentationFrame | null = null;
+  private readonly workerBridge: LayoutWorkerBridge;
 
   constructor(canvasId: string, initialData: CanvasData, config: CanvasLayoutRuntimeConfig = {}) {
     this.canvasId = canvasId;
     this.orchestrator = registerDefaultLayoutEngines(new LayoutOrchestrator());
+    this.workerBridge = new LayoutWorkerBridge(this.orchestrator, { useWorker: config.useWorker });
     const initialGraph = canvasDataToLayoutGraph(initialData);
     this.store = new GraphStore(initialGraph);
     this.canvasData = {
@@ -40,7 +46,8 @@ export class CanvasLayoutRuntime {
         source: 'system'
       });
       this.store.update(result);
-      this.canvasData = layoutResultToCanvasData(result, initialData);
+      this.frame = buildPresentationFrame(result);
+      this.canvasData = this.cloneCanvasData(this.frame.canvasData);
     }
   }
 
@@ -73,6 +80,11 @@ export class CanvasLayoutRuntime {
     };
     const graph = canvasDataToLayoutGraph(this.canvasData, this.store.current.version + 1);
     this.store.replace(graph);
+    this.frame = {
+      version: this.store.current.version,
+      camera: this.canvasData.camera,
+      canvasData: this.cloneCanvasData(this.canvasData)
+    };
 
     if (runLayout) {
       this.runLayout({ reason: 'data-update', source });
@@ -89,12 +101,13 @@ export class CanvasLayoutRuntime {
       this.orchestrator.setActiveEngine(this.canvasId, normalisedEngine, options.source ?? 'system');
     }
 
-    const result = this.orchestrator.runLayout(this.canvasId, this.store.current.graph, {
+    const result = this.workerBridge.run(this.canvasId, this.store.current.graph, {
       ...options,
       engineName: normalisedEngine
     });
     this.store.update(result);
-    this.canvasData = layoutResultToCanvasData(result, this.canvasData);
+    this.frame = buildPresentationFrame(result, this.frame ?? undefined);
+    this.canvasData = this.cloneCanvasData(this.frame.canvasData);
     return this.canvasData;
   }
 
@@ -128,5 +141,13 @@ export class CanvasLayoutRuntime {
         }
         return 'containment-grid';
     }
+  }
+
+  private cloneCanvasData(data: CanvasData): CanvasData {
+    const structured = (globalThis as unknown as { structuredClone?: <T>(input: T) => T }).structuredClone;
+    if (typeof structured === 'function') {
+      return structured(data);
+    }
+    return JSON.parse(JSON.stringify(data));
   }
 }
