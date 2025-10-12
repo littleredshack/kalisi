@@ -11,6 +11,7 @@ import { CanvasLayoutRuntime } from './layout-runtime';
 import { CanvasEventBus, CanvasEvent, CanvasEventSource } from '../layouts/core/layout-events';
 import { LayoutRunOptions } from '../layouts/core/layout-orchestrator';
 import { CanvasEventHubService } from '../../core/services/canvas-event-hub.service';
+import { CanvasInteractionHandler } from './canvas-interaction-handler';
 
 const COLLAPSED_NODE_WIDTH = 220;
 const COLLAPSED_NODE_HEIGHT = 64;
@@ -41,13 +42,8 @@ export class ComposableHierarchicalCanvasEngine {
   private onDataChanged?: (data: CanvasData) => void;
   private onSelectionChanged?: (node: HierarchicalNode | null) => void;
   
-  // Interaction state
-  private selectedNode: HierarchicalNode | null = null;
-  private selectedNodeWorldPos: Point | null = null;
-  private isDragging = false;
-  private isResizing = false;
-  private resizeHandle = '';
-  private dragOffset: Point = { x: 0, y: 0 };
+  // Interaction state - managed by interaction handler
+  private interactionHandler: CanvasInteractionHandler;
   private canvasViewStateService?: CanvasViewStateService;
   private canvasStateSubscription?: Subscription;
   private suppressStateSync = false;
@@ -92,6 +88,9 @@ export class ComposableHierarchicalCanvasEngine {
       this.cameraSystem.setCamera(initialData.camera);
     }
 
+    // Initialize interaction handler for state management
+    this.interactionHandler = new CanvasInteractionHandler();
+
     this.canvasEventSubscription = this.canvasEventBus.events$.subscribe(event => { void this.handleCanvasEvent(event); });
     this.currentEngineName = this.layoutRuntime.getActiveEngineName() ?? initialEngineName;
 
@@ -123,8 +122,10 @@ export class ComposableHierarchicalCanvasEngine {
     this.render();
     this.ensureCameraWithinBounds('set-data');
     this.onDataChanged?.(this.data);
-    if (this.selectedNode) {
-      this.selectedNodeWorldPos = this.getAbsolutePosition(this.selectedNode);
+    const selectedNode = this.interactionHandler.getSelectedNode();
+    if (selectedNode) {
+      const worldPos = this.getAbsolutePosition(selectedNode);
+      this.interactionHandler.updateSelectedNodeWorldPos(worldPos);
     }
     this.publishState('replace');
     this.syncRuntimeFromCurrentData(source);
@@ -608,8 +609,10 @@ export class ComposableHierarchicalCanvasEngine {
 
     this.render();
     this.onDataChanged?.(this.data);
-    if (this.selectedNode) {
-      this.selectedNodeWorldPos = this.getAbsolutePosition(this.selectedNode);
+    const selectedNode = this.interactionHandler.getSelectedNode();
+    if (selectedNode) {
+      const worldPos = this.getAbsolutePosition(selectedNode);
+      this.interactionHandler.updateSelectedNodeWorldPos(worldPos);
     }
     this.publishState('collapse', nodeGuid, {
       viewportBounds: {
@@ -671,9 +674,10 @@ export class ComposableHierarchicalCanvasEngine {
     this.renderer.render(this.ctx, this.data.nodes, this.data.edges, camera, frame ?? undefined);
     this.pendingRendererInvalidation = false;
 
-    if (this.selectedNode) {
-      const worldPos = this.selectedNodeWorldPos || this.getAbsolutePosition(this.selectedNode);
-      this.renderSelectionAtPosition(this.selectedNode, worldPos, camera);
+    const selectedNode = this.interactionHandler.getSelectedNode();
+    if (selectedNode) {
+      const worldPos = this.interactionHandler.getSelectedNodeWorldPos() || this.getAbsolutePosition(selectedNode);
+      this.renderSelectionAtPosition(selectedNode, worldPos, camera);
     }
 
     this.lastRenderedFrameVersion = frame?.version ?? this.lastRenderedFrameVersion;
@@ -699,8 +703,8 @@ export class ComposableHierarchicalCanvasEngine {
     camera.y = worldPos.y + height / 2 - canvasWorldHeight / 2;
 
     this.cameraSystem.setCamera(camera);
-    if (this.selectedNode === node) {
-      this.selectedNodeWorldPos = worldPos;
+    if (this.interactionHandler.getSelectedNode() === node) {
+      this.interactionHandler.updateSelectedNodeWorldPos(worldPos);
     }
     this.render();
     this.publishCameraState('camera', 'user');
@@ -767,30 +771,27 @@ export class ComposableHierarchicalCanvasEngine {
     this.clearAllSelection();
 
     if (result) {
-      this.selectedNode = result.node;
-      this.selectedNodeWorldPos = result.worldPosition;
+      this.interactionHandler.setSelectedNode(result.node, result.worldPosition);
       result.node.selected = true;
-      this.onSelectionChanged?.(this.selectedNode);
+      this.onSelectionChanged?.(result.node);
     } else {
-      this.selectedNode = null;
-      this.selectedNodeWorldPos = null;
+      this.interactionHandler.clearSelection();
       this.onSelectionChanged?.(null);
     }
 
     this.render();
-    return this.selectedNode;
+    return this.interactionHandler.getSelectedNode();
   }
 
   clearSelection(): void {
     this.clearAllSelection();
-    this.selectedNode = null;
-    this.selectedNodeWorldPos = null;
+    this.interactionHandler.clearSelection();
     this.onSelectionChanged?.(null);
     this.render();
   }
 
   getSelectedNode(): HierarchicalNode | null {
-    return this.selectedNode;
+    return this.interactionHandler.getSelectedNode();
   }
 
   // Private methods
@@ -890,8 +891,10 @@ export class ComposableHierarchicalCanvasEngine {
     };
 
     this.cameraSystem.setCamera(nextCamera);
-    if (this.selectedNode) {
-      this.selectedNodeWorldPos = this.getAbsolutePosition(this.selectedNode);
+    const selectedNode = this.interactionHandler.getSelectedNode();
+    if (selectedNode) {
+      const worldPos = this.getAbsolutePosition(selectedNode);
+      this.interactionHandler.updateSelectedNodeWorldPos(worldPos);
     }
     this.render();
     this.publishCameraState('camera', 'system');
@@ -956,8 +959,9 @@ export class ComposableHierarchicalCanvasEngine {
       this.cameraSystem.setCamera(state.camera);
     }
     this.data.camera = this.cameraSystem.getCamera();
-    if (this.selectedNode) {
-      this.selectedNodeWorldPos = this.getAbsolutePosition(this.selectedNode);
+    const selectedNode = this.interactionHandler.getSelectedNode();
+    if (selectedNode) {
+      this.interactionHandler.updateSelectedNodeWorldPos(this.getAbsolutePosition(selectedNode));
     }
     this.render();
     this.ensureCameraWithinBounds('external-state');
@@ -1081,7 +1085,9 @@ export class ComposableHierarchicalCanvasEngine {
     const parentPos = this.getParentAbsolutePosition(node);
     node.x = absoluteX - parentPos.x;
     node.y = absoluteY - parentPos.y;
-    this.selectedNodeWorldPos = this.selectedNode === node ? this.getAbsolutePosition(node) : this.selectedNodeWorldPos;
+    if (this.interactionHandler.getSelectedNode() === node) {
+      this.interactionHandler.updateSelectedNodeWorldPos(this.getAbsolutePosition(node));
+    }
     this.updateWorldMetadata(node);
     this.invalidateEdgeGeometry(nodeGuid);
     this.invalidateRendererCache(nodeGuid);
@@ -1105,7 +1111,9 @@ export class ComposableHierarchicalCanvasEngine {
 
     node.width = Math.max(0, width);
     node.height = Math.max(0, height);
-    this.selectedNodeWorldPos = this.selectedNode === node ? this.getAbsolutePosition(node) : this.selectedNodeWorldPos;
+    if (this.interactionHandler.getSelectedNode() === node) {
+      this.interactionHandler.updateSelectedNodeWorldPos(this.getAbsolutePosition(node));
+    }
     this.updateWorldMetadata(node);
     this.invalidateEdgeGeometry(nodeGuid);
     this.invalidateRendererCache(nodeGuid);
@@ -1197,55 +1205,58 @@ export class ComposableHierarchicalCanvasEngine {
   // Drag operations - FIXED COORDINATE SYSTEM BUG
   startDrag(worldX: number, worldY: number, screenX: number, screenY: number): HierarchicalNode | null {
     const result = this.renderer.hitTest(worldX, worldY, this.data.nodes);
-    
+
     if (result) {
       this.clearAllSelection();
-      this.selectedNode = result.node;
-      this.selectedNodeWorldPos = result.worldPosition;
-      this.isDragging = true;
-      result.node.selected = true;
-      result.node.dragging = true;
+      this.interactionHandler.setSelectedNode(result.node, result.worldPosition);
 
       const absolutePos = result.worldPosition ?? this.getAbsolutePosition(result.node);
-      this.dragOffset = {
+      const dragOffset = {
         x: worldX - absolutePos.x,
         y: worldY - absolutePos.y
       };
-      
-      this.onSelectionChanged?.(this.selectedNode);
+      this.interactionHandler.setDragging(true, dragOffset);
+
+      result.node.selected = true;
+      result.node.dragging = true;
+
+      this.onSelectionChanged?.(result.node);
       this.render();
-      return this.selectedNode;
+      return this.interactionHandler.getSelectedNode();
     }
-    
+
     return null;
   }
 
   updateDrag(worldX: number, worldY: number): boolean {
-    if (!this.isDragging || !this.selectedNode) return false;
+    const selectedNode = this.interactionHandler.getSelectedNode();
+    if (!this.interactionHandler.isNodeDragging() || !selectedNode) return false;
 
-    const newWorldX = worldX - this.dragOffset.x;
-    const newWorldY = worldY - this.dragOffset.y;
+    const dragOffset = this.interactionHandler.getDragOffset();
+    const newWorldX = worldX - dragOffset.x;
+    const newWorldY = worldY - dragOffset.y;
 
-    const parentPos = this.getParentAbsolutePosition(this.selectedNode);
+    const parentPos = this.getParentAbsolutePosition(selectedNode);
     const newRelativeX = newWorldX - parentPos.x;
     const newRelativeY = newWorldY - parentPos.y;
-    
+
     // Apply movement constraints
-    const constrainedPosition = this.applyMovementConstraints(this.selectedNode, newRelativeX, newRelativeY);
+    const constrainedPosition = this.applyMovementConstraints(selectedNode, newRelativeX, newRelativeY);
 
-    this.selectedNode.x = constrainedPosition.x;
-    this.selectedNode.y = constrainedPosition.y;
+    selectedNode.x = constrainedPosition.x;
+    selectedNode.y = constrainedPosition.y;
 
-    (this.selectedNode as any)._lockedPosition = {
-      x: this.selectedNode.x,
-      y: this.selectedNode.y
+    (selectedNode as any)._lockedPosition = {
+      x: selectedNode.x,
+      y: selectedNode.y
     };
-    (this.selectedNode as any)._userLocked = true;
+    (selectedNode as any)._userLocked = true;
 
-    this.selectedNodeWorldPos = this.getAbsolutePosition(this.selectedNode);
-    this.updateWorldMetadata(this.selectedNode);
-    this.invalidateEdgeGeometry(this.selectedNode.GUID ?? this.selectedNode.id);
-    this.invalidateRendererCache(this.selectedNode.GUID ?? this.selectedNode.id);
+    const newWorldPos = this.getAbsolutePosition(selectedNode);
+    this.interactionHandler.updateSelectedNodeWorldPos(newWorldPos);
+    this.updateWorldMetadata(selectedNode);
+    this.invalidateEdgeGeometry(selectedNode.GUID ?? selectedNode.id);
+    this.invalidateRendererCache(selectedNode.GUID ?? selectedNode.id);
     this.data.edges = this.computeEdgesWithInheritance(this.data.originalEdges);
 
     this.render();
@@ -1254,11 +1265,11 @@ export class ComposableHierarchicalCanvasEngine {
   }
 
   stopDrag(): void {
-    const node = this.selectedNode;
-    if (this.selectedNode) {
-      this.selectedNode.dragging = false;
+    const node = this.interactionHandler.getSelectedNode();
+    if (node) {
+      node.dragging = false;
     }
-    this.isDragging = false;
+    this.interactionHandler.setDragging(false);
     const nodeGuid = node?.GUID;
     if (node) {
       this.updateWorldMetadata(node);
@@ -1399,8 +1410,8 @@ export class ComposableHierarchicalCanvasEngine {
   }
 
   private renderSelectionAtPosition(node: HierarchicalNode, worldPos: Point, camera: Camera): void {
-    if (this.selectedNode === node) {
-      this.selectedNodeWorldPos = worldPos;
+    if (this.interactionHandler.getSelectedNode() === node) {
+      this.interactionHandler.updateSelectedNodeWorldPos(worldPos);
     }
     // ORANGE L-CORNER SELECTION INDICATORS
     // Convert world position to screen coordinates for selection rendering
@@ -1589,8 +1600,8 @@ export class ComposableHierarchicalCanvasEngine {
       this.dynamicLayoutService.reflowContainer(node.children, containerBounds, undefined, node);
     }
 
-    if (this.selectedNode === node) {
-      this.selectedNodeWorldPos = this.getAbsolutePosition(node);
+    if (this.interactionHandler.getSelectedNode() === node) {
+      this.interactionHandler.updateSelectedNodeWorldPos(this.getAbsolutePosition(node));
     }
 
     this.render();
@@ -1940,7 +1951,8 @@ export class ComposableHierarchicalCanvasEngine {
       return;
     }
 
-    const targetGuid = this.selectedNode?.GUID ?? this.selectedNode?.id;
+    const currentSelectedNode = this.interactionHandler.getSelectedNode();
+    const targetGuid = currentSelectedNode?.GUID ?? currentSelectedNode?.id;
     const selectedNode = targetGuid ? this.findNodeInCanvasData(data.nodes, targetGuid) : null;
     const primary = selectedNode ?? data.nodes[0];
 
@@ -1976,7 +1988,8 @@ export class ComposableHierarchicalCanvasEngine {
   }
 
   private applyActiveContainmentLens(data: CanvasData): void {
-    const selectionGuid = this.selectedNode?.GUID ?? this.selectedNode?.id;
+    const currentSelectedNode = this.interactionHandler.getSelectedNode();
+    const selectionGuid = currentSelectedNode?.GUID ?? currentSelectedNode?.id;
     const target = selectionGuid
       ? this.findContainerAncestor(data.nodes, selectionGuid) ?? this.findFirstContainerNode(data.nodes)
       : this.findFirstContainerNode(data.nodes);
