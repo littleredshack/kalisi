@@ -76,7 +76,8 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   private currentLensId = 'full-graph';
 
   // Feature flag: Use runtime for raw data processing (Phase 2 migration)
-  private useRuntimeDataProcessing = false;
+  // Enabled by default for containment-grid and orthogonal engines
+  private useRuntimeDataProcessing = true;
 
   // Level selector state
   availableLevels: number[] = [];
