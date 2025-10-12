@@ -38,7 +38,7 @@ export class CanvasInteractionHandler {
   private dragOffset: Point = { x: 0, y: 0 };
 
   // Performance optimization: cache for coordinate calculations
-  private nodePathCache = new Map<string, HierarchicalNode[]>();
+  private nodePathCache = new Map<string, string[]>();
   private lastNodesVersion = -1;
 
   // Read-only state getters
@@ -231,9 +231,8 @@ export class CanvasInteractionHandler {
   }
 
   private handleDoubleClickEvent(event: DoubleClickEvent, context: any): DoubleClickResult {
-    console.debug('[DoubleClick] Handled by interaction handler:', event.nodeGuid, 'time:', event.timeSinceLastClick + 'ms');
-
     // Store whether this node was selected before collapse/expand
+    // IMPORTANT: Prioritize GUID matching since IDs can change
     const wasSelected = this.selectedNode &&
                        (this.selectedNode.GUID === event.nodeGuid || this.selectedNode.id === event.nodeGuid);
 
@@ -244,7 +243,6 @@ export class CanvasInteractionHandler {
 
     // CRITICAL FIX: If the collapsed/expanded node was selected, update position tracking
     if (wasSelected && this.selectedNode) {
-      console.debug('[DoubleClick] Updating selected node position after collapse/expand');
       const newWorldPos = this.getAbsolutePosition(this.selectedNode, context.allNodes);
       this.updateSelectedNodeWorldPos(newWorldPos);
     }
@@ -327,14 +325,38 @@ export class CanvasInteractionHandler {
     return {x, y};
   }
 
+  private lookupNodesByPath(guidPath: string[], allNodes: HierarchicalNode[]): HierarchicalNode[] | null {
+    const result: HierarchicalNode[] = [];
+    let currentNodes = allNodes;
+
+    for (const guid of guidPath) {
+      // IMPORTANT: Prioritize GUID matching since IDs can change
+      const node = currentNodes.find(n => n.GUID === guid) ||
+                   currentNodes.find(n => n.id === guid);
+      if (!node) {
+        return null; // Path is stale/invalid
+      }
+      result.push(node);
+      currentNodes = node.children ?? [];
+    }
+
+    return result;
+  }
+
   private getNodePath(targetNode: HierarchicalNode, allNodes: HierarchicalNode[]): HierarchicalNode[] | null {
     const targetGuid = targetNode.GUID || targetNode.id;
     if (!targetGuid) return null;
 
-    // Check cache first
-    const cached = this.nodePathCache.get(targetGuid);
-    if (cached) {
-      return cached;
+    // Check cache first - cache contains GUID/ID path, not node references
+    const cachedGuidPath = this.nodePathCache.get(targetGuid);
+    if (cachedGuidPath) {
+      // Look up fresh node references for the cached path
+      const freshPath = this.lookupNodesByPath(cachedGuidPath, allNodes);
+      if (freshPath) {
+        return freshPath;
+      }
+      // If lookup failed, remove stale cache entry
+      this.nodePathCache.delete(targetGuid);
     }
 
     const matchesTarget = (node: HierarchicalNode): boolean => {
@@ -354,8 +376,9 @@ export class CanvasInteractionHandler {
       for (const node of nodes) {
         const path = [...currentPath, node];
         if (matchesTarget(node)) {
-          // Cache the result
-          this.nodePathCache.set(targetGuid, path);
+          // Cache the GUID/ID path, not node references
+          const guidPath = path.map(n => n.GUID || n.id).filter(Boolean) as string[];
+          this.nodePathCache.set(targetGuid, guidPath);
           return path;
         }
         const found = traverse(node.children ?? [], path);

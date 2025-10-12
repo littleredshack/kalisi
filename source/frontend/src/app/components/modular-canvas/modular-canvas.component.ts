@@ -811,7 +811,6 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
                           timeSinceLastClick < 400; // Increased from 300ms to 400ms
 
     if (isDoubleClick) {
-      console.debug('[DoubleClick] Detected on node:', clickedGuid, 'time:', timeSinceLastClick + 'ms');
 
       // Double-click detected - process through interaction handler
       const doubleClickEvent: DoubleClickEvent = {
