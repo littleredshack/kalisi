@@ -21,7 +21,7 @@ export class LayoutOrchestrator {
 
   registerEngine(engine: LayoutEngine): void {
     if (this.engines.has(engine.name)) {
-      console.warn(`[LayoutOrchestrator] Engine "${engine.name}" already registered, overriding.`);
+      console.warn(`[LayoutOrchestrator] Engine "${engine.name}" already registered; overriding.`);
     }
     this.engines.set(engine.name, engine);
   }
@@ -65,21 +65,21 @@ export class LayoutOrchestrator {
     });
   }
 
-  runLayout(canvasId: string, graph: LayoutGraph, runOptions: LayoutRunOptions = {}): LayoutResult {
+  runLayout(canvasId: string, graph: LayoutGraph, options: LayoutRunOptions = {}): LayoutResult {
     const context = this.ensureContext(canvasId);
-    const activeEngineName = runOptions.engineName ?? context.activeEngineName;
-    if (!activeEngineName) {
+    const engineName = options.engineName ?? context.activeEngineName;
+    if (!engineName) {
       throw new Error(`[LayoutOrchestrator] No active engine set for canvas "${canvasId}"`);
     }
 
-    const engine = this.engines.get(activeEngineName);
+    const engine = this.engines.get(engineName);
     if (!engine) {
-      throw new Error(`[LayoutOrchestrator] Engine "${activeEngineName}" is not registered`);
+      throw new Error(`[LayoutOrchestrator] Engine "${engineName}" is not registered`);
     }
 
     const previousGraph = context.lastGraph;
-    const timestamp = runOptions.timestamp ?? Date.now();
-    const source = runOptions.source ?? 'system';
+    const timestamp = options.timestamp ?? Date.now();
+    const source = options.source ?? 'system';
 
     context.eventBus.emit({
       type: 'LayoutRequested',
@@ -87,18 +87,18 @@ export class LayoutOrchestrator {
       canvasId,
       source,
       timestamp,
-      payload: runOptions.engineOptions
+      payload: options.engineOptions
     });
 
-    const options: LayoutOptions = {
-      reason: runOptions.reason ?? 'data-update',
-      viewport: runOptions.viewport,
+    const layoutOptions: LayoutOptions = {
+      reason: options.reason ?? 'data-update',
+      viewport: options.viewport,
       timestamp,
       previousGraph: previousGraph ?? undefined,
-      engineOptions: runOptions.engineOptions
+      engineOptions: options.engineOptions
     };
 
-    const result = engine.layout(graph, options);
+    const result = engine.layout(graph, layoutOptions);
     context.lastGraph = result.graph;
     context.lastResult = result;
 

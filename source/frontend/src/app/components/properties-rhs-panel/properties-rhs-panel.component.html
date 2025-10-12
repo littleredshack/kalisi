@@ -94,7 +94,7 @@
         <label class="control-label">Layout Engine:</label>
         <select class="layout-engine-selector" (change)="onLayoutEngineChange($any($event.target).value)">
           <option *ngFor="let engine of engines" [selected]="engine === (activeLayoutEngine$ | async)" [value]="engine">
-            {{ engine }}
+            {{ formatLayoutEngine(engine) }}
           </option>
         </select>
       </div>

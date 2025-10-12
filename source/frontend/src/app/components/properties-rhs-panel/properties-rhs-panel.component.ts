@@ -169,4 +169,11 @@ export class PropertiesRhsPanelComponent implements OnInit, OnDestroy, OnChanges
       this.canvasControlService.changeLayoutEngine(engineName);
     }
   }
+
+  formatLayoutEngine(engine: string): string {
+    return engine
+      .split('-')
+      .map(segment => segment.charAt(0).toUpperCase() + segment.slice(1))
+      .join(' ');
+  }
 }

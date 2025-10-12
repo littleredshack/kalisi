@@ -12,6 +12,8 @@ import { GridLayoutEngine } from '../../shared/layouts/grid-layout';
 import { ComponentFactory } from '../../shared/canvas/component-factory';
 import { CanvasControlService, CanvasController, CameraInfo } from '../../core/services/canvas-control.service';
 import { CanvasViewStateService } from '../../shared/canvas/state/canvas-view-state.service';
+import { CanvasHistoryService } from '../../core/services/canvas-history.service';
+import { CanvasEventHubService } from '../../core/services/canvas-event-hub.service';
 
 @Component({
   selector: 'app-modular-canvas',
@@ -73,7 +75,9 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     private messageService: MessageService,
     private http: HttpClient,
     private canvasControlService: CanvasControlService,
-    private canvasViewStateService: CanvasViewStateService
+    private canvasViewStateService: CanvasViewStateService,
+    private canvasHistoryService: CanvasHistoryService,
+    private canvasEventHubService: CanvasEventHubService
   ) {
     // Engine-only mode - no reactive effects
   }

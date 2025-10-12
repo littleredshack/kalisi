@@ -25,10 +25,10 @@ export class CanvasEventHistoryComponent {
   readonly history$: Observable<CanvasEventDisplay[]>;
 
   constructor(
-    private readonly canvasControl: CanvasControlService,
+    private readonly canvasControlService: CanvasControlService,
     private readonly eventHub: CanvasEventHubService
   ) {
-    this.history$ = this.canvasControl.activeCanvasId$.pipe(
+    this.history$ = this.canvasControlService.activeCanvasId$.pipe(
       switchMap(canvasId => {
         if (!canvasId) {
           return of([]);
@@ -51,7 +51,7 @@ export class CanvasEventHistoryComponent {
   }
 
   replay(item: CanvasEventDisplay): void {
-    const canvasId = this.canvasControl.getActiveCanvasId();
+    const canvasId = this.canvasControlService.getActiveCanvasId();
     if (!canvasId) {
       return;
     }
@@ -67,7 +67,8 @@ export class CanvasEventHistoryComponent {
   }
 
   private describe(event: CanvasEvent): string {
-    switch (event.type) {
+    const type = event.type;
+    switch (type) {
       case 'CollapseNode':
         return `Collapse ${event.nodeId}`;
       case 'ExpandNode':
@@ -86,9 +87,8 @@ export class CanvasEventHistoryComponent {
         return 'Camera Changed';
       case 'HistoryReplay':
         return 'History Replay';
-      default:
-        return event.type;
     }
+    return type as string;
   }
 
   private formatTimestamp(timestamp: number): string {

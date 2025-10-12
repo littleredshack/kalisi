@@ -7,6 +7,10 @@ import { NodeVisibilityState } from '../../core/services/view-node-state.service
 import { ViewNodeStateService } from '../../core/services/view-node-state.service';
 import { DynamicLayoutService } from '../../core/services/dynamic-layout.service';
 import { Subscription } from 'rxjs';
+import { CanvasLayoutRuntime } from './layout-runtime';
+import { CanvasEventBus, CanvasEvent, CanvasEventSource } from '../layouts/core/layout-events';
+import { LayoutRunOptions } from '../layouts/core/layout-orchestrator';
+import { CanvasEventHubService } from '../../core/services/canvas-event-hub.service';
 
 const COLLAPSED_NODE_WIDTH = 220;
 const COLLAPSED_NODE_HEIGHT = 64;
@@ -18,8 +22,13 @@ export class ComposableHierarchicalCanvasEngine {
   private renderer: IRenderer;
   private viewNodeStateService?: ViewNodeStateService;
   private dynamicLayoutService?: DynamicLayoutService;
-  private layoutEngine: ILayoutEngine;
   private data: CanvasData;
+  private readonly layoutRuntime: CanvasLayoutRuntime;
+  private readonly canvasEventBus: CanvasEventBus;
+  private canvasEventSubscription?: Subscription;
+  private suppressCanvasEvents = false;
+  private readonly eventHub?: CanvasEventHubService;
+  private currentEngineName: string;
   
   // Event handlers
   private onDataChanged?: (data: CanvasData) => void;
@@ -41,26 +50,49 @@ export class ComposableHierarchicalCanvasEngine {
   constructor(
     canvas: HTMLCanvasElement,
     renderer: IRenderer,
-    layoutEngine: ILayoutEngine,
+    initialLayoutEngine: ILayoutEngine,
     initialData: CanvasData,
-    canvasId: string
+    canvasId: string,
+    eventHub?: CanvasEventHubService
   ) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d')!;
     this.renderer = renderer;
-    this.layoutEngine = layoutEngine;
     this.canvasId = canvasId;
-    this.data = { 
+    this.data = {
       ...initialData,
       originalEdges: initialData.originalEdges || initialData.edges.filter(e => !e.id.startsWith('inherited-'))
     };
     this.normaliseCanvasData(this.data);
-    
+
+    const initialEngineName =
+      typeof initialLayoutEngine?.getName === 'function'
+        ? initialLayoutEngine.getName()
+        : this.inferEngineFromData(initialData);
+
+    this.layoutRuntime = new CanvasLayoutRuntime(canvasId, this.data, {
+      defaultEngine: initialEngineName,
+      runLayoutOnInit: false
+    });
+    this.canvasEventBus = this.layoutRuntime.getEventBus();
+    this.eventHub = eventHub;
+    if (this.eventHub) {
+      this.eventHub.registerCanvas(this.canvasId, this.canvasEventBus);
+    }
+    this.canvasEventSubscription = this.canvasEventBus.events$.subscribe(event => this.handleCanvasEvent(event));
+    this.currentEngineName = this.layoutRuntime.getActiveEngineName() ?? initialEngineName;
+
+    const initialResult = this.layoutRuntime.runLayout({ reason: 'initial', source: 'system' });
+    this.data = initialResult;
+    this.normaliseCanvasData(this.data);
+
     this.cameraSystem = new CameraSystem(canvas.width, canvas.height);
-    if (initialData.camera) {
+    if (this.data.camera) {
+      this.cameraSystem.setCamera(this.data.camera);
+    } else if (initialData.camera) {
       this.cameraSystem.setCamera(initialData.camera);
     }
-    
+
     this.setupEventHandlers();
     this.ensureCameraWithinBounds('initialize');
   }

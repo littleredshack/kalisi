@@ -6,8 +6,8 @@ const NODE_WIDTH = 220;
 const NODE_HEIGHT = 64;
 const COLLAPSED_HEIGHT = 64;
 const HORIZONTAL_INDENT = 12;
-const VERTICAL_GAP = 24;
 const HORIZONTAL_PADDING = 24;
+const VERTICAL_GAP = 24;
 
 export class TreeLayoutEngine implements LayoutEngine {
   readonly name = 'tree';

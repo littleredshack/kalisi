@@ -24,7 +24,7 @@ const TREE_BEHAVIOR: LayoutBehavior = {
   }
 };
 
-const CONTAINMENT_BEHAVIOR: LayoutBehavior = {
+const GRID_BEHAVIOR: LayoutBehavior = {
   collapsedSize() {
     return { width: 80, height: 40 };
   },
@@ -56,7 +56,7 @@ function getBehavior(node: HierarchicalNode | null | undefined): LayoutBehavior 
   if (mode === 'tree') {
     return TREE_BEHAVIOR;
   }
-  return CONTAINMENT_BEHAVIOR;
+  return GRID_BEHAVIOR;
 }
 
 function getNumeric(value: unknown, fallback: number | undefined): number {

@@ -11,9 +11,7 @@ interface HistoryStack {
 
 const MAX_HISTORY = 50;
 
-@Injectable({
-  providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class CanvasHistoryService {
   private readonly stacks = new Map<string, HistoryStack>();
 

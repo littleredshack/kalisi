@@ -28,8 +28,8 @@ export class CanvasLayoutRuntime {
       originalEdges: initialData.originalEdges ?? initialData.edges.map(edge => ({ ...edge }))
     };
 
-    const active = config.defaultEngine ?? this.inferEngineFromData(initialData);
-    this.orchestrator.setActiveEngine(canvasId, active);
+    const initialEngine = config.defaultEngine ?? this.inferEngineFromData(initialData);
+    this.orchestrator.setActiveEngine(canvasId, initialEngine);
     this.eventBus = this.orchestrator.getEventBus(canvasId);
 
     if (config.runLayoutOnInit) {

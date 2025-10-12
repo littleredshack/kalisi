@@ -49,24 +49,24 @@ function createNodeFromLayout(layoutNode: LayoutNode): HierarchicalNode {
 }
 
 export function layoutGraphToHierarchical(graph: LayoutGraph): HierarchicalGraphSnapshot {
-  const nodes = new Map<string, HierarchicalNode>();
+  const nodeMap = new Map<string, HierarchicalNode>();
 
   Object.values(graph.nodes).forEach(node => {
-    nodes.set(node.id, createNodeFromLayout(node));
+    nodeMap.set(node.id, createNodeFromLayout(node));
   });
 
   Object.values(graph.nodes).forEach(node => {
-    const parent = nodes.get(node.id);
+    const parent = nodeMap.get(node.id);
     if (!parent) return;
     node.children.forEach(childId => {
-      const child = nodes.get(childId);
+      const child = nodeMap.get(childId);
       if (child) {
         parent.children.push(child);
       }
     });
   });
 
-  const roots = computeRootNodes(graph, nodes);
+  const roots = computeRootNodes(graph, nodeMap);
   const edges: Edge[] = Object.values(graph.edges).map(edge => ({
     id: edge.id,
     from: edge.from,
@@ -149,11 +149,11 @@ export function hierarchicalToLayoutGraph(snapshot: HierarchicalGraphSnapshot): 
   });
 
   const readonlyNodes: Record<string, LayoutNode> = {};
-  Object.entries(nodesRecord).forEach(([key, value]) => {
-    readonlyNodes[key] = {
-      ...value,
-      children: [...value.children],
-      edges: [...value.edges]
+  Object.entries(nodesRecord).forEach(([nodeId, node]) => {
+    readonlyNodes[nodeId] = {
+      ...node,
+      children: [...node.children],
+      edges: [...node.edges]
     };
   });
 
@@ -166,12 +166,12 @@ export function hierarchicalToLayoutGraph(snapshot: HierarchicalGraphSnapshot): 
 
 function computeRootNodes(
   graph: LayoutGraph,
-  nodes: Map<string, HierarchicalNode>
+  nodeMap: Map<string, HierarchicalNode>
 ): HierarchicalNode[] {
   const explicitRoots = graph.metadata.rootIds ?? [];
   if (explicitRoots.length > 0) {
     return explicitRoots
-      .map(id => nodes.get(id))
+      .map(id => nodeMap.get(id))
       .filter((node): node is HierarchicalNode => Boolean(node));
   }
 
@@ -181,7 +181,7 @@ function computeRootNodes(
   });
 
   const roots: HierarchicalNode[] = [];
-  nodes.forEach((node, nodeId) => {
+  nodeMap.forEach((node, nodeId) => {
     if (!childSet.has(nodeId)) {
       roots.push(node);
     }

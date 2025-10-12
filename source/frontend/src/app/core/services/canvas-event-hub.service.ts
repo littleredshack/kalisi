@@ -4,9 +4,7 @@ import { CanvasEvent, CanvasEventBus } from '../../shared/layouts/core/layout-ev
 
 const HISTORY_LIMIT = 500;
 
-@Injectable({
-  providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class CanvasEventHubService {
   private readonly busMap = new Map<string, CanvasEventBus>();
   private readonly historyMap = new Map<string, CanvasEvent[]>();
@@ -18,17 +16,17 @@ export class CanvasEventHubService {
     this.unregisterCanvas(canvasId);
     this.busMap.set(canvasId, eventBus);
 
-    const history = this.historyMap.get(canvasId) ?? [];
-    const subject = this.ensureSubject(canvasId, history);
+    const seedHistory = this.historyMap.get(canvasId) ?? [];
+    const subject = this.ensureSubject(canvasId, seedHistory);
 
     const subscription = eventBus.events$.subscribe(event => {
-      const current = this.historyMap.get(canvasId) ?? [];
-      current.push(event);
-      if (current.length > HISTORY_LIMIT) {
-        current.splice(0, current.length - HISTORY_LIMIT);
+      const history = this.historyMap.get(canvasId) ?? [];
+      history.push(event);
+      if (history.length > HISTORY_LIMIT) {
+        history.splice(0, history.length - HISTORY_LIMIT);
       }
-      this.historyMap.set(canvasId, current);
-      subject.next([...current]);
+      this.historyMap.set(canvasId, history);
+      subject.next([...history]);
     });
 
     this.subscriptions.set(canvasId, subscription);
