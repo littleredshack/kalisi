@@ -44,7 +44,7 @@
         <span>Canvas Orchestrator</span>
       </div>
       <div class="context-active" *ngIf="activeLayoutEngine$ | async as activeEngine">
-        Active: <strong>{{ formatLayoutLabel(activeEngine) }}</strong>
+        Active: <strong>{{ activeEngine.label }}</strong>
       </div>
     </div>
 

@@ -9,7 +9,7 @@ import { TooltipModule } from 'primeng/tooltip';
 import { TagModule } from 'primeng/tag';
 import { SafetyGuardService, QueryClassification } from '../../core/services/safety-guard.service';
 import { GptChatService } from '../../core/services/gpt-chat.service';
-import { CanvasControlService } from '../../core/services/canvas-control.service';
+import { CanvasControlService, LayoutEngineOption } from '../../core/services/canvas-control.service';
 import { Observable, combineLatest } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { CanvasEventHistoryComponent } from '../canvas-event-history/canvas-event-history.component';
@@ -60,8 +60,8 @@ export class ChatRhsPanelComponent implements OnInit, OnDestroy, OnChanges, Afte
   @ViewChild('messagesContainer') messagesContainer!: ElementRef;
   @ViewChild('messageInput') messageInput!: ElementRef;
 
-  readonly layoutEngines$: Observable<string[]>;
-  readonly activeLayoutEngine$: Observable<string | null>;
+  readonly layoutEngines$: Observable<LayoutEngineOption[]>;
+  readonly activeLayoutEngine$: Observable<LayoutEngineOption | null>;
   readonly layoutQuickActions$: Observable<LayoutQuickAction[]>;
 
   isVisible = false;
@@ -94,9 +94,9 @@ export class ChatRhsPanelComponent implements OnInit, OnDestroy, OnChanges, Afte
     this.layoutQuickActions$ = combineLatest([this.layoutEngines$, this.activeLayoutEngine$]).pipe(
       map(([engines, active]) =>
         engines.map(engine => ({
-          engineName: engine,
-          label: this.formatLayoutLabel(engine),
-          active: engine === active
+          engineName: engine.id,
+          label: engine.label,
+          active: engine.id === (active?.id ?? null)
         }))
       )
     );
@@ -279,13 +279,6 @@ export class ChatRhsPanelComponent implements OnInit, OnDestroy, OnChanges, Afte
         });
       }
     });
-  }
-
-  formatLayoutLabel(engineName: string): string {
-    return engineName
-      .split('-')
-      .map(segment => segment.charAt(0).toUpperCase() + segment.slice(1))
-      .join(' ');
   }
 
   private formatQueryResults(response: any, executionTime: number): string {

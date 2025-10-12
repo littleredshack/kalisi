@@ -90,14 +90,14 @@
         </select>
       </div>
 
-      <div class="layout-engine-control" *ngIf="layoutEngines$ | async as engines">
+      <div class="layout-engine-control" *ngIf="layoutEngineOptions$ | async as layoutVm">
         <label class="control-label">Layout Engine:</label>
         <select
           class="layout-engine-selector"
-          [ngModel]="activeLayoutEngine$ | async"
+          [ngModel]="layoutVm.activeId"
           (ngModelChange)="onLayoutEngineChange($event)">
-          <option *ngFor="let engine of engines" [value]="engine">
-            {{ formatLayoutEngine(engine) }}
+          <option *ngFor="let option of layoutVm.options" [value]="option.id">
+            {{ option.label }}
           </option>
         </select>
       </div>

@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { CanvasEventHubService } from './canvas-event-hub.service';
+import { LayoutModuleRegistry } from '../../shared/layouts/layout-module-registry';
 
 export interface CameraInfo {
   x: number;
@@ -26,6 +27,14 @@ export interface CanvasController {
   canRedo(): boolean;
 }
 
+export interface LayoutEngineOption {
+  readonly id: string;
+  readonly label: string;
+  readonly runtimeEngine: string;
+  readonly description?: string;
+  readonly tags?: ReadonlyArray<string>;
+}
+
 @Injectable({ providedIn: 'root' })
 export class CanvasControlService {
   private activeCanvas: CanvasController | null = null;
@@ -35,8 +44,8 @@ export class CanvasControlService {
   private readonly availableLevelsSubject = new BehaviorSubject<number[]>([]);
   private readonly autoLayoutStateSubject = new BehaviorSubject<string>('Auto Layout: OFF');
   private readonly hasActiveCanvasSubject = new BehaviorSubject<boolean>(false);
-  private readonly layoutEnginesSubject = new BehaviorSubject<string[]>([]);
-  private readonly activeLayoutEngineSubject = new BehaviorSubject<string | null>(null);
+  private readonly layoutEnginesSubject = new BehaviorSubject<LayoutEngineOption[]>([]);
+  private readonly activeLayoutEngineSubject = new BehaviorSubject<LayoutEngineOption | null>(null);
   private readonly activeCanvasIdSubject = new BehaviorSubject<string | null>(null);
   private readonly canUndoSubject = new BehaviorSubject<boolean>(false);
   private readonly canRedoSubject = new BehaviorSubject<boolean>(false);
@@ -144,13 +153,50 @@ export class CanvasControlService {
     this.availableLevelsSubject.next(levels);
 
     this.autoLayoutStateSubject.next(this.activeCanvas.getCollapseBehaviorLabel());
-    this.layoutEnginesSubject.next(this.activeCanvas.getAvailableLayoutEngines());
-    this.activeLayoutEngineSubject.next(this.activeCanvas.getActiveLayoutEngine());
+    const engineOptions = this.resolveEngineOptions(this.activeCanvas.getAvailableLayoutEngines());
+    this.layoutEnginesSubject.next(engineOptions);
+    this.activeLayoutEngineSubject.next(this.resolveEngineOption(this.activeCanvas.getActiveLayoutEngine()));
     this.canUndoSubject.next(this.activeCanvas.canUndo());
     this.canRedoSubject.next(this.activeCanvas.canRedo());
   }
 
   notifyStateChange(): void {
     this.updateState();
+  }
+
+  private resolveEngineOptions(engineIds: string[]): LayoutEngineOption[] {
+    return engineIds.map(id => this.resolveEngineOption(id) ?? this.fallbackOption(id));
+  }
+
+  private resolveEngineOption(id: string | null): LayoutEngineOption | null {
+    if (!id) {
+      return null;
+    }
+    const module = LayoutModuleRegistry.getModule(id);
+    if (module) {
+      return {
+        id: module.id,
+        label: module.label,
+        runtimeEngine: module.runtimeEngine,
+        description: module.description,
+        tags: module.tags
+      };
+    }
+    return this.fallbackOption(id);
+  }
+
+  private fallbackOption(id: string): LayoutEngineOption {
+    return {
+      id,
+      label: this.formatLabel(id),
+      runtimeEngine: 'containment-grid'
+    };
+  }
+
+  private formatLabel(id: string): string {
+    return id
+      .split(/[-_]/g)
+      .map(segment => segment.charAt(0).toUpperCase() + segment.slice(1))
+      .join(' ');
   }
 }

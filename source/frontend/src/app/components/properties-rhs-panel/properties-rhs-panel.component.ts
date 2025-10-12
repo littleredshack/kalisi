@@ -4,8 +4,8 @@ import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 import { FormsModule } from '@angular/forms';
 import { PropertiesPanelComponent } from '../properties-panel/properties-panel.component';
-import { CanvasControlService, CameraInfo } from '../../core/services/canvas-control.service';
-import { Observable, map } from 'rxjs';
+import { CanvasControlService, CameraInfo, LayoutEngineOption } from '../../core/services/canvas-control.service';
+import { Observable, combineLatest, map } from 'rxjs';
 import { CanvasEventHistoryComponent } from '../canvas-event-history/canvas-event-history.component';
 
 @Component({
@@ -43,8 +43,9 @@ export class PropertiesRhsPanelComponent implements OnInit, OnDestroy, OnChanges
   autoLayoutState$: Observable<string>;
   canUndo$: Observable<boolean>;
   canRedo$: Observable<boolean>;
-  layoutEngines$: Observable<string[]>;
-  activeLayoutEngine$: Observable<string | null>;
+  layoutEngines$: Observable<LayoutEngineOption[]>;
+  activeLayoutEngine$: Observable<LayoutEngineOption | null>;
+  layoutEngineOptions$: Observable<{ options: LayoutEngineOption[]; activeId: string | null }>;
   levelOptions$: Observable<any[]>;
   selectedLevel: number | null = null;
 
@@ -58,6 +59,12 @@ export class PropertiesRhsPanelComponent implements OnInit, OnDestroy, OnChanges
     this.canRedo$ = this.canvasControlService.canRedo$;
     this.layoutEngines$ = this.canvasControlService.layoutEngines$;
     this.activeLayoutEngine$ = this.canvasControlService.activeLayoutEngine$;
+    this.layoutEngineOptions$ = combineLatest([this.layoutEngines$, this.activeLayoutEngine$]).pipe(
+      map(([options, active]) => ({
+        options,
+        activeId: active?.id ?? null
+      }))
+    );
 
     // Transform levels array into dropdown options
     this.levelOptions$ = this.availableLevels$.pipe(
@@ -164,16 +171,9 @@ export class PropertiesRhsPanelComponent implements OnInit, OnDestroy, OnChanges
     }
   }
 
-  onLayoutEngineChange(engineName: string): void {
-    if (engineName) {
-      this.canvasControlService.changeLayoutEngine(engineName);
+  onLayoutEngineChange(engineId: string): void {
+    if (engineId) {
+      this.canvasControlService.changeLayoutEngine(engineId);
     }
-  }
-
-  formatLayoutEngine(engine: string): string {
-    return engine
-      .split('-')
-      .map(segment => segment.charAt(0).toUpperCase() + segment.slice(1))
-      .join(' ');
   }
 }
