@@ -780,7 +780,13 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     // COPIED EXACT RESIZE HANDLE DETECTION FROM MONOLITHIC SYSTEM
     const selectedNode = this.engine.getSelectedNode();
     if (selectedNode) {
-      const handle = this.engine.hitTestResizeHandle(screenX, screenY, selectedNode);
+      const handle = this.engine?.getInteractionHandler().hitTestResizeHandle(
+        screenX,
+        screenY,
+        selectedNode,
+        (node) => this.engine!.getInteractionHandler().getAbsolutePosition(node, this.engine!.getData()?.nodes || []),
+        this.engine!.getCameraSystem().getCamera()
+      );
       if (handle) {
         this.isResizing = true;
         this.resizeHandle = handle;

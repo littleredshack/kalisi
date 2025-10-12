@@ -124,7 +124,7 @@ export class ComposableHierarchicalCanvasEngine {
     this.onDataChanged?.(this.data);
     const selectedNode = this.interactionHandler.getSelectedNode();
     if (selectedNode) {
-      const worldPos = this.getAbsolutePosition(selectedNode);
+      const worldPos = this.interactionHandler.getAbsolutePosition(selectedNode, this.data.nodes);
       this.interactionHandler.updateSelectedNodeWorldPos(worldPos);
     }
     this.publishState('replace');
@@ -611,7 +611,7 @@ export class ComposableHierarchicalCanvasEngine {
     this.onDataChanged?.(this.data);
     const selectedNode = this.interactionHandler.getSelectedNode();
     if (selectedNode) {
-      const worldPos = this.getAbsolutePosition(selectedNode);
+      const worldPos = this.interactionHandler.getAbsolutePosition(selectedNode, this.data.nodes);
       this.interactionHandler.updateSelectedNodeWorldPos(worldPos);
     }
     this.publishState('collapse', nodeGuid, {
@@ -676,7 +676,7 @@ export class ComposableHierarchicalCanvasEngine {
 
     const selectedNode = this.interactionHandler.getSelectedNode();
     if (selectedNode) {
-      const worldPos = this.interactionHandler.getSelectedNodeWorldPos() || this.getAbsolutePosition(selectedNode);
+      const worldPos = this.interactionHandler.getSelectedNodeWorldPos() || this.interactionHandler.getAbsolutePosition(selectedNode, this.data.nodes);
       this.renderSelectionAtPosition(selectedNode, worldPos, camera);
     }
 
@@ -688,7 +688,7 @@ export class ComposableHierarchicalCanvasEngine {
   centerOnNode(node: HierarchicalNode): void {
     const camera = this.cameraSystem.getCamera();
     const zoom = camera.zoom || 1;
-    const worldPos = this.getAbsolutePosition(node);
+    const worldPos = this.interactionHandler.getAbsolutePosition(node, this.data.nodes);
 
     const collapseBehavior = this.viewNodeStateService?.getCollapseBehaviorValue?.() ?? 'full-size';
     const shouldShrink =
@@ -794,6 +794,14 @@ export class ComposableHierarchicalCanvasEngine {
     return this.interactionHandler.getSelectedNode();
   }
 
+  getInteractionHandler(): CanvasInteractionHandler {
+    return this.interactionHandler;
+  }
+
+  getCameraSystem(): CameraSystem {
+    return this.cameraSystem;
+  }
+
   // Private methods
   private setupEventHandlers(): void {
     // Event handlers will be managed externally by InteractionManager
@@ -893,7 +901,7 @@ export class ComposableHierarchicalCanvasEngine {
     this.cameraSystem.setCamera(nextCamera);
     const selectedNode = this.interactionHandler.getSelectedNode();
     if (selectedNode) {
-      const worldPos = this.getAbsolutePosition(selectedNode);
+      const worldPos = this.interactionHandler.getAbsolutePosition(selectedNode, this.data.nodes);
       this.interactionHandler.updateSelectedNodeWorldPos(worldPos);
     }
     this.render();
@@ -961,7 +969,7 @@ export class ComposableHierarchicalCanvasEngine {
     this.data.camera = this.cameraSystem.getCamera();
     const selectedNode = this.interactionHandler.getSelectedNode();
     if (selectedNode) {
-      this.interactionHandler.updateSelectedNodeWorldPos(this.getAbsolutePosition(selectedNode));
+      this.interactionHandler.updateSelectedNodeWorldPos(this.interactionHandler.getAbsolutePosition(selectedNode, this.data.nodes));
     }
     this.render();
     this.ensureCameraWithinBounds('external-state');
@@ -1082,11 +1090,11 @@ export class ComposableHierarchicalCanvasEngine {
       return;
     }
 
-    const parentPos = this.getParentAbsolutePosition(node);
+    const parentPos = this.interactionHandler.getParentAbsolutePosition(node, this.data.nodes);
     node.x = absoluteX - parentPos.x;
     node.y = absoluteY - parentPos.y;
     if (this.interactionHandler.getSelectedNode() === node) {
-      this.interactionHandler.updateSelectedNodeWorldPos(this.getAbsolutePosition(node));
+      this.interactionHandler.updateSelectedNodeWorldPos(this.interactionHandler.getAbsolutePosition(node, this.data.nodes));
     }
     this.updateWorldMetadata(node);
     this.invalidateEdgeGeometry(nodeGuid);
@@ -1112,7 +1120,7 @@ export class ComposableHierarchicalCanvasEngine {
     node.width = Math.max(0, width);
     node.height = Math.max(0, height);
     if (this.interactionHandler.getSelectedNode() === node) {
-      this.interactionHandler.updateSelectedNodeWorldPos(this.getAbsolutePosition(node));
+      this.interactionHandler.updateSelectedNodeWorldPos(this.interactionHandler.getAbsolutePosition(node, this.data.nodes));
     }
     this.updateWorldMetadata(node);
     this.invalidateEdgeGeometry(nodeGuid);
@@ -1140,7 +1148,7 @@ export class ComposableHierarchicalCanvasEngine {
     if (!node?.GUID) {
       return;
     }
-    const absolute = this.getAbsolutePosition(node);
+    const absolute = this.interactionHandler.getAbsolutePosition(node, this.data.nodes);
     this.emitCanvasEvent({
       type: 'NodeMoved',
       nodeId: node.GUID,
@@ -1210,7 +1218,7 @@ export class ComposableHierarchicalCanvasEngine {
       this.clearAllSelection();
       this.interactionHandler.setSelectedNode(result.node, result.worldPosition);
 
-      const absolutePos = result.worldPosition ?? this.getAbsolutePosition(result.node);
+      const absolutePos = result.worldPosition ?? this.interactionHandler.getAbsolutePosition(result.node, this.data.nodes);
       const dragOffset = {
         x: worldX - absolutePos.x,
         y: worldY - absolutePos.y
@@ -1232,16 +1240,9 @@ export class ComposableHierarchicalCanvasEngine {
     const selectedNode = this.interactionHandler.getSelectedNode();
     if (!this.interactionHandler.isNodeDragging() || !selectedNode) return false;
 
-    const dragOffset = this.interactionHandler.getDragOffset();
-    const newWorldX = worldX - dragOffset.x;
-    const newWorldY = worldY - dragOffset.y;
-
-    const parentPos = this.getParentAbsolutePosition(selectedNode);
-    const newRelativeX = newWorldX - parentPos.x;
-    const newRelativeY = newWorldY - parentPos.y;
-
-    // Apply movement constraints
-    const constrainedPosition = this.applyMovementConstraints(selectedNode, newRelativeX, newRelativeY);
+    // Use interaction handler for drag calculations
+    const constrainedPosition = this.interactionHandler.calculateDragPosition(worldX, worldY, this.data.nodes);
+    if (!constrainedPosition) return false;
 
     selectedNode.x = constrainedPosition.x;
     selectedNode.y = constrainedPosition.y;
@@ -1252,7 +1253,7 @@ export class ComposableHierarchicalCanvasEngine {
     };
     (selectedNode as any)._userLocked = true;
 
-    const newWorldPos = this.getAbsolutePosition(selectedNode);
+    const newWorldPos = this.interactionHandler.getAbsolutePosition(selectedNode, this.data.nodes);
     this.interactionHandler.updateSelectedNodeWorldPos(newWorldPos);
     this.updateWorldMetadata(selectedNode);
     this.invalidateEdgeGeometry(selectedNode.GUID ?? selectedNode.id);
@@ -1315,18 +1316,6 @@ export class ComposableHierarchicalCanvasEngine {
   }
 
   // Utility methods
-  private getAbsolutePosition(targetNode: HierarchicalNode): Point {
-    const path = this.getNodePath(targetNode);
-    if (path) {
-      let x = 0, y = 0;
-      path.forEach(node => {
-        x += node.x;
-        y += node.y;
-      });
-      return { x, y };
-    }
-    return { x: 0, y: 0 };
-  }
 
   private findParentNode(targetNode: HierarchicalNode): HierarchicalNode | null {
     const matchesTarget = (candidate: HierarchicalNode): boolean => {
@@ -1356,58 +1345,8 @@ export class ComposableHierarchicalCanvasEngine {
     return findParent(this.data.nodes);
   }
 
-  // COPIED EXACT MISSING UTILITY METHODS FROM WORKING MONOLITHIC SYSTEM
-  private getParentAbsolutePosition(targetNode: HierarchicalNode): Point {
-    const path = this.getNodePath(targetNode);
-    if (path && path.length > 1) {
-      // Sum all parent positions (exclude the target node itself)
-      const parentPath = path.slice(0, -1);
-      return this.getAbsolutePositionFromPath(parentPath);
-    }
-    return {x: 0, y: 0}; // Top-level node
-  }
 
-  private getNodePath(targetNode: HierarchicalNode): HierarchicalNode[] | null {
-    const targetGuid = targetNode.GUID;
 
-    const matchesTarget = (node: HierarchicalNode): boolean => {
-      if (node === targetNode) {
-        return true;
-      }
-      if (targetGuid && node.GUID === targetGuid) {
-        return true;
-      }
-      return false;
-    };
-
-    const traverse = (
-      nodes: HierarchicalNode[],
-      currentPath: HierarchicalNode[] = []
-    ): HierarchicalNode[] | null => {
-      for (const node of nodes) {
-        const path = [...currentPath, node];
-        if (matchesTarget(node)) {
-          return path;
-        }
-        const found = traverse(node.children ?? [], path);
-        if (found) {
-          return found;
-        }
-      }
-      return null;
-    };
-
-    return traverse(this.data.nodes);
-  }
-
-  private getAbsolutePositionFromPath(path: HierarchicalNode[]): Point {
-    let x = 0, y = 0;
-    path.forEach(node => {
-      x += node.x;
-      y += node.y;
-    });
-    return {x, y};
-  }
 
   private renderSelectionAtPosition(node: HierarchicalNode, worldPos: Point, camera: Camera): void {
     if (this.interactionHandler.getSelectedNode() === node) {
@@ -1444,39 +1383,6 @@ export class ComposableHierarchicalCanvasEngine {
     this.drawLCornerHandles(screenX, screenY, screenWidth, screenHeight);
   }
 
-  // L-CORNER HANDLE HIT TESTING
-  hitTestResizeHandle(x: number, y: number, node: HierarchicalNode): string {
-    const worldPos = this.getAbsolutePosition(node);
-    const camera = this.cameraSystem.getCamera();
-    
-    // Convert to screen coordinates for handle testing
-    const screenX = (worldPos.x - camera.x) * camera.zoom;
-    const screenY = (worldPos.y - camera.y) * camera.zoom;
-    const screenWidth = node.width * camera.zoom;
-    const screenHeight = node.height * camera.zoom;
-    
-    // L-corner hit areas: 12x12px boxes centered on each L "elbow"
-    const offset = 6;      // 6px gap from border (match visual offset)
-    const hitAreaSize = 12; // 12x12px hit area
-    const halfHit = hitAreaSize / 2;
-    
-    const left = screenX - offset;
-    const right = screenX + screenWidth + offset;
-    const top = screenY - offset;
-    const bottom = screenY + screenHeight + offset;
-    
-    // Test L-corner hit areas (only corner resize, no edge handles)
-    if (this.pointInArea(x, y, left - halfHit, top - halfHit, hitAreaSize, hitAreaSize)) return 'nw';
-    if (this.pointInArea(x, y, right - halfHit, top - halfHit, hitAreaSize, hitAreaSize)) return 'ne';
-    if (this.pointInArea(x, y, right - halfHit, bottom - halfHit, hitAreaSize, hitAreaSize)) return 'se';
-    if (this.pointInArea(x, y, left - halfHit, bottom - halfHit, hitAreaSize, hitAreaSize)) return 'sw';
-    
-    return '';
-  }
-
-  private pointInArea(px: number, py: number, ax: number, ay: number, aw: number, ah: number): boolean {
-    return px >= ax && px <= ax + aw && py >= ay && py <= ay + ah;
-  }
 
   private drawLCornerHandles(x: number, y: number, width: number, height: number): void {
     // ORANGE L-CORNER HANDLES: Size relative to node, fixed screen pixels
@@ -1539,7 +1445,7 @@ export class ComposableHierarchicalCanvasEngine {
     const worldMouseY = mouseY / camera.zoom + camera.y;
     
     // Get current world position
-    const worldPos = this.getAbsolutePosition(node);
+    const worldPos = this.interactionHandler.getAbsolutePosition(node, this.data.nodes);
     
     const minSize = 50; // Minimum node size
     
@@ -1590,7 +1496,7 @@ export class ComposableHierarchicalCanvasEngine {
     this.applyResizeConstraints(node);
     
     // Apply movement constraints (in case resize changed position)
-    const constrainedPosition = this.applyMovementConstraints(node, node.x, node.y);
+    const constrainedPosition = this.interactionHandler.applyMovementConstraints(node, node.x, node.y, this.data.nodes);
     node.x = constrainedPosition.x;
     node.y = constrainedPosition.y;
 
@@ -1601,7 +1507,7 @@ export class ComposableHierarchicalCanvasEngine {
     }
 
     if (this.interactionHandler.getSelectedNode() === node) {
-      this.interactionHandler.updateSelectedNodeWorldPos(this.getAbsolutePosition(node));
+      this.interactionHandler.updateSelectedNodeWorldPos(this.interactionHandler.getAbsolutePosition(node, this.data.nodes));
     }
 
     this.render();
@@ -1613,34 +1519,6 @@ export class ComposableHierarchicalCanvasEngine {
     this.syncRuntimeFromCurrentData('user');
   }
 
-  // COPIED EXACT CONSTRAINT METHODS FROM WORKING MONOLITHIC SYSTEM
-  private applyMovementConstraints(node: HierarchicalNode, newX: number, newY: number): {x: number, y: number} {
-    // Find the parent of this node
-    const parent = this.findParentNode(node);
-    if (!parent) {
-      // Top-level node - no constraints
-      return {x: newX, y: newY};
-    }
-
-    const padding = 10;
-
-    const headerOffset = parent && parent.children && parent.children.length > 0
-      ? Math.max(20, Math.min(parent.height * 0.2, 80))
-      : 0;
-
-    // Calculate bounds within parent (in relative coordinates)
-    const minX = padding;
-    const minY = headerOffset + padding;
-    const maxX = parent.width - node.width - padding;
-    const maxY = parent.height - node.height - padding;
-
-
-    // Constrain to bounds
-    const constrainedX = Math.max(minX, Math.min(maxX, newX));
-    const constrainedY = Math.max(minY, Math.min(maxY, newY));
-
-    return {x: constrainedX, y: constrainedY};
-  }
 
   private applyResizeConstraints(node: HierarchicalNode): void {
     const parent = this.findParentNode(node);
@@ -2110,7 +1988,7 @@ export class ComposableHierarchicalCanvasEngine {
   }
 
   private updateWorldMetadata(node: HierarchicalNode, parentWorld?: Point): void {
-    const parent = parentWorld ?? this.getParentAbsolutePosition(node);
+    const parent = parentWorld ?? this.interactionHandler.getParentAbsolutePosition(node, this.data.nodes);
     const worldX = parent.x + node.x;
     const worldY = parent.y + node.y;
     if (!node.metadata) {
