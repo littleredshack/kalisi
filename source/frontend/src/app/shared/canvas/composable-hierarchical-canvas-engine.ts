@@ -106,6 +106,7 @@ export class ComposableHierarchicalCanvasEngine {
     this.canvasEventSubscription = this.canvasEventBus.events$.subscribe(event => { void this.handleCanvasEvent(event); });
     this.currentEngineName = this.layoutRuntime.getActiveEngineName() ?? initialEngineName;
 
+    this.initialRenderPending = true;
     void this.layoutRuntime.runLayout({ reason: 'initial', source: 'system' })
       .then(result => {
         this.initialRenderPending = false;
@@ -125,10 +126,6 @@ export class ComposableHierarchicalCanvasEngine {
       });
 
     this.setupEventHandlers();
-    this.pendingRendererInvalidation = true;
-    if (!this.initialRenderPending) {
-      this.render();
-    }
   }
 
   // Public API
