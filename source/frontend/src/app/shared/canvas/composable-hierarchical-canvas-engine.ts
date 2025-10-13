@@ -38,6 +38,7 @@ export class ComposableHierarchicalCanvasEngine {
   private currentLensId = 'full-graph';
   private lensBaseData: CanvasData;
   private pendingRendererInvalidation = false;
+  private initialRenderPending = true;
   
   // Event handlers
   private onDataChanged?: (data: CanvasData) => void;
@@ -107,6 +108,7 @@ export class ComposableHierarchicalCanvasEngine {
 
     void this.layoutRuntime.runLayout({ reason: 'initial', source: 'system' })
       .then(result => {
+        this.initialRenderPending = false;
         this.setData(result, 'system');
         this.lensBaseData = this.cloneCanvasData(this.data);
         this.refreshViewPreset(this.presentationFrame);
@@ -115,6 +117,7 @@ export class ComposableHierarchicalCanvasEngine {
       .catch(error => {
         console.error('[CanvasEngine] Initial layout failed; using fallback data', error);
         const fallback = this.layoutRuntime.getCanvasData();
+        this.initialRenderPending = false;
         this.setData(fallback, 'system');
         this.lensBaseData = this.cloneCanvasData(this.data);
         this.refreshViewPreset(this.presentationFrame);
@@ -123,7 +126,9 @@ export class ComposableHierarchicalCanvasEngine {
 
     this.setupEventHandlers();
     this.pendingRendererInvalidation = true;
-    this.render();
+    if (!this.initialRenderPending) {
+      this.render();
+    }
   }
 
   // Public API
