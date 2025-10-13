@@ -120,7 +120,6 @@ export class ComposableHierarchicalCanvasEngine {
 
         // Only adjust camera if layout didn't provide one
         if (!layoutProvidedCamera) {
-          console.log('[INIT] Layout did not provide camera, ensuring bounds');
           this.ensureCameraWithinBounds('initialize');
           if (!this.data.camera) {
             const midpoint = this.calculateContentBounds(this.data.nodes, 0, 0, this.viewNodeStateService?.getCollapseBehaviorValue?.() ?? 'full-size');
@@ -128,8 +127,6 @@ export class ComposableHierarchicalCanvasEngine {
               this.cameraSystem.setCamera({ x: midpoint.x, y: midpoint.y, zoom: this.cameraSystem.getCamera().zoom });
             }
           }
-        } else {
-          console.log('[INIT] Layout provided camera, trusting it:', result.camera);
         }
       })
       .catch(error => {
@@ -147,7 +144,7 @@ export class ComposableHierarchicalCanvasEngine {
 
   // Public API
   setData(data: CanvasData, source: CanvasEventSource = 'system', updateLensBase = true): void {
-    this.data = { 
+    this.data = {
       ...data,
       originalEdges: data.originalEdges || data.edges.filter(e => !e.id.startsWith('inherited-'))
     };
@@ -157,13 +154,16 @@ export class ComposableHierarchicalCanvasEngine {
     if (updateLensBase) {
       this.lensBaseData = this.cloneCanvasData(this.data);
     }
-    
+
     if (data.camera) {
       this.cameraSystem.setCamera(data.camera);
     }
+
+    // Ensure camera is valid BEFORE rendering to avoid flicker
+    this.ensureCameraWithinBounds('set-data');
+
     this.pendingRendererInvalidation = true;
     this.render();
-    this.ensureCameraWithinBounds('set-data');
     this.onDataChanged?.(this.data);
     const selectedNode = this.interactionHandler.getSelectedNode();
     if (selectedNode) {
@@ -717,12 +717,6 @@ export class ComposableHierarchicalCanvasEngine {
 
   // Rendering
   render(): void {
-    console.log('[RENDER] Called', {
-      canvasId: this.canvasId,
-      initialRenderPending: this.initialRenderPending,
-      stack: new Error().stack?.split('\n')[2]?.trim()
-    });
-
     this.presentationFrame = this.layoutRuntime.getPresentationFrame() ?? this.presentationFrame;
     const frame = this.presentationFrame;
     const camera = this.cameraSystem.getCamera();
@@ -736,12 +730,10 @@ export class ComposableHierarchicalCanvasEngine {
 
     if (frame && frame.version === this.lastRenderedFrameVersion && (!frame.delta || (frame.delta.nodes.length === 0 && frame.delta.edges.length === 0))) {
       if (!cameraChanged && !lensChanged && !shouldForceRender) {
-        console.log('[RENDER] Skipped - no changes');
         return;
       }
     }
 
-    console.log('[RENDER] EXECUTING', { camera, shouldForceRender, cameraChanged });
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
     this.renderer.render(this.ctx, this.data.nodes, this.data.edges, camera, frame ?? undefined);
@@ -997,7 +989,9 @@ export class ComposableHierarchicalCanvasEngine {
       !Number.isFinite(currentCamera.zoom) ||
       currentCamera.zoom <= 0;
 
-    if (cameraInvalid || !this.rectanglesIntersect(expandedContent, viewportBounds)) {
+    const intersects = this.rectanglesIntersect(expandedContent, viewportBounds);
+
+    if (cameraInvalid || !intersects) {
       this.centerCameraOnBounds(contentBounds, safeZoom);
     }
   }
@@ -1026,8 +1020,8 @@ export class ComposableHierarchicalCanvasEngine {
       const worldPos = this.interactionHandler.getAbsolutePosition(selectedNode, this.data.nodes);
       this.interactionHandler.updateSelectedNodeWorldPos(worldPos);
     }
-    this.render();
-    this.publishCameraState('camera', 'system');
+    // Don't render here - let the caller decide when to render
+    // This prevents double renders when called from setData
   }
 
   private calculateContentBounds(
@@ -1081,7 +1075,6 @@ export class ComposableHierarchicalCanvasEngine {
   private applyExternalState(state: CanvasData): void {
     // Skip during initial setup - the init flow will handle rendering
     if (this.initialRenderPending) {
-      console.log('[EXTERNAL STATE] Skipped during initialization');
       return;
     }
 
