@@ -105,15 +105,23 @@ export class ComposableHierarchicalCanvasEngine {
     this.canvasEventSubscription = this.canvasEventBus.events$.subscribe(event => { void this.handleCanvasEvent(event); });
     this.currentEngineName = this.layoutRuntime.getActiveEngineName() ?? initialEngineName;
 
-    this.layoutRuntime.runLayout({ reason: 'initial', source: 'system' });
-    const initialFrame = this.layoutRuntime.getPresentationFrame();
-    const initialCanvasData = initialFrame?.canvasData ?? this.layoutRuntime.getCanvasData();
-    this.setData(initialCanvasData, 'system');
-    this.lensBaseData = this.cloneCanvasData(this.data);
-    this.refreshViewPreset(initialFrame ?? this.presentationFrame);
+    void this.layoutRuntime.runLayout({ reason: 'initial', source: 'system' })
+      .then(result => {
+        this.setData(result, 'system');
+        this.lensBaseData = this.cloneCanvasData(this.data);
+        this.refreshViewPreset(this.presentationFrame);
+        this.ensureCameraWithinBounds('initialize');
+      })
+      .catch(error => {
+        console.error('[CanvasEngine] Initial layout failed; using fallback data', error);
+        const fallback = this.layoutRuntime.getCanvasData();
+        this.setData(fallback, 'system');
+        this.lensBaseData = this.cloneCanvasData(this.data);
+        this.refreshViewPreset(this.presentationFrame);
+        this.ensureCameraWithinBounds('initialize');
+      });
 
     this.setupEventHandlers();
-    this.ensureCameraWithinBounds('initialize');
   }
 
   // Public API
