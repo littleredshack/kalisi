@@ -35,18 +35,22 @@ export class HierarchicalNodePrimitive {
     if (node.visible === false) return;
 
     // Determine if we should shrink this node
-    const shouldShrink = node.collapsed && node.children && node.children.length > 0 && collapseBehavior === 'shrink';
+    const shouldShrink = !collapseBehavior || collapseBehavior === 'shrink';
 
-    const defaultWidth = typeof node.metadata?.['defaultWidth'] === 'number'
-      ? Number(node.metadata['defaultWidth'])
-      : COLLAPSED_NODE_WIDTH;
-    const defaultHeight = typeof node.metadata?.['defaultHeight'] === 'number'
-      ? Number(node.metadata['defaultHeight'])
-      : COLLAPSED_NODE_HEIGHT;
+    const baseWidth = Number.isFinite(node.width) ? node.width : COLLAPSED_NODE_WIDTH;
+    const baseHeight = Number.isFinite(node.height) ? node.height : COLLAPSED_NODE_HEIGHT;
 
-    // Use smaller dimensions if collapsed and behavior is 'shrink'
-    const nodeWidth = shouldShrink ? defaultWidth : node.width;
-    const nodeHeight = shouldShrink ? defaultHeight : node.height;
+    const targetWidth = node.metadata?.['targetWidth'];
+    const targetHeight = node.metadata?.['targetHeight'];
+
+    // When the layout transitions from collapsed → expanded, node.width/height may still hold
+    // the collapsed dimensions for a frame. If targetWidth/Height are present (set by layout engines),
+    // we respect them immediately.
+    const expandedWidth = typeof targetWidth === 'number' ? Number(targetWidth) : baseWidth;
+    const expandedHeight = typeof targetHeight === 'number' ? Number(targetHeight) : baseHeight;
+
+    const nodeWidth = shouldShrink ? baseWidth : expandedWidth;
+    const nodeHeight = shouldShrink ? baseHeight : expandedHeight;
 
     // Calculate absolute position in world space (exact same logic)
     const worldX = parentX + node.x;

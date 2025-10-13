@@ -110,16 +110,26 @@ export class ComposableHierarchicalCanvasEngine {
     this.initialRenderPending = true;
     void this.layoutRuntime.runLayout({ reason: 'initial', source: 'system' })
       .then(result => {
+        // Store whether layout provided a camera
+        const layoutProvidedCamera = !!result.camera;
+
         this.initialRenderPending = false;
         this.setData(result, 'system');
         this.lensBaseData = this.cloneCanvasData(this.data);
         this.refreshViewPreset(this.presentationFrame);
-        this.ensureCameraWithinBounds('initialize');
-        if (!this.data.camera) {
-          const midpoint = this.calculateContentBounds(this.data.nodes, 0, 0, this.viewNodeStateService?.getCollapseBehaviorValue?.() ?? 'full-size');
-          if (midpoint) {
-            this.cameraSystem.setCamera({ x: midpoint.x, y: midpoint.y, zoom: this.cameraSystem.getCamera().zoom });
+
+        // Only adjust camera if layout didn't provide one
+        if (!layoutProvidedCamera) {
+          console.log('[INIT] Layout did not provide camera, ensuring bounds');
+          this.ensureCameraWithinBounds('initialize');
+          if (!this.data.camera) {
+            const midpoint = this.calculateContentBounds(this.data.nodes, 0, 0, this.viewNodeStateService?.getCollapseBehaviorValue?.() ?? 'full-size');
+            if (midpoint) {
+              this.cameraSystem.setCamera({ x: midpoint.x, y: midpoint.y, zoom: this.cameraSystem.getCamera().zoom });
+            }
           }
+        } else {
+          console.log('[INIT] Layout provided camera, trusting it:', result.camera);
         }
       })
       .catch(error => {
@@ -553,7 +563,11 @@ export class ComposableHierarchicalCanvasEngine {
     this.canvas.height = height;
     this.cameraSystem.updateCanvasSize(width, height);
     this.pendingRendererInvalidation = true;
-    this.render();
+
+    // Don't render during initialization
+    if (!this.initialRenderPending) {
+      this.render();
+    }
   }
 
   // PERSISTENCE METHODS
@@ -703,6 +717,12 @@ export class ComposableHierarchicalCanvasEngine {
 
   // Rendering
   render(): void {
+    console.log('[RENDER] Called', {
+      canvasId: this.canvasId,
+      initialRenderPending: this.initialRenderPending,
+      stack: new Error().stack?.split('\n')[2]?.trim()
+    });
+
     this.presentationFrame = this.layoutRuntime.getPresentationFrame() ?? this.presentationFrame;
     const frame = this.presentationFrame;
     const camera = this.cameraSystem.getCamera();
@@ -716,10 +736,12 @@ export class ComposableHierarchicalCanvasEngine {
 
     if (frame && frame.version === this.lastRenderedFrameVersion && (!frame.delta || (frame.delta.nodes.length === 0 && frame.delta.edges.length === 0))) {
       if (!cameraChanged && !lensChanged && !shouldForceRender) {
+        console.log('[RENDER] Skipped - no changes');
         return;
       }
     }
 
+    console.log('[RENDER] EXECUTING', { camera, shouldForceRender, cameraChanged });
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
     this.renderer.render(this.ctx, this.data.nodes, this.data.edges, camera, frame ?? undefined);
@@ -757,8 +779,12 @@ export class ComposableHierarchicalCanvasEngine {
     if (this.interactionHandler.getSelectedNode() === node) {
       this.interactionHandler.updateSelectedNodeWorldPos(worldPos);
     }
-    this.render();
-    this.publishCameraState('camera', 'user');
+
+    // Don't render during initialization
+    if (!this.initialRenderPending) {
+      this.render();
+      this.publishCameraState('camera', 'user');
+    }
   }
 
   // Camera operations
@@ -1053,6 +1079,12 @@ export class ComposableHierarchicalCanvasEngine {
     };
   }
   private applyExternalState(state: CanvasData): void {
+    // Skip during initial setup - the init flow will handle rendering
+    if (this.initialRenderPending) {
+      console.log('[EXTERNAL STATE] Skipped during initialization');
+      return;
+    }
+
     this.applyingExternalState = true;
     this.data = {
       ...state,
