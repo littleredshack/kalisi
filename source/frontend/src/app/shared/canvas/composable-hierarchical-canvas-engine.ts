@@ -50,6 +50,10 @@ export class ComposableHierarchicalCanvasEngine {
   private applyingExternalState = false;
   private readonly canvasId: string;
 
+  // Layout engine isolation - each engine maintains its own layout snapshot
+  private layoutSnapshots = new Map<string, CanvasData>();
+  private originalData: CanvasData;
+
   constructor(
     canvas: HTMLCanvasElement,
     renderer: IRenderer,
@@ -68,6 +72,9 @@ export class ComposableHierarchicalCanvasEngine {
     };
     this.normaliseCanvasData(this.data);
     this.lensBaseData = this.cloneCanvasData(this.data);
+
+    // Store original data for layout engine isolation
+    this.originalData = this.cloneCanvasData(this.data);
 
     const initialEngineName = this.normaliseEngineName(initialEngineId, initialData);
 
@@ -181,6 +188,9 @@ export class ComposableHierarchicalCanvasEngine {
 
     const targetEngine = this.normaliseEngineName(engineName, this.data);
 
+    // Preserve current camera state
+    const currentCamera = this.cameraSystem.getCamera();
+
     this.suppressCanvasEvents = true;
     try {
       this.layoutRuntime.setActiveEngine(targetEngine, source);
@@ -189,7 +199,16 @@ export class ComposableHierarchicalCanvasEngine {
     }
 
     this.currentEngineName = this.layoutRuntime.getActiveEngineName() ?? targetEngine;
-    return this.runLayout({ reason: 'engine-switch', engineName: targetEngine, source });
+    const result = await this.runLayout({ reason: 'engine-switch', engineName: targetEngine, source });
+
+    // Restore camera after layout switch
+    if (result && currentCamera) {
+      result.camera = currentCamera;
+      this.cameraSystem.setCamera(currentCamera);
+      this.render(); // Re-render with restored camera
+    }
+
+    return result;
   }
 
   async runLayout(options: LayoutRunOptions = {}): Promise<CanvasData> {
@@ -1079,14 +1098,35 @@ export class ComposableHierarchicalCanvasEngine {
         break;
       case 'EngineSwitched':
         if (event.canvasId === this.canvasId) {
+          // Preserve current camera state before switching
+          const currentCamera = this.cameraSystem.getCamera();
+
+          // Save current layout state to the outgoing engine's snapshot
+          const previousEngine = this.currentEngineName;
+          if (previousEngine && event.engineName !== previousEngine) {
+            this.layoutSnapshots.set(previousEngine, this.cloneCanvasData(this.data));
+          }
+
+          // Load clean data for the incoming engine
+          const targetEngineData = this.layoutSnapshots.get(event.engineName) || this.cloneCanvasData(this.originalData);
+
+          // Set clean data before running layout
+          this.setData(targetEngineData, event.source, false);
+
           this.currentEngineName = event.engineName;
-          await this.withEventSuppressed(() =>
+          const result = await this.withEventSuppressed(() =>
             this.runLayout({
               reason: 'engine-switch',
               engineName: event.engineName,
               source: event.source
             })
           );
+
+          // Restore camera after layout switch
+          if (currentCamera) {
+            this.cameraSystem.setCamera(currentCamera);
+            this.render(); // Re-render with restored camera
+          }
         }
         break;
       case 'LayoutApplied':

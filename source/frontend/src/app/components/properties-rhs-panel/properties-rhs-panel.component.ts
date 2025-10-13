@@ -88,7 +88,7 @@ export class PropertiesRhsPanelComponent implements OnInit, OnDestroy, OnChanges
   ngOnInit(): void {
     // Load saved width from localStorage
     this.loadPanelWidth();
-    
+
     // Add global mouse event listeners for resizing
     document.addEventListener('mousemove', this.onGlobalMouseMove);
     document.addEventListener('mouseup', this.onGlobalMouseUp);

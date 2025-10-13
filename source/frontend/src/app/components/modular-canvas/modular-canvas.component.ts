@@ -203,6 +203,9 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       this.selectedViewNode = viewNode;
       this.canvasId = viewNode.id || 'modular-canvas';
 
+      // Re-register canvas with control service using new ID
+      this.canvasControlService.registerCanvas(this);
+
       if (viewNode.layout_engine === 'tree-table') {
         const treeTableData = await this.neo4jDataService.fetchTreeTable(viewNode);
         this.rawViewNodeData = {
