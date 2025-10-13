@@ -107,37 +107,51 @@ export class ComposableHierarchicalCanvasEngine {
     this.canvasEventSubscription = this.canvasEventBus.events$.subscribe(event => { void this.handleCanvasEvent(event); });
     this.currentEngineName = this.layoutRuntime.getActiveEngineName() ?? initialEngineName;
 
+    // Check if we have a complete saved layout (nodes + camera)
+    const hasSavedLayout = this.data.nodes && this.data.nodes.length > 0 && !!this.data.camera;
+
     this.initialRenderPending = true;
-    void this.layoutRuntime.runLayout({ reason: 'initial', source: 'system' })
-      .then(result => {
-        // Store whether layout provided a camera
-        const layoutProvidedCamera = !!result.camera;
 
-        this.initialRenderPending = false;
-        this.setData(result, 'system');
-        this.lensBaseData = this.cloneCanvasData(this.data);
-        this.refreshViewPreset(this.presentationFrame);
+    if (hasSavedLayout) {
+      // Use saved layout directly without running layout engine
+      this.initialRenderPending = false;
+      this.lensBaseData = this.cloneCanvasData(this.data);
+      this.refreshViewPreset(this.presentationFrame);
+      this.pendingRendererInvalidation = true;
+      this.render();
+    } else {
+      // No saved layout - run layout engine
+      void this.layoutRuntime.runLayout({ reason: 'initial', source: 'system' })
+        .then(result => {
+          // Store whether layout provided a camera
+          const layoutProvidedCamera = !!result.camera;
 
-        // Only adjust camera if layout didn't provide one
-        if (!layoutProvidedCamera) {
-          this.ensureCameraWithinBounds('initialize');
-          if (!this.data.camera) {
-            const midpoint = this.calculateContentBounds(this.data.nodes, 0, 0, this.viewNodeStateService?.getCollapseBehaviorValue?.() ?? 'full-size');
-            if (midpoint) {
-              this.cameraSystem.setCamera({ x: midpoint.x, y: midpoint.y, zoom: this.cameraSystem.getCamera().zoom });
+          this.initialRenderPending = false;
+          this.setData(result, 'system');
+          this.lensBaseData = this.cloneCanvasData(this.data);
+          this.refreshViewPreset(this.presentationFrame);
+
+          // Only adjust camera if layout didn't provide one
+          if (!layoutProvidedCamera) {
+            this.ensureCameraWithinBounds('initialize');
+            if (!this.data.camera) {
+              const midpoint = this.calculateContentBounds(this.data.nodes, 0, 0, this.viewNodeStateService?.getCollapseBehaviorValue?.() ?? 'full-size');
+              if (midpoint) {
+                this.cameraSystem.setCamera({ x: midpoint.x, y: midpoint.y, zoom: this.cameraSystem.getCamera().zoom });
+              }
             }
           }
-        }
-      })
-      .catch(error => {
-        console.error('[CanvasEngine] Initial layout failed; using fallback data', error);
-        const fallback = this.layoutRuntime.getCanvasData();
-        this.initialRenderPending = false;
-        this.setData(fallback, 'system');
-        this.lensBaseData = this.cloneCanvasData(this.data);
-        this.refreshViewPreset(this.presentationFrame);
-        this.ensureCameraWithinBounds('initialize');
-      });
+        })
+        .catch(error => {
+          console.error('[CanvasEngine] Initial layout failed; using fallback data', error);
+          const fallback = this.layoutRuntime.getCanvasData();
+          this.initialRenderPending = false;
+          this.setData(fallback, 'system');
+          this.lensBaseData = this.cloneCanvasData(this.data);
+          this.refreshViewPreset(this.presentationFrame);
+          this.ensureCameraWithinBounds('initialize');
+        });
+    }
 
     this.setupEventHandlers();
   }
