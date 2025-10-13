@@ -114,7 +114,6 @@ export class Neo4jDataService {
   }
 
   async executeViewNodeQuery(viewNode: any): Promise<{entities: EntityModel[], relationships: GraphRelationship[]}> {
-    console.log('🔍 DEBUG: executeViewNodeQuery for ViewNode:', viewNode.name, viewNode.id);
     try {
       // Get the cypherQuery from the associated QueryNode instead of ViewNode
       let queryToExecute = await this.getQueryFromQueryNode(viewNode);
@@ -130,17 +129,13 @@ export class Neo4jDataService {
         `;
       }
 
-      console.log('🔍 DEBUG: Query to execute:', queryToExecute);
-      
       // Execute the cypherQuery via existing cypher endpoint
-      console.log('🔍 DEBUG: Executing query via /v0/cypher/unified');
       const result: any = await firstValueFrom(
         this.http.post('/v0/cypher/unified', {
           query: queryToExecute,
           parameters: {}
         })
       );
-      console.log('🔍 DEBUG: Query result:', {success: result.success, resultCount: result.data?.results?.length});
       
       if (result.success && result.data && result.data.results) {
         const nodeMap = new Map<string, any>();

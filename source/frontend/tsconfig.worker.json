@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./out-tsc/worker",
+    "lib": [
+      "es2018",
+      "webworker"
+    ],
+    "types": [],
+    "paths": {
+      "../../canvas/types": ["../layouts/worker-types"]
+    }
+  },
+  "include": [
+    "src/**/*.worker.ts"
+  ]
+}

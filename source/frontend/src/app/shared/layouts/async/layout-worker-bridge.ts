@@ -10,9 +10,15 @@ export class LayoutWorkerBridge {
 
   constructor(private readonly orchestrator: LayoutOrchestrator, private readonly config: LayoutWorkerConfig = {}) {
     if (this.config.useWorker && typeof Worker !== 'undefined') {
-      this.worker = new Worker(new URL('./layout-worker.ts', import.meta.url), {
-        type: 'module'
-      });
+      try {
+        this.worker = new Worker(new URL('./layout.worker.ts', import.meta.url), {
+          type: 'module'
+        });
+      } catch (error) {
+        console.error('LayoutWorkerBridge: Failed to create worker, falling back to main thread:', error);
+        this.worker = undefined;
+      }
+    } else {
     }
   }
 
@@ -26,6 +32,7 @@ export class LayoutWorkerBridge {
     if (!this.worker) {
       return this.orchestrator.runLayout(canvasId, graph, effectiveOptions);
     }
+
 
     return new Promise<LayoutResult>((resolve, reject) => {
       const worker = this.worker;

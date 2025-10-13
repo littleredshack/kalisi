@@ -76,6 +76,27 @@ export interface NodeEvent {
 }
 
 export interface InteractionEvent extends NodeEvent {
-  originalEvent: MouseEvent;
+  originalEvent: CanvasPointerEvent;
   handled: boolean;
 }
+
+/**
+ * Minimal subset of pointer/mouse event data that works in both DOM and worker environments.
+ * Workers do not have DOM typings such as MouseEvent, so we model the properties we actually consume.
+ */
+export type CanvasPointerEvent = Event & {
+  clientX?: number;
+  clientY?: number;
+  movementX?: number;
+  movementY?: number;
+  button?: number;
+  buttons?: number;
+  ctrlKey?: boolean;
+  altKey?: boolean;
+  shiftKey?: boolean;
+  metaKey?: boolean;
+  deltaX?: number;
+  deltaY?: number;
+  deltaMode?: number;
+  [key: string]: unknown;
+};

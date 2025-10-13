@@ -103,12 +103,6 @@ export class ComponentFactory {
       layoutEngineType = 'code-model-tree';
       rendererType = 'composable-tree';
     }
-    console.log('🎭 DEBUG: ComponentFactory.createFromViewNode:', {
-      viewNodeId: viewNode.id,
-      viewNodeName: viewNode.name,
-      layoutEngineType,
-      rendererType
-    });
 
     return this.createComponents(layoutEngineType, rendererType);
   }

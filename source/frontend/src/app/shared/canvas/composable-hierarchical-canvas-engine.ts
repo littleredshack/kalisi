@@ -80,7 +80,8 @@ export class ComposableHierarchicalCanvasEngine {
 
     this.layoutRuntime = new CanvasLayoutRuntime(canvasId, this.data, {
       defaultEngine: initialEngineName,
-      runLayoutOnInit: false
+      runLayoutOnInit: false,
+      useWorker: true
     });
     this.layoutRuntime.setLens(this.currentLensId);
     this.canvasEventBus = this.layoutRuntime.getEventBus();
