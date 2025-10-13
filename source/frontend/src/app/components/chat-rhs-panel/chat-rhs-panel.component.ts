@@ -10,8 +10,9 @@ import { TagModule } from 'primeng/tag';
 import { SafetyGuardService, QueryClassification } from '../../core/services/safety-guard.service';
 import { GptChatService } from '../../core/services/gpt-chat.service';
 import { CanvasControlService, LayoutEngineOption, GraphLensOption } from '../../core/services/canvas-control.service';
-import { Observable, combineLatest } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { CanvasEventHubService, LayoutMetricsEvent } from '../../core/services/canvas-event-hub.service';
+import { Observable, Subscription, combineLatest } from 'rxjs';
+import { filter, map } from 'rxjs/operators';
 import { CanvasEventHistoryComponent } from '../canvas-event-history/canvas-event-history.component';
 // Neo4j parsing now handled in Neo4jDataService
 
@@ -89,12 +90,14 @@ export class ChatRhsPanelComponent implements OnInit, OnDestroy, OnChanges, Afte
   private isResizing = false;
   private startX = 0;
   private startWidth = 0;
+  private metricsSubscription?: Subscription;
 
   constructor(
     private safetyGuard: SafetyGuardService,
     private gptChat: GptChatService,
     private http: HttpClient,
     private canvasControlService: CanvasControlService,
+    private canvasEventHubService: CanvasEventHubService
     // Neo4j parsing now handled internally in Neo4jDataService
   ) {
     this.layoutEngines$ = this.canvasControlService.layoutEngines$;
@@ -135,6 +138,10 @@ export class ChatRhsPanelComponent implements OnInit, OnDestroy, OnChanges, Afte
       content: 'Hello! I can help you craft Neo4j Cypher queries safely. Ask me anything about your graph database.',
       timestamp: new Date()
     });
+
+    this.metricsSubscription = this.canvasEventHubService.layoutMetrics$
+      .pipe(filter(event => this.shouldDisplayMetrics(event)))
+      .subscribe(event => this.handleLayoutMetrics(event));
   }
 
   ngAfterViewInit(): void {
@@ -154,6 +161,7 @@ export class ChatRhsPanelComponent implements OnInit, OnDestroy, OnChanges, Afte
     // Cleanup event listeners
     document.removeEventListener('mousemove', this.onMouseMove);
     document.removeEventListener('mouseup', this.onMouseUp);
+    this.metricsSubscription?.unsubscribe();
   }
 
   ngOnChanges(): void {
@@ -426,6 +434,39 @@ export class ChatRhsPanelComponent implements OnInit, OnDestroy, OnChanges, Afte
         element.scrollTop = element.scrollHeight;
       }
     }, 100);
+  }
+
+  private shouldDisplayMetrics(event: LayoutMetricsEvent): boolean {
+    const activeCanvasId = this.canvasControlService.getActiveCanvasId();
+    return !activeCanvasId || event.canvasId === activeCanvasId;
+  }
+
+  private handleLayoutMetrics(event: LayoutMetricsEvent): void {
+    const summaryParts: string[] = [];
+    if (typeof event.durationMs === 'number') {
+      summaryParts.push(`${Math.round(event.durationMs)} ms`);
+    }
+
+    if (typeof event.queueWaitMs === 'number' && event.queueWaitMs > 0) {
+      summaryParts.push(`wait ${Math.round(event.queueWaitMs)} ms`);
+    }
+
+    if (typeof event.queueDepth === 'number') {
+      summaryParts.push(`queue depth ${event.queueDepth}`);
+    }
+
+    if (event.priority) {
+      summaryParts.push(`priority ${event.priority}`);
+    }
+
+    const summary = summaryParts.length > 0 ? summaryParts.join(' • ') : 'completed';
+
+    this.addMessage({
+      id: this.generateId(),
+      type: 'assistant',
+      content: `ℹ️ Layout (${event.engineName}) ${summary}.`,
+      timestamp: new Date(event.timestamp)
+    });
   }
 
   private focusInput(): void {

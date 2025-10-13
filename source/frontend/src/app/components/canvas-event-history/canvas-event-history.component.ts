@@ -11,6 +11,7 @@ interface CanvasEventDisplay {
   readonly description: string;
   readonly timestamp: string;
   readonly source: string;
+  readonly details?: string;
 }
 
 @Component({
@@ -42,7 +43,8 @@ export class CanvasEventHistoryComponent {
                 event,
                 description: this.describe(event),
                 timestamp: this.formatTimestamp(event.timestamp),
-                source: event.source
+                source: event.source,
+                details: this.extractDetails(event)
               }))
           )
         );
@@ -98,5 +100,59 @@ export class CanvasEventHistoryComponent {
       return '';
     }
     return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+
+  private extractDetails(event: CanvasEvent): string | undefined {
+    if (event.type === 'LayoutRequested') {
+      const payload = event.payload as Readonly<Record<string, unknown>> | undefined;
+      if (!payload) {
+        return undefined;
+      }
+
+      const details: string[] = [];
+      const priority = payload['priority'];
+      if (typeof priority === 'string') {
+        details.push(`priority ${priority}`);
+      }
+
+      const queueDepth = payload['queueDepth'];
+      if (typeof queueDepth === 'number') {
+        details.push(`queue depth ${queueDepth}`);
+      }
+
+      const queueWaitMs = payload['queueWaitMs'];
+      if (typeof queueWaitMs === 'number') {
+        details.push(`wait ${Math.round(queueWaitMs)} ms`);
+      }
+
+      return details.length > 0 ? details.join(' • ') : undefined;
+    }
+
+    if (event.type === 'LayoutApplied') {
+      const diagnostics = event.result.diagnostics;
+      if (!diagnostics) {
+        return undefined;
+      }
+
+      const details: string[] = [];
+      if (typeof diagnostics.durationMs === 'number') {
+        details.push(`${Math.round(diagnostics.durationMs)} ms`);
+      }
+
+      const metrics = diagnostics.metrics ?? {};
+      const queueWait = metrics['queueWaitMs'];
+      if (typeof queueWait === 'number') {
+        details.push(`wait ${Math.round(queueWait)} ms`);
+      }
+
+      const queueDepth = metrics['queueDepth'];
+      if (typeof queueDepth === 'number') {
+        details.push(`queue depth ${queueDepth}`);
+      }
+
+      return details.length > 0 ? details.join(' • ') : undefined;
+    }
+
+    return undefined;
   }
 }

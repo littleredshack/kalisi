@@ -1,8 +1,19 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable, Subscription } from 'rxjs';
+import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
 import { CanvasEvent, CanvasEventBus } from '../../shared/layouts/core/layout-events';
+import { LayoutPriority } from '../../shared/layouts/core/layout-orchestrator';
 
 const HISTORY_LIMIT = 500;
+
+export interface LayoutMetricsEvent {
+  readonly canvasId: string;
+  readonly engineName: string;
+  readonly durationMs?: number;
+  readonly queueWaitMs?: number;
+  readonly queueDepth?: number;
+  readonly priority?: LayoutPriority;
+  readonly timestamp: number;
+}
 
 @Injectable({ providedIn: 'root' })
 export class CanvasEventHubService {
@@ -10,7 +21,10 @@ export class CanvasEventHubService {
   private readonly historyMap = new Map<string, CanvasEvent[]>();
   private readonly historySubjects = new Map<string, BehaviorSubject<CanvasEvent[]>>();
   private readonly subscriptions = new Map<string, Subscription>();
+  private readonly layoutMetricsSubject = new Subject<LayoutMetricsEvent>();
   private activeCanvasId: string | null = null;
+
+  readonly layoutMetrics$ = this.layoutMetricsSubject.asObservable();
 
   registerCanvas(canvasId: string, eventBus: CanvasEventBus): void {
     this.unregisterCanvas(canvasId);
@@ -27,6 +41,11 @@ export class CanvasEventHubService {
       }
       this.historyMap.set(canvasId, history);
       subject.next([...history]);
+
+       const metrics = this.extractLayoutMetrics(canvasId, event);
+       if (metrics) {
+         this.layoutMetricsSubject.next(metrics);
+       }
     });
 
     this.subscriptions.set(canvasId, subscription);
@@ -111,5 +130,44 @@ export class CanvasEventHubService {
       this.historySubjects.set(canvasId, subject);
     }
     return subject;
+  }
+
+  private extractLayoutMetrics(canvasId: string, event: CanvasEvent): LayoutMetricsEvent | null {
+    if (event.type !== 'LayoutApplied') {
+      return null;
+    }
+
+    const diagnostics = event.result.diagnostics;
+    if (!diagnostics) {
+      return null;
+    }
+
+    const metrics = diagnostics.metrics ?? {};
+    const queueWait = typeof metrics?.['queueWaitMs'] === 'number' ? metrics['queueWaitMs'] : undefined;
+    const queueDepth = typeof metrics?.['queueDepth'] === 'number' ? metrics['queueDepth'] : undefined;
+    const queuePriority = typeof metrics?.['queuePriority'] === 'number' ? metrics['queuePriority'] : undefined;
+
+    return {
+      canvasId,
+      engineName: event.engineName,
+      durationMs: diagnostics.durationMs,
+      queueWaitMs: queueWait,
+      queueDepth,
+      priority: queuePriority !== undefined ? this.resolvePriority(queuePriority) : undefined,
+      timestamp: event.timestamp
+    };
+  }
+
+  private resolvePriority(weight: number): LayoutPriority {
+    if (weight >= 3) {
+      return 'critical';
+    }
+    if (weight === 2) {
+      return 'high';
+    }
+    if (weight === 1) {
+      return 'normal';
+    }
+    return 'low';
   }
 }

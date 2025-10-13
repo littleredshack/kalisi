@@ -10,6 +10,7 @@
           <span class="event-history__type">{{ item.description }}</span>
           <span class="event-history__time">{{ item.timestamp }}</span>
           <span class="event-history__source">{{ item.source }}</span>
+          <span *ngIf="item.details" class="event-history__details">{{ item.details }}</span>
         </div>
         <button type="button" class="event-history__replay" (click)="replay(item)">
           Replay
