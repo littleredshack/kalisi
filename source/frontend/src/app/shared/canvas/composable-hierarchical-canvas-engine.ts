@@ -122,6 +122,8 @@ export class ComposableHierarchicalCanvasEngine {
       });
 
     this.setupEventHandlers();
+    this.pendingRendererInvalidation = true;
+    this.render();
   }
 
   // Public API
@@ -131,6 +133,7 @@ export class ComposableHierarchicalCanvasEngine {
       originalEdges: data.originalEdges || data.edges.filter(e => !e.id.startsWith('inherited-'))
     };
     this.normaliseCanvasData(this.data);
+    this.data.edges = this.computeEdgesWithInheritance(this.data.originalEdges);
     this.invalidateRendererCache();
     if (updateLensBase) {
       this.lensBaseData = this.cloneCanvasData(this.data);
@@ -139,6 +142,7 @@ export class ComposableHierarchicalCanvasEngine {
     if (data.camera) {
       this.cameraSystem.setCamera(data.camera);
     }
+    this.pendingRendererInvalidation = true;
     this.render();
     this.ensureCameraWithinBounds('set-data');
     this.onDataChanged?.(this.data);
@@ -539,6 +543,7 @@ export class ComposableHierarchicalCanvasEngine {
     this.canvas.width = width;
     this.canvas.height = height;
     this.cameraSystem.updateCanvasSize(width, height);
+    this.pendingRendererInvalidation = true;
     this.render();
   }
 
