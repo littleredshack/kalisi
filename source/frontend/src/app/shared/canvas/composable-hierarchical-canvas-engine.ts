@@ -13,6 +13,7 @@ import { LayoutRunOptions } from '../layouts/core/layout-orchestrator';
 import { CanvasEventHubService } from '../../core/services/canvas-event-hub.service';
 import { CanvasInteractionHandler } from './canvas-interaction-handler';
 import { ViewPresetManager, ResolvedViewPreset } from './presets/preset-manager';
+import { applyPresetStyles } from './presets/preset-style-applier';
 
 const COLLAPSED_NODE_WIDTH = 220;
 const COLLAPSED_NODE_HEIGHT = 64;
@@ -43,6 +44,7 @@ export class ComposableHierarchicalCanvasEngine {
   // Event handlers
   private onDataChanged?: (data: CanvasData) => void;
   private onSelectionChanged?: (node: HierarchicalNode | null) => void;
+  private onPresetChanged?: (preset: ResolvedViewPreset | null) => void;
   
   // Interaction state - managed by interaction handler
   private interactionHandler: CanvasInteractionHandler;
@@ -76,6 +78,7 @@ export class ComposableHierarchicalCanvasEngine {
       originalEdges: initialData.originalEdges || initialData.edges.filter(e => !e.id.startsWith('inherited-'))
     };
     this.normaliseCanvasData(this.data);
+    this.refreshViewPreset();
     this.lensBaseData = this.cloneCanvasData(this.data);
 
     // Store original data for layout engine isolation
@@ -116,7 +119,7 @@ export class ComposableHierarchicalCanvasEngine {
       // Use saved layout directly without running layout engine
       this.initialRenderPending = false;
       this.lensBaseData = this.cloneCanvasData(this.data);
-      this.refreshViewPreset(this.presentationFrame);
+      this.refreshViewPreset();
       this.pendingRendererInvalidation = true;
       this.render();
     } else {
@@ -129,7 +132,7 @@ export class ComposableHierarchicalCanvasEngine {
           this.initialRenderPending = false;
           this.setData(result, 'system');
           this.lensBaseData = this.cloneCanvasData(this.data);
-          this.refreshViewPreset(this.presentationFrame);
+          this.refreshViewPreset();
 
           // Only adjust camera if layout didn't provide one
           if (!layoutProvidedCamera) {
@@ -148,7 +151,7 @@ export class ComposableHierarchicalCanvasEngine {
           this.initialRenderPending = false;
           this.setData(fallback, 'system');
           this.lensBaseData = this.cloneCanvasData(this.data);
-          this.refreshViewPreset(this.presentationFrame);
+          this.refreshViewPreset();
           this.ensureCameraWithinBounds('initialize');
         });
     }
@@ -164,6 +167,7 @@ export class ComposableHierarchicalCanvasEngine {
     };
     this.normaliseCanvasData(this.data);
     this.data.edges = this.computeEdgesWithInheritance(this.data.originalEdges);
+    this.refreshViewPreset();
     this.invalidateRendererCache();
     if (updateLensBase) {
       this.lensBaseData = this.cloneCanvasData(this.data);
@@ -186,7 +190,6 @@ export class ComposableHierarchicalCanvasEngine {
     }
     this.publishState('replace');
     this.syncRuntimeFromCurrentData(source);
-    this.refreshViewPreset(this.presentationFrame);
   }
 
   getData(): CanvasData {
@@ -201,12 +204,38 @@ export class ComposableHierarchicalCanvasEngine {
     this.render();
   }
 
+  setActivePreset(presetId: string): void {
+    if (!presetId) {
+      return;
+    }
+
+    this.viewPresetManager.setActivePresetId(presetId);
+    this.refreshViewPreset(presetId);
+    this.pendingRendererInvalidation = true;
+    this.render();
+    this.publishState('replace');
+    this.syncRuntimeFromCurrentData('system');
+    void this.layoutRuntime
+      .runLayout({ reason: 'user-command', source: 'user' })
+      .then(result => {
+        this.setData(result, 'system');
+      })
+      .catch(error => {
+        console.error('[CanvasEngine] Preset layout run failed', error);
+      });
+    this.lensBaseData = this.cloneCanvasData(this.data);
+  }
+
   getRenderer(): IRenderer {
     return this.renderer;
   }
 
   getCurrentViewPreset(): ResolvedViewPreset | null {
     return this.currentPreset;
+  }
+
+  setPresetChangeHandler(handler: (preset: ResolvedViewPreset | null) => void): void {
+    this.onPresetChanged = handler;
   }
 
   getAvailableLayoutEngines(): string[] {
@@ -749,6 +778,15 @@ export class ComposableHierarchicalCanvasEngine {
     }
 
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    const background = typeof this.data.metadata?.['background'] === 'string'
+      ? (this.data.metadata['background'] as string)
+      : '#0b0f14';
+    if (background) {
+      this.ctx.save();
+      this.ctx.fillStyle = background;
+      this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      this.ctx.restore();
+    }
 
     this.renderer.render(this.ctx, this.data.nodes, this.data.edges, camera, frame ?? undefined);
     this.pendingRendererInvalidation = false;
@@ -951,15 +989,40 @@ export class ComposableHierarchicalCanvasEngine {
     this.lastRenderedFrameVersion = -1;
   }
 
-  private refreshViewPreset(frame?: PresentationFrame | null): void {
-    const resolved = this.viewPresetManager.resolveFromCanvasData(this.data);
-    if (resolved) {
-      this.currentPreset = {
-        preset: resolved.preset,
-        metadata: { ...resolved.metadata }
-      };
-    } else {
+  private refreshViewPreset(presetId?: string): void {
+    if (presetId) {
+      this.viewPresetManager.setActivePresetId(presetId);
+    }
+
+    const resolved = this.viewPresetManager.resolveFromCanvasData(this.data, presetId);
+    if (!resolved) {
       this.currentPreset = null;
+      if (this.onPresetChanged) {
+        this.onPresetChanged(null);
+      }
+      return;
+    }
+
+    this.currentPreset = {
+      preset: resolved.preset,
+      metadata: { ...resolved.metadata },
+      sourcePresetId: resolved.sourcePresetId,
+      overrides: resolved.overrides ?? null
+    };
+
+    this.data = applyPresetStyles(this.data, resolved.preset);
+    this.data.metadata = {
+      ...(this.data.metadata ?? {}),
+      activePresetId: resolved.sourcePresetId,
+      presetId: resolved.preset.id
+    };
+
+    if (typeof this.renderer.configurePreset === 'function') {
+      this.renderer.configurePreset(this.currentPreset);
+    }
+
+    if (this.onPresetChanged) {
+      this.onPresetChanged(this.currentPreset);
     }
   }
 
@@ -1161,6 +1224,11 @@ export class ComposableHierarchicalCanvasEngine {
         this.withEventSuppressed(() =>
           this.applyExternalNodeResize(event.nodeId, event.width, event.height, event.source)
         );
+        break;
+      case 'PresetRequested':
+        this.withEventSuppressed(() => {
+          this.setActivePreset(event.presetId);
+        });
         break;
       case 'CameraChanged':
         if (event.canvasId === this.canvasId) {

@@ -20,6 +20,7 @@ import { GraphLensRegistry, GraphLensDescriptor } from '../../shared/graph/lens-
 import { ensureRelativeNodeCoordinates } from '../../shared/canvas/utils/relative-coordinates';
 import { CanvasLayoutRuntime } from '../../shared/canvas/layout-runtime';
 import { layoutGraphToHierarchical } from '../../shared/layouts/core/layout-graph-utils';
+import { ResolvedViewPreset } from '../../shared/canvas/presets/preset-manager';
 
 @Component({
   selector: 'app-modular-canvas',
@@ -63,6 +64,7 @@ import { layoutGraphToHierarchical } from '../../shared/layouts/core/layout-grap
 export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy, CanvasController {
   @ViewChild('canvas', { static: true }) canvasRef!: ElementRef<HTMLCanvasElement>;
   @Output() engineDataChanged = new EventEmitter<void>();
+  @Output() presetChanged = new EventEmitter<ResolvedViewPreset | null>();
   
   // FR-030: Input to receive selected ViewNode from parent
   selectedViewNode: any | null = null;
@@ -74,6 +76,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   private runtimeEngineId: string = 'containment-grid';
   private availableLenses: ReadonlyArray<GraphLensDescriptor> = [];
   private currentLensId = 'full-graph';
+  private pendingPresetId: string | null = null;
 
   // Feature flag: Use runtime for raw data processing (Phase 2 migration)
   // Enabled by default for containment-grid and orthogonal engines
@@ -123,6 +126,18 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     this.historySubscription?.unsubscribe();
     this.canvasHistoryService.unregisterCanvas(this.canvasId);
     this.engine?.destroy();
+  }
+
+  setPreset(presetId: string): void {
+    if (!presetId) {
+      return;
+    }
+
+    if (this.engine) {
+      this.engine.setActivePreset(presetId);
+    } else {
+      this.pendingPresetId = presetId;
+    }
   }
 
   async ngOnInit(): Promise<void> {
@@ -520,6 +535,17 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       this.canvasEventHubService
     );
 
+    this.engine.setPresetChangeHandler(preset => {
+      this.presetChanged.emit(preset);
+    });
+
+    if (this.pendingPresetId) {
+      this.engine.setActivePreset(this.pendingPresetId);
+      this.pendingPresetId = null;
+    } else {
+      this.presetChanged.emit(this.engine.getCurrentViewPreset());
+    }
+
     // Inject services for dynamic layout behavior
     this.engine.setServices(this.viewNodeState, this.dynamicLayoutService);
     this.engine.setCanvasViewStateService(this.canvasViewStateService);
@@ -565,6 +591,11 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     });
 
     this.canvasControlService.notifyStateChange();
+
+    if (this.pendingPresetId) {
+      this.engine.setActivePreset(this.pendingPresetId);
+      this.pendingPresetId = null;
+    }
     
     // Watch for canvas container size changes
     const resizeObserver = new ResizeObserver(() => {

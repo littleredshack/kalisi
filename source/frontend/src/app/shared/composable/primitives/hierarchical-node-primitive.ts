@@ -78,25 +78,68 @@ export class HierarchicalNodePrimitive {
     ctx.fill();
     ctx.stroke();
 
-    // Draw text using drawing primitive - EXACT same positioning
-    DrawingPrimitives.drawText(
-      ctx,
-      node.text,
-      screenX + 10 * camera.zoom,
-      screenY + 25 * camera.zoom,
-      16 * camera.zoom,
-      '#e6edf3'
-    );
+    const metadata = node.metadata as Record<string, unknown> | undefined;
+    const labelVisible = metadata?.['labelVisible'] !== false;
+    const icon = node.style.icon;
 
-    // Draw type label using drawing primitive - EXACT same positioning
+    const contentPadding = 12 * camera.zoom;
+    const baseX = screenX + contentPadding;
+    let textStartX = baseX;
+    const baseY = screenY + contentPadding;
+
+    if (icon) {
+      const iconSize = Math.min(20 * camera.zoom, screenHeight * 0.3);
+      DrawingPrimitives.drawIcon(ctx, icon, baseX + iconSize / 2, baseY + iconSize / 2, iconSize, '#f8fafc', 'center');
+      textStartX = baseX + iconSize + 8 * camera.zoom;
+    }
+
+    if (labelVisible && node.text) {
+      DrawingPrimitives.drawText(
+        ctx,
+        node.text,
+        textStartX,
+        baseY + 12 * camera.zoom,
+        16 * camera.zoom,
+        '#e6edf3',
+        'left',
+        'middle'
+      );
+    }
+
     DrawingPrimitives.drawText(
       ctx,
       node.type,
-      screenX + 10 * camera.zoom,
-      screenY + 45 * camera.zoom,
+      textStartX,
+      baseY + 32 * camera.zoom,
       12 * camera.zoom,
-      '#a0a9b8'
+      '#a0a9b8',
+      'left',
+      'middle'
     );
+
+    const badges = Array.isArray(metadata?.['badges'])
+      ? (metadata!['badges'] as Array<{ text: string; color?: string }>)
+      : [];
+
+    if (badges.length > 0) {
+      const badgePaddingX = 6 * camera.zoom;
+      const badgePaddingY = 3 * camera.zoom;
+      const badgeFont = 11 * camera.zoom;
+      const badgeHeight = badgeFont + badgePaddingY * 2;
+      const badgeSpacing = 4 * camera.zoom;
+      badges.forEach((badge, index) => {
+        const badgeCenterY = baseY + badgeHeight / 2 + index * (badgeHeight + badgeSpacing);
+        DrawingPrimitives.drawBadge(ctx, badge.text, screenX + screenWidth - badgePaddingX, badgeCenterY, {
+          background: badge.color ?? 'rgba(30, 64, 175, 0.9)',
+          color: '#0f172a',
+          paddingX: badgePaddingX,
+          paddingY: badgePaddingY,
+          radius: 10 * camera.zoom,
+          fontSize: badgeFont,
+          alignment: 'right'
+        });
+      });
+    }
 
     // Draw child count badge if node is collapsed - EXACT same logic
     if (node.collapsed) {

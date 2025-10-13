@@ -18,6 +18,10 @@ interface EntityModel {
   width: number;
   height: number;
   color: string;
+  stroke?: string;
+  icon?: string;
+  badges?: Array<{ text: string; color?: string }>;
+  labelVisible?: boolean;
   properties?: Record<string, any>;
   parent: string | null;
   children: string[];
@@ -37,6 +41,11 @@ export interface GraphRelationship {
   target: string;
   type: string;
   properties?: Record<string, any>;
+  color?: string;
+  width?: number;
+  dash?: number[];
+  label?: string;
+  labelVisible?: boolean;
 }
 
 interface RuntimeGraphResponse {
@@ -47,6 +56,21 @@ interface RuntimeGraphResponse {
     guid: string;
     labels?: string[];
     parent_guid?: string | null;
+    position?: {
+      x: number;
+      y: number;
+      z?: number | null;
+    };
+    display?: {
+      width?: number;
+      height?: number;
+      color?: string;
+      icon?: string;
+      border_color?: string;
+      badges?: Array<{ text: string; color?: string }>;
+      label_visible?: boolean;
+    };
+    tags?: Record<string, string[]>;
     properties: Record<string, any>;
   }>;
   relationships: Array<{
@@ -54,6 +78,13 @@ interface RuntimeGraphResponse {
     source_guid: string;
     target_guid: string;
     type: string;
+    display?: {
+      color?: string;
+      width?: number;
+      label?: string;
+      label_visible?: boolean;
+      dash?: number[];
+    };
     properties: Record<string, any>;
   }>;
   metadata: {
@@ -244,7 +275,12 @@ export class Neo4jDataService {
         source: rel.source_guid,
         target: rel.target_guid,
         type: rel.type,
-        properties: rel.properties
+        properties: rel.properties,
+        color: rel.display?.color,
+        width: rel.display?.width,
+        dash: rel.display?.dash,
+        label: rel.display?.label ?? rel.properties?.['label'],
+        labelVisible: rel.display?.label_visible
       }));
       return { entities, relationships };
     }
@@ -312,14 +348,26 @@ export class Neo4jDataService {
   }
 
   private createEntityFromCanonical(node: RuntimeGraphResponse['nodes'][number], index: number): EntityModel {
+    const display = node.display ?? {};
+    const position = node.position;
+    const baseWidth = typeof display.width === 'number' ? display.width : 200;
+    const baseHeight = typeof display.height === 'number' ? display.height : 100;
+
+    const fallbackX = (index % 4) * (baseWidth + 40);
+    const fallbackY = Math.floor(index / 4) * (baseHeight + 60);
+
     return {
       id: node.guid,
       name: node.properties?.['name'] || node.guid,
-      x: (index % 4) * 200,
-      y: Math.floor(index / 4) * 160,
-      width: 200,
-      height: 100,
-      color: this.getNodeColor(index),
+      x: typeof position?.x === 'number' ? position.x : fallbackX,
+      y: typeof position?.y === 'number' ? position.y : fallbackY,
+      width: baseWidth,
+      height: baseHeight,
+      color: display.color ?? this.getNodeColor(index),
+      stroke: display.border_color,
+      icon: display.icon,
+      badges: display.badges,
+      labelVisible: display.label_visible,
       properties: node.properties || {},
       parent: node.parent_guid ?? null,
       children: [],

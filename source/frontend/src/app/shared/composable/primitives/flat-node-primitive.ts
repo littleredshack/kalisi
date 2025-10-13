@@ -44,16 +44,65 @@ export class FlatNodePrimitive {
     ctx.fill();
     ctx.stroke();
 
-    // Draw text centered in node - EXACT same positioning and styling
-    DrawingPrimitives.drawText(
-      ctx,
-      node.text,
-      screenX + screenWidth / 2,
-      screenY + screenHeight / 2,
-      14 * camera.zoom,  // EXACT font size from current renderer
-      '#e6edf3',         // EXACT text color from current renderer
-      'center'
-    );
+    const metadata = node.metadata as Record<string, unknown> | undefined;
+    const labelVisible = metadata?.['labelVisible'] !== false;
+
+    const icon = node.style.icon;
+    let labelAlignment: 'left' | 'center' | 'right' = 'center';
+    let labelX = screenX + screenWidth / 2;
+
+    if (icon) {
+      const iconSize = Math.min(24 * camera.zoom, screenHeight * 0.45);
+      const iconX = screenX + iconSize * 0.75;
+      DrawingPrimitives.drawIcon(
+        ctx,
+        icon,
+        iconX,
+        screenY + screenHeight / 2,
+        iconSize,
+        '#e2e8f0',
+        'center'
+      );
+      labelAlignment = 'left';
+      labelX = iconX + iconSize * 0.9;
+    }
+
+    if (labelVisible && node.text) {
+      DrawingPrimitives.drawText(
+        ctx,
+        node.text,
+        labelX,
+        screenY + screenHeight / 2,
+        14 * camera.zoom,
+        '#e6edf3',
+        labelAlignment,
+        'middle'
+      );
+    }
+
+    const badges = Array.isArray(metadata?.['badges'])
+      ? (metadata!['badges'] as Array<{ text: string; color?: string }>)
+      : [];
+
+    if (badges.length > 0) {
+      const badgePaddingX = 6 * camera.zoom;
+      const badgePaddingY = 3 * camera.zoom;
+      const badgeFont = 11 * camera.zoom;
+      const badgeHeight = badgeFont + badgePaddingY * 2;
+      const badgeSpacing = 4 * camera.zoom;
+      badges.forEach((badge, index) => {
+        const badgeCenterY = screenY + badgePaddingY + badgeHeight / 2 + index * (badgeHeight + badgeSpacing);
+        DrawingPrimitives.drawBadge(ctx, badge.text, screenX + screenWidth - badgePaddingX, badgeCenterY, {
+          background: badge.color ?? 'rgba(30, 64, 175, 0.9)',
+          color: '#0f172a',
+          paddingX: badgePaddingX,
+          paddingY: badgePaddingY,
+          radius: 10 * camera.zoom,
+          fontSize: badgeFont,
+          alignment: 'right'
+        });
+      });
+    }
   }
 
   /**

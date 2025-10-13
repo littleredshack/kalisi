@@ -5,8 +5,8 @@ use serde_json::{Map, Value};
 use crate::database::neo4j_gateway::GatewayQueryResult;
 
 use super::dto::{
-    CanvasGraphDto, CanvasNodeDto, CanvasRelationshipDto, NodeDisplay, NodePosition,
-    QueryMetadataDto,
+    BadgeDisplay, CanvasGraphDto, CanvasNodeDto, CanvasRelationshipDto, NodeDisplay, NodePosition,
+    QueryMetadataDto, RelationshipDisplay,
 };
 
 const GUID_KEYS: &[&str] = &["GUID", "guid", "id", "elementId", "element_id", "identity"];
@@ -152,6 +152,9 @@ fn build_node(object: &Map<String, Value>) -> Option<CanvasNodeDto> {
         height: None,
         color: None,
         icon: None,
+        border_color: None,
+        badges: Vec::new(),
+        label_visible: None,
     };
 
     let mut tags: HashMap<String, Vec<String>> = HashMap::new();
@@ -189,6 +192,18 @@ fn build_node(object: &Map<String, Value>) -> Option<CanvasNodeDto> {
                 display.icon = value.as_str().map(|s| s.to_string());
                 continue;
             }
+            "bordercolor" | "border_colour" | "bordercolour" => {
+                display.border_color = value.as_str().map(|s| s.to_string());
+                continue;
+            }
+            "labelvisible" | "label_visible" => {
+                display.label_visible = value.as_bool();
+                continue;
+            }
+            "badge" | "badges" => {
+                collect_badges(value, &mut display.badges);
+                continue;
+            }
             _ => {}
         }
 
@@ -222,6 +237,9 @@ fn build_node(object: &Map<String, Value>) -> Option<CanvasNodeDto> {
             || display.height.is_some()
             || display.color.is_some()
             || display.icon.is_some()
+            || display.border_color.is_some()
+            || display.label_visible.is_some()
+            || !display.badges.is_empty()
         {
             Some(display)
         } else {
@@ -250,12 +268,19 @@ fn build_relationship(object: &Map<String, Value>) -> Option<CanvasRelationshipD
     let guid = extract_first_string(&properties, REL_GUID_KEYS)
         .unwrap_or_else(|| format!("{}__{}__{}", rel_type, source_guid, target_guid));
 
+    let display = extract_relationship_display(&properties);
+
     let cleaned_properties = properties
         .into_iter()
         .filter(|(key, _)| {
+            let lower = key.to_lowercase();
             !REL_GUID_KEYS
                 .iter()
                 .any(|candidate| candidate.eq_ignore_ascii_case(key))
+                && !matches!(
+                    lower.as_str(),
+                    "color" | "width" | "label" | "labelvisible" | "label_visible" | "dash"
+                )
         })
         .collect::<HashMap<_, _>>();
 
@@ -264,8 +289,102 @@ fn build_relationship(object: &Map<String, Value>) -> Option<CanvasRelationshipD
         source_guid,
         target_guid,
         r#type: rel_type,
+        display,
         properties: cleaned_properties,
     })
+}
+
+fn collect_badges(value: &Value, badges: &mut Vec<BadgeDisplay>) {
+    match value {
+        Value::Array(items) => {
+            for item in items {
+                collect_badges(item, badges);
+            }
+        }
+        Value::Object(map) => {
+            if let Some(text) = map.get("text").and_then(|v| v.as_str()) {
+                let color = map
+                    .get("color")
+                    .or_else(|| map.get("colour"))
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                badges.push(BadgeDisplay {
+                    text: text.to_string(),
+                    color,
+                });
+            }
+        }
+        Value::String(text) => {
+            badges.push(BadgeDisplay {
+                text: text.to_string(),
+                color: None,
+            });
+        }
+        _ => {}
+    }
+}
+
+fn extract_relationship_display(
+    properties: &Map<String, Value>,
+) -> Option<RelationshipDisplay> {
+    let mut display = RelationshipDisplay {
+        color: None,
+        width: None,
+        label: None,
+        label_visible: None,
+        dash: None,
+    };
+
+    if let Some(color) = properties.get("color").and_then(|v| v.as_str()) {
+        display.color = Some(color.to_string());
+    }
+
+    if let Some(width) = properties.get("width").and_then(|v| v.as_f64()) {
+        display.width = Some(width);
+    }
+
+    if let Some(label) = properties.get("label").and_then(|v| v.as_str()) {
+        display.label = Some(label.to_string());
+    }
+
+    if let Some(visible) = properties
+        .get("labelVisible")
+        .or_else(|| properties.get("label_visible"))
+        .and_then(|v| v.as_bool())
+    {
+        display.label_visible = Some(visible);
+    }
+
+    if let Some(dash) = properties.get("dash") {
+        if let Some(array) = dash.as_array() {
+            let pattern = array
+                .iter()
+                .filter_map(|value| value.as_f64())
+                .collect::<Vec<_>>();
+            if !pattern.is_empty() {
+                display.dash = Some(pattern);
+            }
+        } else if let Some(text) = dash.as_str() {
+            let pattern = text
+                .split(',')
+                .filter_map(|segment| segment.trim().parse::<f64>().ok())
+                .collect::<Vec<_>>();
+            if !pattern.is_empty() {
+                display.dash = Some(pattern);
+            }
+        }
+    }
+
+    if display.color.is_some()
+        || display.width.is_some()
+        || display.label.is_some()
+        || display.label_visible.is_some()
+        || display.dash.is_some()
+    {
+        Some(display)
+    } else {
+        None
+    }
 }
 
 fn extract_first_string(map: &Map<String, Value>, keys: &[&str]) -> Option<String> {

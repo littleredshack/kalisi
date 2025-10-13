@@ -71,24 +71,32 @@ export class HierarchicalEdgePrimitive {
       }));
     }
 
-    // Draw connection line using drawing primitive (exact same call)
+    const stroke = edge.style?.stroke ?? '#6b7280';
+    const strokeWidth = (edge.style?.strokeWidth ?? 2) * camera.zoom;
+    const dash = edge.style?.strokeDashArray?.map(d => d * camera.zoom) ?? null;
+
     DrawingPrimitives.drawConnectionLine(ctx, fromScreenPoint, toScreenPoint, {
-      stroke: edge.style.stroke,
-      strokeWidth: edge.style.strokeWidth * camera.zoom,
-      strokeDashArray: edge.style.strokeDashArray?.map(d => d * camera.zoom) || null
+      stroke,
+      strokeWidth,
+      strokeDashArray: dash
     }, screenWaypoints);
 
-    // Draw edge label using drawing primitive (exact same positioning)
-    const midScreenX = (fromScreenPoint.x + toScreenPoint.x) / 2;
-    const midScreenY = (fromScreenPoint.y + toScreenPoint.y) / 2;
-    DrawingPrimitives.drawText(
-      ctx,
-      edge.label || '',
-      midScreenX,
-      midScreenY,
-      12 * camera.zoom,
-      edge.style.stroke
-    );
+    const labelVisible = edge.metadata?.['labelVisible'] !== false;
+    const labelText = labelVisible ? edge.label || '' : '';
+    if (labelText) {
+      const midScreenX = (fromScreenPoint.x + toScreenPoint.x) / 2;
+      const midScreenY = (fromScreenPoint.y + toScreenPoint.y) / 2;
+      DrawingPrimitives.drawText(
+        ctx,
+        labelText,
+        midScreenX,
+        midScreenY,
+        12 * camera.zoom,
+        stroke,
+        'center',
+        'middle'
+      );
+    }
   }
 
   /**

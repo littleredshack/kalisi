@@ -88,6 +88,14 @@ export type CanvasEvent =
       readonly level: number;
       readonly source: CanvasEventSource;
       readonly timestamp: number;
+    }
+  | {
+      readonly type: 'PresetRequested';
+      readonly canvasId: string;
+      readonly presetId: string;
+      readonly source: CanvasEventSource;
+      readonly timestamp: number;
+      readonly overrides?: Readonly<Record<string, unknown>>;
     };
 
 export class CanvasEventBus {

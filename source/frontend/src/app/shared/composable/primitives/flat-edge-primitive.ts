@@ -24,31 +24,17 @@ export class FlatEdgePrimitive {
   ): void {
     if (!fromNode || !toNode) return;
 
-    // EXACT edge type styling from current renderer
     const edgeType = (edge as any).type;
-    let lineStyle;
-    if (edgeType === 'CONTAINS') {
-      // CONTAINS relationships: solid blue lines
-      lineStyle = {
-        stroke: '#3b82f6',
-        strokeWidth: 2 * camera.zoom,
-        strokeDashArray: null
-      };
-    } else if (edgeType === 'LINK') {
-      // LINK relationships: solid green lines
-      lineStyle = {
-        stroke: '#10b981',
-        strokeWidth: 2 * camera.zoom,
-        strokeDashArray: null
-      };
-    } else {
-      // Other relationships: gray lines
-      lineStyle = {
-        stroke: '#6b7280',
-        strokeWidth: 2 * camera.zoom,
-        strokeDashArray: null
-      };
-    }
+    const strokeColor = edge.style?.stroke ?? '#6b7280';
+    const strokeWidth = (edge.style?.strokeWidth ?? 2) * camera.zoom;
+    const dashPattern = edge.style?.strokeDashArray
+      ? edge.style.strokeDashArray.map(value => value * camera.zoom)
+      : null;
+    const lineStyle = {
+      stroke: strokeColor,
+      strokeWidth,
+      strokeDashArray: dashPattern
+    };
 
     // Variables for label positioning
     let midScreenX, midScreenY;
@@ -129,7 +115,8 @@ export class FlatEdgePrimitive {
     }
 
     // Draw edge label with EXACT styling from current renderer
-    const labelText = edge.label || edgeType || '';
+    const labelVisible = edge.metadata?.['labelVisible'] !== false;
+    const labelText = labelVisible ? edge.label || edgeType || '' : '';
     if (labelText) {
       this.drawLabel(ctx, labelText, midScreenX, midScreenY, lineStyle.stroke, camera);
     }

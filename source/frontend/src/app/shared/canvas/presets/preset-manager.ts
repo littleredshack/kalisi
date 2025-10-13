@@ -5,10 +5,14 @@ import { ViewPresetSelector } from '../../graph/view-presets';
 export interface ResolvedViewPreset {
   readonly preset: ViewPresetDescriptor;
   readonly metadata: Readonly<Record<string, unknown>>;
+  readonly sourcePresetId: string;
+  readonly overrides?: Partial<ViewPresetDescriptor> | null;
 }
 
 export class ViewPresetManager {
   private selector: ViewPresetSelector;
+  private activePresetId: string | null = null;
+  private overrides: Partial<ViewPresetDescriptor> | null = null;
 
   constructor(selector: ViewPresetSelector = defaultPresetSelector) {
     this.selector = selector;
@@ -18,15 +22,38 @@ export class ViewPresetManager {
     this.selector = selector;
   }
 
-  resolveFromCanvasData(data: CanvasData): ResolvedViewPreset | null {
+  setActivePresetId(presetId: string | null): void {
+    this.activePresetId = presetId;
+  }
+
+  getActivePresetId(): string | null {
+    return this.activePresetId;
+  }
+
+  applyOverrides(overrides: Partial<ViewPresetDescriptor> | null): void {
+    this.overrides = overrides;
+  }
+
+  resolveFromCanvasData(data: CanvasData, presetId?: string): ResolvedViewPreset | null {
     const metadata = this.collectMetadata(data);
-    const preset = this.selector(metadata) ?? ViewPresetRegistry.get('containment-insight');
-    if (!preset) {
+    const requestedId = presetId ?? this.activePresetId;
+    const basePreset =
+      requestedId
+        ? ViewPresetRegistry.get(requestedId)
+        : this.selector(metadata) ?? ViewPresetRegistry.get('containment-insight');
+
+    if (!basePreset) {
       return null;
     }
+
+    this.activePresetId = basePreset.id;
+    const effectivePreset = this.overrides ? mergePresets(basePreset, this.overrides) : basePreset;
+
     return {
-      preset,
-      metadata
+      preset: effectivePreset,
+      metadata,
+      sourcePresetId: basePreset.id,
+      overrides: this.overrides
     };
   }
 
@@ -88,4 +115,49 @@ export class ViewPresetManager {
 
     return undefined;
   }
+}
+
+function mergePresets(
+  base: ViewPresetDescriptor,
+  overrides: Partial<ViewPresetDescriptor>
+): ViewPresetDescriptor {
+  const clone = clonePreset(base);
+  return deepMerge(clone, overrides);
+}
+
+function clonePreset(preset: ViewPresetDescriptor): ViewPresetDescriptor {
+  const structured = (globalThis as unknown as { structuredClone?: <T>(input: T) => T }).structuredClone;
+  if (typeof structured === 'function') {
+    return structured(preset);
+  }
+  return JSON.parse(JSON.stringify(preset)) as ViewPresetDescriptor;
+}
+
+function deepMerge(target: any, source: any): any {
+  if (!source || typeof source !== 'object') {
+    return target;
+  }
+
+  Object.entries(source).forEach(([key, value]) => {
+    if (value === undefined || value === null) {
+      return;
+    }
+
+    const current = target[key];
+
+    if (Array.isArray(value)) {
+      target[key] = [...value];
+      return;
+    }
+
+    if (typeof value === 'object') {
+      const base = current && typeof current === 'object' ? current : {};
+      target[key] = deepMerge({ ...base }, value);
+      return;
+    }
+
+    target[key] = value;
+  });
+
+  return target;
 }

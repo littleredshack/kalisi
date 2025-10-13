@@ -37,6 +37,33 @@ pub struct NodeDisplay {
     pub color: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub border_color: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub badges: Vec<BadgeDisplay>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label_visible: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BadgeDisplay {
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RelationshipDisplay {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub width: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label_visible: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dash: Option<Vec<f64>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -45,6 +72,8 @@ pub struct CanvasRelationshipDto {
     pub source_guid: String,
     pub target_guid: String,
     pub r#type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display: Option<RelationshipDisplay>,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub properties: HashMap<String, Value>,
 }

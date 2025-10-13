@@ -36,15 +36,18 @@ export class DrawingPrimitives {
     y: number,
     fontSize: number,
     color: string,
-    alignment: 'left' | 'center' | 'right' = 'left'
+    alignment: 'left' | 'center' | 'right' = 'left',
+    baseline: CanvasTextBaseline = 'alphabetic'
   ): void {
     ctx.fillStyle = color;
     ctx.font = `${fontSize}px Roboto, sans-serif`;
     ctx.textAlign = alignment;
+    ctx.textBaseline = baseline;
     ctx.fillText(text, x, y);
     
     // Reset text alignment to default
     ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
   }
 
   /**
@@ -180,5 +183,81 @@ export class DrawingPrimitives {
     } else {
       ctx.setLineDash([]);
     }
+  }
+
+  static drawIcon(
+    ctx: CanvasRenderingContext2D,
+    icon: string,
+    x: number,
+    y: number,
+    size: number,
+    color: string = '#e2e8f0',
+    alignment: 'left' | 'center' | 'right' = 'center'
+  ): void {
+    if (!icon) {
+      return;
+    }
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.font = `${size}px "Segoe UI Emoji", "Apple Color Emoji", "Material Symbols Outlined", sans-serif`;
+    ctx.textAlign = alignment;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(icon, x, y);
+    ctx.restore();
+  }
+
+  static drawBadge(
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    x: number,
+    y: number,
+    options: {
+      background?: string;
+      color?: string;
+      paddingX?: number;
+      paddingY?: number;
+      radius?: number;
+      fontSize?: number;
+      alignment?: 'left' | 'center' | 'right';
+    } = {}
+  ): void {
+    if (!text) {
+      return;
+    }
+
+    const {
+      background = 'rgba(15, 23, 42, 0.85)',
+      color = '#f8fafc',
+      paddingX = 8,
+      paddingY = 4,
+      radius = 12,
+      fontSize = 11,
+      alignment = 'left'
+    } = options;
+
+    ctx.save();
+    ctx.font = `${fontSize}px Roboto, sans-serif`;
+    const textMetrics = ctx.measureText(text);
+    const badgeWidth = textMetrics.width + paddingX * 2;
+    const badgeHeight = fontSize + paddingY * 2;
+
+    let originX = x;
+    if (alignment === 'center') {
+      originX = x - badgeWidth / 2;
+    } else if (alignment === 'right') {
+      originX = x - badgeWidth;
+    }
+    const originY = y - badgeHeight / 2;
+
+    ctx.fillStyle = background;
+    DrawingPrimitives.drawRoundedRect(ctx, originX, originY, badgeWidth, badgeHeight, radius);
+    ctx.fill();
+
+    ctx.fillStyle = color;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, originX + paddingX, y);
+
+    ctx.restore();
   }
 }

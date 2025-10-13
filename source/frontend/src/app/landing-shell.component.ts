@@ -28,6 +28,8 @@ import { DebugPanelComponent } from './components/debug-panel/debug-panel.compon
 import { ViewType } from './core/models/view.models';
 import { SettingsComponent } from './settings/settings.component';
 import { TreeTableComponent } from './shared/tree-table/tree-table.component';
+import { ViewPresetRegistry, ViewPresetDescriptor } from './shared/graph/view-presets';
+import { ResolvedViewPreset } from './shared/canvas/presets/preset-manager';
 
 // Library Item Configuration
 interface LibraryItem {
@@ -185,7 +187,16 @@ const LIBRARY_ITEMS: LibraryItem[] = [
             </div>
           </div>
           <div *ngIf="selectedView === 'modular-canvas'" class="view-container">
-            <app-modular-canvas (engineDataChanged)="updateDebugPanelData()"></app-modular-canvas>
+            <div class="preset-toolbar" *ngIf="presets.length > 0">
+              <label class="preset-label" for="presetSelect">View preset</label>
+              <select id="presetSelect" [ngModel]="activePresetId" (ngModelChange)="onPresetChange($event)">
+                <option *ngFor="let preset of presets" [value]="preset.id">{{ preset.label }}</option>
+              </select>
+            </div>
+            <app-modular-canvas
+              #modularCanvas
+              (engineDataChanged)="updateDebugPanelData()"
+              (presetChanged)="onPresetResolved($event)"></app-modular-canvas>
           </div>
         </div>
       </div>
@@ -810,6 +821,44 @@ const LIBRARY_ITEMS: LibraryItem[] = [
       padding: 0; /* Remove padding to eliminate 8px gap */
       /* No margin - full viewport overlay */
     }
+
+    .preset-toolbar {
+      position: absolute;
+      top: 20px;
+      left: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(15, 23, 42, 0.72);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 12px;
+      padding: 12px 16px;
+      backdrop-filter: blur(12px);
+      z-index: 5;
+    }
+
+    .preset-toolbar select {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      border-radius: 8px;
+      color: #e6edf3;
+      padding: 6px 12px;
+      font-size: 13px;
+    }
+
+    .preset-toolbar select:focus {
+      outline: none;
+      border-color: rgba(110, 168, 254, 0.6);
+      box-shadow: 0 0 0 2px rgba(110, 168, 254, 0.25);
+    }
+
+    .preset-label {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #94a3b8;
+      font-weight: 600;
+    }
     
     .view-container {
       width: 100%;
@@ -903,6 +952,9 @@ export class LandingShellComponent implements OnInit, OnDestroy {
   // Canvas data for processes/systems
   canvasNodes: any[] = [];
   canvasEdges: any[] = [];
+  presets: ReadonlyArray<ViewPresetDescriptor> = ViewPresetRegistry.list();
+  activePresetId: string = this.presets[0]?.id ?? 'containment-insight';
+  @ViewChild(ModularCanvasComponent) modularCanvasComponent?: ModularCanvasComponent;
   
   // Library selection state
   selectedLibraryItem: string | null = null;
@@ -1378,6 +1430,18 @@ export class LandingShellComponent implements OnInit, OnDestroy {
       };
       event.preventDefault();
     }
+  }
+
+  onPresetChange(presetId: string) {
+    this.activePresetId = presetId;
+    this.modularCanvasComponent?.setPreset(presetId);
+  }
+
+  onPresetResolved(resolved: ResolvedViewPreset | null): void {
+    if (!resolved) {
+      return;
+    }
+    this.activePresetId = resolved.preset.id;
   }
 
   private onGlobalMouseMove = (event: MouseEvent) => {

@@ -4,6 +4,7 @@ import { CanvasEvent, CanvasEventBus } from '../../shared/layouts/core/layout-ev
 import { LayoutPriority } from '../../shared/layouts/core/layout-orchestrator';
 
 const HISTORY_LIMIT = 500;
+type PresetRequestedEvent = Extract<CanvasEvent, { readonly type: 'PresetRequested' }>;
 
 export interface LayoutMetricsEvent {
   readonly canvasId: string;
@@ -84,6 +85,15 @@ export class CanvasEventHubService {
     }
 
     const events = this.extractEvents(message);
+    const directives = this.extractPresetDirectives(message, targetCanvasId);
+    directives.forEach(directive => {
+      const exists = events.some(
+        event => isPresetRequested(event) && event.presetId === directive.presetId
+      );
+      if (!exists) {
+        events.push(directive);
+      }
+    });
     events.forEach(event => this.emitEvent(targetCanvasId, event));
     return events;
   }
@@ -106,6 +116,23 @@ export class CanvasEventHubService {
       }
     }
     return events;
+  }
+
+  private extractPresetDirectives(message: string, canvasId: string): PresetRequestedEvent[] {
+    const directives: PresetRequestedEvent[] = [];
+    const presetPattern = /\bpreset\s+([a-z0-9_-]+)/gi;
+    let match: RegExpExecArray | null;
+    while ((match = presetPattern.exec(message)) !== null) {
+      const presetId = match[1].toLowerCase();
+      directives.push({
+        type: 'PresetRequested',
+        canvasId,
+        presetId,
+        source: 'ai',
+        timestamp: Date.now()
+      } satisfies PresetRequestedEvent);
+    }
+    return directives;
   }
 
   private pushIfCanvasEvent(acc: CanvasEvent[], candidate: unknown): void {
@@ -170,4 +197,10 @@ export class CanvasEventHubService {
     }
     return 'low';
   }
+}
+
+function isPresetRequested(
+  event: CanvasEvent
+): event is Extract<CanvasEvent, { readonly type: 'PresetRequested' }> {
+  return event.type === 'PresetRequested';
 }
