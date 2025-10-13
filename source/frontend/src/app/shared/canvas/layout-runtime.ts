@@ -38,7 +38,8 @@ export class CanvasLayoutRuntime {
       ...initialData,
       nodes: initialData.nodes.map(node => ({ ...node })),
       edges: initialData.edges.map(edge => ({ ...edge })),
-      originalEdges: initialData.originalEdges ?? initialData.edges.map(edge => ({ ...edge }))
+      originalEdges: initialData.originalEdges ?? initialData.edges.map(edge => ({ ...edge })),
+      metadata: initialData.metadata ? { ...initialData.metadata } : undefined
     };
 
     const initialEngine = this.normaliseEngineName(config.defaultEngine ?? this.inferEngineFromData(initialData));
@@ -82,7 +83,8 @@ export class CanvasLayoutRuntime {
       canvasData: this.cloneCanvasData(this.frame.canvasData),
       lastResult: this.frame.lastResult,
       delta: this.frame.delta,
-      lensId: this.frame.lensId
+      lensId: this.frame.lensId,
+      metadata: this.frame.metadata ? { ...this.frame.metadata } : undefined
     };
   }
 
@@ -95,7 +97,8 @@ export class CanvasLayoutRuntime {
       ...data,
       nodes: data.nodes.map(node => ({ ...node })),
       edges: data.edges.map(edge => ({ ...edge })),
-      originalEdges: data.originalEdges ?? data.edges.map(edge => ({ ...edge }))
+      originalEdges: data.originalEdges ?? data.edges.map(edge => ({ ...edge })),
+      metadata: data.metadata ? { ...data.metadata } : undefined
     };
     ensureRelativeNodeCoordinates(this.canvasData.nodes, 0, 0);
     const graph = canvasDataToLayoutGraph(this.canvasData, this.store.current.version + 1);
@@ -113,7 +116,8 @@ export class CanvasLayoutRuntime {
         nodes: [],
         edges: []
       },
-      lensId: this.lensId
+      lensId: this.lensId,
+      metadata: this.canvasData.metadata ? { ...this.canvasData.metadata } : undefined
     };
 
     if (runLayout) {
@@ -179,7 +183,8 @@ export class CanvasLayoutRuntime {
         nodes: [],
         edges: []
       },
-      lensId: this.lensId
+      lensId: this.lensId,
+      metadata: this.canvasData.metadata ? { ...this.canvasData.metadata } : undefined
     };
 
     console.debug('[LayoutRuntime] Raw data processed, graph nodes:', Object.keys(this.store.current.graph.nodes).length);

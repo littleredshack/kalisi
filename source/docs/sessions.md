@@ -1,3 +1,91 @@
+postpone full CRUD. With sample data coming straight from Cypher shell, we can stay read-only for
+  now and focus on making the runtime/rendering layer feel premium. Here’s how I’d reorder the roadmap:
+
+  1. Robust Read-Only Ingestion
+
+  - Harden the GraphSource → CanvasLayoutRuntime.setRawData() path so a single Neo4j query can hydrate any canvas.
+  - Ensure metadata (node types, tags, hierarchy hints) flows through without manual massaging.
+
+  2. Visual Authoring + View Presets (Top Priority)
+
+  - Add richer node/edge primitives (icons, badges, color themes, shape templates).
+  - Define “view presets” (containment grid, force, swimlane, timeline, hybrid) that map metadata → renderer/layout combos
+    and can be switched instantly.
+  - Expose UI controls (and chat commands) to swap presets, tweak palettes, toggle labels, etc.
+
+  3. Layout Engine Parity & polish
+
+  - Move remaining reflow logic into the runtime so force/containment/tree all run through the same contract.
+  - Add capability flags (constraints, clustering, incremental updates) so each engine can opt into advanced behaviors.
+  - Improve force-directed stability (e.g., warm-starting from previous positions) for smoother transitions.
+
+  4. Subgraph & Lens API
+
+  - Formalize “lens” descriptors (filters, aggregations) that the runtime can materialize and the UI can attach to
+    canvases/minimaps.
+  - Offer an AI endpoint to request a filtered view (“nodes impacting latency > 200 ms”) without rehydrating the full
+    dataset.
+
+  5. Interaction polish & telemetry
+
+  - Keep undo/redo + event bus in place; surface layout metrics in a subtle status area/console rather than chat or
+    properties panes.
+
+  Later (optional): add the CRUD command layer when you want in-app editing.
+  
+--------------
+
+• Current State
+
+  - Layout runtime – Contract + orchestrator are modern, async worker path exists, and engines (tree/containment/force/
+    orthogonal) are registered through CanvasLayoutRuntime; legacy tab canvas & bespoke services have been culled, so the
+    runtime is the only pathway. Missing pieces: scheduler only queues per canvas (no backpressure across canvases yet)
+    and DynamicLayoutService still mutates snapshots instead of dispatching runtime commands.
+  - Renderer pipeline – Canvas engine consumes presentation frames with deltas (frontend/src/app/shared/render/
+    presentation-frame.ts), but renderers still walk entire hierarchies and cache invalidation is manual. WebGL/WASM
+    service is separate—no shared geometry caches or GPU integration with the presentation frame yet.
+  - Runtime state + events – Canvas event hub tracks layout events, but UI now hides the noisy history. Undo/redo is
+    stack-based, not timeline-aware, and telemetry is only used for diagnostics—not persisted or surfaced.
+  - Subgraph + lenses – Only three hard-coded lenses in the engine (composable-hierarchical-canvas-engine.ts); no data-
+    store level filtering or AI-accessible lens API.
+  - Interaction/automation – Canvas engine emits events and applies AI commands, but node edits delete relationships only
+    via manual mutation; CRUD endpoints in the UI aren’t wired for graph persistence yet.
+  - Performance foundations – Worker support exists, but prioritised updates are still coarse, there’s no view-based
+    virtualisation, and renderer diffs rerender most of the scene. No shared caches or adaptive LOD.
+  - UI shell – Panels exist, but docking/layout management, theming polish, and micro-frontend separation are still future
+    work. Chat panel and properties now focus on core controls without event spam.
+
+  What Matters Next (Priority → Why)
+
+  1. Data ingestion & CRUD pipeline
+      - Build a single source of truth that streams Neo4j/other sources into the runtime, exposes create/update/delete
+        commands, and persists changes. Without this, layout work can’t demonstrate real editing or AI-assisted graph
+        authoring.
+  2. Visual authoring capabilities
+      - Expand renderer primitives (icons, shapes, badges, edge styles) and offer template-based “view presets” so the
+        same graph can appear as containment grids, timelines, swimlanes, etc. This delivers the “showcase” narrative and
+        leverages the runtime we now have.
+  3. Layout engine parity + hybrid interactions
+      - Finish migrating reflow logic to the runtime (kill DynamicLayoutService mutations), add force-directed
+        improvements (stabilisers, incremental updates), and support per-engine capability flags (constraints,
+        clustering). Ensures layout-switching feels polished and unlocks force/containment editing scenarios.
+  4. Interaction layer for AI + manual edits
+      - Introduce declarative commands for add/remove nodes, edge rewiring, and property edits, with the orchestrator
+  5. Renderer performance + GPU path
+      - Add frame diff adherence (only draw changed nodes), shared geometry/text caches, and optional WebGL/WebGPU
+        backend. This supports large datasets and the immersive feel you want without bogging down the UI.
+  6. Subgraph & lens API
+      - Allow AI/users to define lenses via filters/aggregations that the runtime materialises, then reuse across
+        canvases/minimaps/analytics. This is the gateway to “focused views” and storytelling around the same dataset.
+  7. Shell polish & extensibility
+      - After the above, revisit docking, theming, and secondary panels (history, analytics) so the UI feels intentional
+        rather than prototype-y.
+
+  Priorities 1–4 directly unlock the immersive, AI-driven demo with editable graph data. Once CRUD, visual templates, and
+  solid layouts are in place, performance and shell polish will keep the experience smooth at scale.
+
+-----------
+
 Claude assessment:
 1. Current challenges: Dual engine stacks, renderer coupling, event surface limitations, performance issues, and
   composability problems

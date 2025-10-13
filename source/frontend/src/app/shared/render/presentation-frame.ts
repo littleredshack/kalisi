@@ -10,6 +10,7 @@ export interface PresentationFrame {
   readonly lastResult: LayoutResult;
   readonly delta?: PresentationDelta;
   readonly lensId?: string;
+  readonly metadata?: Record<string, unknown>;
 }
 
 export interface NodeDelta {
@@ -38,7 +39,8 @@ export function buildPresentationFrame(result: LayoutResult, previous?: Presenta
     nodes: snapshot.nodes,
     edges: snapshot.edges,
     originalEdges: snapshot.edges,
-    camera
+    camera,
+    metadata: snapshot.metadata
   };
 
   const delta = calculateDelta(canvasData, previous?.canvasData ?? null);
@@ -49,7 +51,8 @@ export function buildPresentationFrame(result: LayoutResult, previous?: Presenta
     canvasData,
     lastResult: result,
     delta,
-    lensId: lensId ?? previous?.lensId
+    lensId: lensId ?? previous?.lensId,
+    metadata: result.graph.metadata
   };
 }
 

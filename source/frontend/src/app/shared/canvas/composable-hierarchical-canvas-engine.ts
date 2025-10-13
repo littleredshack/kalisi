@@ -12,6 +12,7 @@ import { CanvasEventBus, CanvasEvent, CanvasEventSource } from '../layouts/core/
 import { LayoutRunOptions } from '../layouts/core/layout-orchestrator';
 import { CanvasEventHubService } from '../../core/services/canvas-event-hub.service';
 import { CanvasInteractionHandler } from './canvas-interaction-handler';
+import { ViewPresetManager, ResolvedViewPreset } from './presets/preset-manager';
 
 const COLLAPSED_NODE_WIDTH = 220;
 const COLLAPSED_NODE_HEIGHT = 64;
@@ -49,6 +50,8 @@ export class ComposableHierarchicalCanvasEngine {
   private suppressStateSync = false;
   private applyingExternalState = false;
   private readonly canvasId: string;
+  private viewPresetManager = new ViewPresetManager();
+  private currentPreset: ResolvedViewPreset | null = null;
 
   // Layout engine isolation - each engine maintains its own layout snapshot
   private layoutSnapshots = new Map<string, CanvasData>();
@@ -107,6 +110,7 @@ export class ComposableHierarchicalCanvasEngine {
     const initialCanvasData = initialFrame?.canvasData ?? this.layoutRuntime.getCanvasData();
     this.setData(initialCanvasData, 'system');
     this.lensBaseData = this.cloneCanvasData(this.data);
+    this.refreshViewPreset(initialFrame ?? this.presentationFrame);
 
     this.setupEventHandlers();
     this.ensureCameraWithinBounds('initialize');
@@ -137,6 +141,7 @@ export class ComposableHierarchicalCanvasEngine {
     }
     this.publishState('replace');
     this.syncRuntimeFromCurrentData(source);
+    this.refreshViewPreset(this.presentationFrame);
   }
 
   getData(): CanvasData {
@@ -153,6 +158,10 @@ export class ComposableHierarchicalCanvasEngine {
 
   getRenderer(): IRenderer {
     return this.renderer;
+  }
+
+  getCurrentViewPreset(): ResolvedViewPreset | null {
+    return this.currentPreset;
   }
 
   getAvailableLayoutEngines(): string[] {
@@ -886,6 +895,18 @@ export class ComposableHierarchicalCanvasEngine {
       });
     }
     this.lastRenderedFrameVersion = -1;
+  }
+
+  private refreshViewPreset(frame?: PresentationFrame | null): void {
+    const resolved = this.viewPresetManager.resolveFromCanvasData(this.data);
+    if (resolved) {
+      this.currentPreset = {
+        preset: resolved.preset,
+        metadata: { ...resolved.metadata }
+      };
+    } else {
+      this.currentPreset = null;
+    }
   }
 
   private ensureCameraWithinBounds(_reason: 'set-data' | 'external-state' | 'initialize' = 'set-data'): void {

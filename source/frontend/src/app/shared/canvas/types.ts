@@ -47,6 +47,7 @@ export interface CanvasData {
   edges: Edge[];
   originalEdges: Edge[];
   camera?: Camera;
+  metadata?: Record<string, unknown>;
 }
 
 export interface Camera {
