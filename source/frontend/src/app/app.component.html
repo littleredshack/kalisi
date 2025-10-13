@@ -47,14 +47,6 @@
     class="view-transition">
   </app-landing-shell>
 
-  <!-- Views Engine -->
-  <app-views-shell
-    *ngIf="state.currentView === AppViewState.VIEWS"
-    class="view-transition"
-    (navigateToHome)="onNavigateToHome()"
-    (logout)="onLogout()">
-  </app-views-shell>
-
   <!-- Settings Views -->
   <app-settings
     *ngIf="state.currentView === AppViewState.SETTINGS_PROFILE || 

@@ -7,7 +7,6 @@ export enum AppViewState {
   MFA_SETUP = 'mfa_setup',
   MFA_VERIFY = 'mfa_verify',
   HOME = 'home',
-  VIEWS = 'views',
   SETTINGS_PROFILE = 'settings_profile',
   SETTINGS_SECURITY = 'settings_security',
   SETTINGS_ACCOUNT = 'settings_account'
@@ -88,17 +87,6 @@ export class AppStateService {
       isAuthenticated: true,
       hasPartialAuth: false,
       user: user || this.currentState.user,
-      error: null
-    });
-  }
-
-  navigateToViews(): void {
-    if (!this.currentState.isAuthenticated) {
-      this.navigateToLogin('Please login to access Views');
-      return;
-    }
-    this.updateState({
-      currentView: AppViewState.VIEWS,
       error: null
     });
   }

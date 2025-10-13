@@ -15,7 +15,7 @@ describe('AppComponent', () => {
   beforeEach(async () => {
     mockAppStateService = jasmine.createSpyObj('AppStateService', [
       'navigateToHome', 'navigateToLogin', 'navigateToRegister', 
-      'navigateToMfaSetup', 'navigateToMfaVerify', 'navigateToViews',
+      'navigateToMfaSetup', 'navigateToMfaVerify',
       'navigateToSettingsProfile', 'navigateToSettingsSecurity', 
       'navigateToSettingsAccount', 'logout'
     ], {

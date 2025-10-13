@@ -13,7 +13,6 @@ import { RegisterComponent } from './auth/components/register/register.component
 import { MfaSetupComponent } from './auth/components/mfa-setup/mfa-setup.component';
 import { MfaVerifyComponent } from './auth/components/mfa-verify/mfa-verify.component';
 import { SettingsComponent } from './settings/settings.component';
-import { ViewsShellComponent } from './views/components/views-shell/views-shell.component';
 import { LandingShellComponent } from './landing-shell.component';
 
 @Component({
@@ -28,7 +27,6 @@ import { LandingShellComponent } from './landing-shell.component';
     MfaSetupComponent,
     MfaVerifyComponent,
     SettingsComponent,
-    ViewsShellComponent,
     LandingShellComponent
   ],
   templateUrl: './app.component.html',
@@ -92,10 +90,6 @@ export class AppComponent implements OnInit {
     this.appStateService.navigateToHome();
   }
 
-  onNavigateToViews() {
-    this.appStateService.navigateToViews();
-  }
-  
   onNavigateToSettings(tab: 'profile' | 'security' | 'account') {
     switch (tab) {
       case 'profile':

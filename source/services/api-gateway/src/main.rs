@@ -1,7 +1,7 @@
 use axum::{
     http::StatusCode,
     middleware as axum_middleware,
-    routing::{delete, get, post, put},
+    routing::{delete, get, post},
     Router,
 };
 use std::net::SocketAddr;
@@ -288,26 +288,6 @@ async fn async_main() -> anyhow::Result<()> {
         .route("/v2/user/account", delete(handlers::user::delete_account))
         .route("/v2/user/settings", get(handlers::user::get_settings))
         .route("/v2/user/settings", post(handlers::user::update_settings))
-        // Views API routes (V2)
-        .route("/v2/views", get(handlers::views::list_views))
-        .route("/v2/views", post(handlers::views::create_view))
-        .route("/v2/views/{id}", get(handlers::views::get_view))
-        .route("/v2/views/{id}", put(handlers::views::update_view))
-        .route("/v2/views/{id}", delete(handlers::views::delete_view))
-        .route("/v2/views/{id}/data", get(handlers::views::get_view_data))
-        // Canvas API routes (V2)
-        .route("/v2/canvas", get(handlers::canvas::list_canvases))
-        .route("/v2/canvas/{tab_id}", get(handlers::canvas::load_canvas))
-        .route("/v2/canvas", post(handlers::canvas::save_canvas))
-        .route("/v2/canvas/{tab_id}", put(handlers::canvas::update_canvas))
-        .route(
-            "/v2/canvas/{tab_id}",
-            delete(handlers::canvas::delete_canvas),
-        )
-        .route(
-            "/v2/canvas/load-view",
-            post(handlers::canvas::load_view_into_canvas),
-        )
         // ViewNode functionality uses existing /v0/cypher/unified endpoint (FR-030)
         // Logging API routes (read-only for financial services compliance)
         .route("/api/logs", get(handlers::logs::get_logs))
