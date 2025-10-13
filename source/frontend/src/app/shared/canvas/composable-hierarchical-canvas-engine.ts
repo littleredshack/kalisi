@@ -53,6 +53,7 @@ export class ComposableHierarchicalCanvasEngine {
   private readonly canvasId: string;
   private viewPresetManager = new ViewPresetManager();
   private currentPreset: ResolvedViewPreset | null = null;
+  private hasAutoFit = false;
 
   // Layout engine isolation - each engine maintains its own layout snapshot
   private layoutSnapshots = new Map<string, CanvasData>();
