@@ -59,8 +59,8 @@ interface RuntimeGraphResponse {
   metadata: {
     elapsed_ms: number;
     rows_returned: number;
-    telemetry_cursor?: string | null;
   };
+  telemetry_cursor?: string | null;
   raw_rows?: Array<Record<string, unknown>>;
 }
 

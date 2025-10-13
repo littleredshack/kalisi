@@ -6,7 +6,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use tracing::info;
 
-use crate::{runtime::graph_response::CanonicalGraphResponse, state::AppState};
+use crate::{runtime::canvas::build_canvas_response, state::AppState};
 
 #[derive(Debug, Deserialize)]
 pub struct RuntimeGraphRequest {
@@ -42,21 +42,13 @@ pub async fn fetch_canvas_data(
         .await
         .map_err(|_| StatusCode::BAD_GATEWAY)?;
 
-    let rows = result
-        .raw_response
-        .get("results")
-        .and_then(|value| value.as_array())
-        .cloned()
-        .unwrap_or_default();
-
-    let response = CanonicalGraphResponse::from_gateway_result(
+    let response = build_canvas_response(
         query_id,
         request.query,
         request.parameters,
-        &result,
+        result,
         include_raw,
-    )
-    .with_rows(&rows);
+    );
 
     Ok(Json(response))
 }
