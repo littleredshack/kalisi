@@ -114,6 +114,12 @@ export class ComposableHierarchicalCanvasEngine {
         this.lensBaseData = this.cloneCanvasData(this.data);
         this.refreshViewPreset(this.presentationFrame);
         this.ensureCameraWithinBounds('initialize');
+        if (!this.data.camera) {
+          const midpoint = this.calculateContentBounds(this.data.nodes, 0, 0, this.viewNodeStateService?.getCollapseBehaviorValue?.() ?? 'full-size');
+          if (midpoint) {
+            this.cameraSystem.setCamera({ x: midpoint.x, y: midpoint.y, zoom: this.cameraSystem.getCamera().zoom });
+          }
+        }
       })
       .catch(error => {
         console.error('[CanvasEngine] Initial layout failed; using fallback data', error);
