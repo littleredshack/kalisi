@@ -19,6 +19,7 @@ mod handlers;
 mod logging;
 mod mfa_simple;
 mod middleware;
+mod runtime;
 // mod secure_config;
 mod email;
 mod security_metrics;
@@ -203,6 +204,10 @@ async fn async_main() -> anyhow::Result<()> {
         .route(
             "/v0/cypher/unified",
             post(handlers::cypher_unified::execute_unified_cypher),
+        )
+        .route(
+            "/runtime/canvas/data",
+            post(handlers::runtime::fetch_canvas_data),
         );
 
     // Add development-only routes

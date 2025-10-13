@@ -36,6 +36,32 @@ export interface GraphRelationship {
   source: string;
   target: string;
   type: string;
+  properties?: Record<string, any>;
+}
+
+interface RuntimeGraphResponse {
+  query_id: string;
+  cypher: string;
+  parameters: Record<string, any>;
+  nodes: Array<{
+    guid: string;
+    labels?: string[];
+    parent_guid?: string | null;
+    properties: Record<string, any>;
+  }>;
+  relationships: Array<{
+    guid: string;
+    source_guid: string;
+    target_guid: string;
+    type: string;
+    properties: Record<string, any>;
+  }>;
+  metadata: {
+    elapsed_ms: number;
+    rows_returned: number;
+    telemetry_cursor?: string | null;
+  };
+  raw_rows?: Array<Record<string, unknown>>;
 }
 
 
@@ -129,86 +155,17 @@ export class Neo4jDataService {
         `;
       }
 
-      // Execute the cypherQuery via existing cypher endpoint
-      const result: any = await firstValueFrom(
-        this.http.post('/v0/cypher/unified', {
+      const runtimeResponse = await firstValueFrom(
+        this.http.post<RuntimeGraphResponse>('/runtime/canvas/data', {
           query: queryToExecute,
-          parameters: {}
+          parameters: {},
+          include_raw_rows: true
         })
       );
-      
-      if (result.success && result.data && result.data.results) {
-        const nodeMap = new Map<string, any>();
-        const edgeMap = new Map<string, any>();
 
-        result.data.results.forEach((record: any) => {
-          const candidateNodes = [record.n, record.m, record.root, record.descendant, record.child];
+      console.log('[RuntimeGraph] Metadata:', runtimeResponse.metadata);
 
-          candidateNodes.forEach(node => {
-            if (node && node.labels && node.properties) {
-              const guid = node.properties?.GUID || node.properties?.guid;
-              if (guid && !nodeMap.has(guid)) {
-                if (!node.properties.GUID) {
-                  node.properties.GUID = guid;
-                }
-                nodeMap.set(guid, node);
-              }
-            }
-          });
-
-          const relationship = record.r || record.rel;
-          const sourceNode = record.n || record.root || record.descendant;
-          const targetNode = record.m || record.child;
-
-          if (relationship && sourceNode && targetNode) {
-            const fromGUID = sourceNode.properties?.GUID || sourceNode.properties?.guid;
-            const toGUID = targetNode.properties?.GUID || targetNode.properties?.guid;
-            const relationshipGUID =
-              relationship.properties?.GUID ||
-              relationship.properties?.guid ||
-              relationship.guid ||
-              `${relationship.type}-${fromGUID}-${toGUID}`;
-
-            if (fromGUID && toGUID && relationshipGUID && !edgeMap.has(relationshipGUID)) {
-              const type = relationship.type || relationship.properties?.type || 'RELATES_TO';
-              const normalizedType = type === 'HAS_CHILD' ? 'CONTAINS' : type;
-
-              if (!relationship.properties) {
-                relationship.properties = {};
-              }
-
-              relationship.properties.GUID = relationshipGUID;
-              relationship.properties.fromGUID = fromGUID;
-              relationship.properties.toGUID = toGUID;
-              relationship.properties.type = normalizedType;
-
-              edgeMap.set(relationshipGUID, {
-                neo4jId: relationship.neo4jId,
-                GUID: relationshipGUID,
-                id: relationshipGUID,
-                type: normalizedType,
-                fromGUID,
-                toGUID,
-                properties: {
-                  ...relationship.properties,
-                  originalType: type,
-                  fromGUID,
-                  toGUID
-                }
-              });
-            }
-          }
-        });
-
-        const cleanNodes = Array.from(nodeMap.values());
-        const cleanEdges = Array.from(edgeMap.values());
-
-        const canvasData = this.convertToEntityModels(cleanNodes, cleanEdges);
-        return canvasData;
-      } else {
-        console.error('ViewNode query failed:', result.error);
-        return { entities: [], relationships: [] };
-      }
+      return this.convertRuntimeGraph(runtimeResponse);
     } catch (error) {
       console.error('Error executing ViewNode query:', error);
       return { entities: [], relationships: [] };
@@ -255,21 +212,21 @@ export class Neo4jDataService {
         });
       });
       
-      const cleanData = { nodes: cleanNodes, edges: cleanEdges };
-      
       const endTime = performance.now();
       const totalTime = endTime - startTime;
-      
-      console.log(`🟢 PARSED OBJECT:`, cleanData);
+
+      console.log(`🟢 PARSED OBJECT:`, { nodes: cleanNodes, edges: cleanEdges });
       console.log(`⏱️ TOTAL TIME: ${totalTime.toFixed(2)}ms (Click to Final JSON)`);
       console.log(`⏰ COMPLETED: ${new Date().toISOString()} - ${endTime}ms`);
-      
+
+      const converted = this.convertLegacyLists(cleanNodes, cleanEdges);
+
       return {
         success: true,
         data: {
           count: result.data.count,
           query: cypherQuery,
-          results: cleanData
+          results: converted
         }
       };
     } catch (error) {
@@ -279,143 +236,205 @@ export class Neo4jDataService {
   }
 
 
-  // Dynamic converter: raw Neo4j nodes/edges -> EntityModel format for canvas
-private convertToEntityModels(rawNodes: any[], rawEdges: any[]): {entities: EntityModel[], relationships: GraphRelationship[]} {
-    const entities: EntityModel[] = [];
-    const relationships: GraphRelationship[] = [];
+  private convertRuntimeGraph(response: RuntimeGraphResponse): { entities: EntityModel[]; relationships: GraphRelationship[] } {
+    if (response.nodes && response.nodes.length > 0) {
+      const entities = response.nodes.map((node, index) => this.createEntityFromCanonical(node, index));
+      const relationships = response.relationships.map(rel => ({
+        id: rel.guid,
+        source: rel.source_guid,
+        target: rel.target_guid,
+        type: rel.type,
+        properties: rel.properties
+      }));
+      return { entities, relationships };
+    }
 
-    const getGuid = (value: any): string | undefined => {
-      if (!value) return undefined;
-      if (typeof value === 'string') return value;
-      return (
-        value.GUID ||
-        value.guid ||
-        value.properties?.GUID ||
-        value.properties?.guid ||
-        value.id ||
-        value.properties?.id
-      );
-    };
+    if (response.raw_rows && response.raw_rows.length > 0) {
+      return this.convertRawRows(response.raw_rows);
+    }
 
-    // Convert nodes to EntityModel format dynamically
-    rawNodes.forEach((node, index) => {
-      const guid = getGuid(node);
-      if (!guid) {
+    return { entities: [], relationships: [] };
+  }
+
+  private convertLegacyLists(rawNodes: any[], rawEdges: any[]): { entities: EntityModel[]; relationships: GraphRelationship[] } {
+    const nodeMap = new Map<string, EntityModel>();
+
+    rawNodes.forEach(node => {
+      const guid = this.extractGuidFromValue(node);
+      if (!guid || nodeMap.has(guid)) {
         return;
       }
+      const index = nodeMap.size;
+      nodeMap.set(guid, this.createEntityFromLegacy(node, guid, index));
+    });
 
-      entities.push({
-        id: guid, // Use GUID only
-        name: node.properties?.name || `Node ${index + 1}`,
-        x: index * 180, // Better spacing for readability
-        y: Math.floor(index / 3) * 120,
-        width: 160, // Wider for better text visibility
-        height: 80, // Taller for better proportions 
-        color: this.getNodeColor(index),
-        properties: node.properties,
-        parent: null,
-        children: [],
-        expanded: false,
-        animating: false
+    const relationshipMap = new Map<string, GraphRelationship>();
+
+    rawEdges.forEach(edge => {
+      const relationship = this.createRelationshipFromLegacy(edge);
+      if (relationship && !relationshipMap.has(relationship.id)) {
+        relationshipMap.set(relationship.id, relationship);
+      }
+    });
+
+    return {
+      entities: Array.from(nodeMap.values()),
+      relationships: Array.from(relationshipMap.values())
+    };
+  }
+
+  private convertRawRows(rows: Array<Record<string, unknown>>): { entities: EntityModel[]; relationships: GraphRelationship[] } {
+    const nodes: any[] = [];
+    const relationships: any[] = [];
+    const seenNodes = new Set<string>();
+
+    rows.forEach(record => {
+      Object.values(record).forEach(value => {
+        if (!value || typeof value !== 'object') {
+          return;
+        }
+
+        const candidate = value as any;
+
+        if (Array.isArray(candidate.labels) && candidate.properties) {
+          const guid = this.extractGuidFromValue(candidate);
+          if (guid && !seenNodes.has(guid)) {
+            nodes.push(candidate);
+            seenNodes.add(guid);
+          }
+        } else if (candidate.type && (candidate.properties?.['fromGUID'] || candidate.fromGUID || candidate.startNodeId)) {
+          relationships.push(candidate);
+        }
       });
     });
 
-    // Convert edges to GraphRelationship format dynamically
-    rawEdges.forEach(edge => {
-      const sourceGuid =
-        edge.properties?.fromGUID ||
-        edge.properties?.fromGuid ||
-        edge.properties?.from_guid ||
-        edge.fromGUID ||
-        edge.fromGuid ||
-        edge.from_guid;
-
-      const targetGuid =
-        edge.properties?.toGUID ||
-        edge.properties?.toGuid ||
-        edge.properties?.to_guid ||
-        edge.toGUID ||
-        edge.toGuid ||
-        edge.to_guid;
-
-      if (sourceGuid && targetGuid) {
-        const edgeGuid =
-          edge.properties?.GUID ||
-          edge.properties?.guid ||
-          edge.GUID ||
-          edge.guid ||
-          `${edge.type}-${sourceGuid}-${targetGuid}`;
-
-        relationships.push({
-          id: edgeGuid,
-          fromGUID: sourceGuid,
-          toGUID: targetGuid,
-          source: sourceGuid,
-          target: targetGuid,
-          type: edge.type,
-          ...edge.properties
-        });
-      }
-    });
-
-    return { entities, relationships };
+    return this.convertLegacyLists(nodes, relationships);
   }
 
-  private findNodeByAnyId(nodes: any[], searchId: any): any | null {
-    return nodes.find(node => 
-      node.properties?.GUID === searchId ||
-      node.GUID === searchId ||
-      node.properties?.id === searchId ||
-      node.id === searchId ||
-      node.neo4jId === searchId
-    ) || null;
+  private createEntityFromCanonical(node: RuntimeGraphResponse['nodes'][number], index: number): EntityModel {
+    return {
+      id: node.guid,
+      name: node.properties?.['name'] || node.guid,
+      x: (index % 4) * 200,
+      y: Math.floor(index / 4) * 160,
+      width: 200,
+      height: 100,
+      color: this.getNodeColor(index),
+      properties: node.properties || {},
+      parent: node.parent_guid ?? null,
+      children: [],
+      expanded: false,
+      animating: false
+    };
+  }
+
+  private createEntityFromLegacy(node: any, guid: string, index: number): EntityModel {
+    const name = node.properties?.['name'] || node.name || guid;
+    const parentGuid =
+      node.parent_guid ??
+      node.parentGuid ??
+      node.properties?.['parentGUID'] ??
+      node.properties?.['parent_guid'] ??
+      null;
+
+    return {
+      id: guid,
+      name,
+      x: (index % 4) * 200,
+      y: Math.floor(index / 4) * 160,
+      width: 200,
+      height: 100,
+      color: this.getNodeColor(index),
+      properties: node.properties || {},
+      parent: parentGuid,
+      children: [],
+      expanded: false,
+      animating: false
+    };
+  }
+
+  private createRelationshipFromLegacy(edge: any): GraphRelationship | null {
+    const source =
+      this.extractGuidFromValue(edge.properties?.['fromGUID']) ||
+      this.extractGuidFromValue(edge.properties?.['fromGuid']) ||
+      this.extractGuidFromValue(edge.properties?.['from_guid']) ||
+      this.extractGuidFromValue(edge.fromGUID) ||
+      this.extractGuidFromValue(edge.fromGuid) ||
+      this.extractGuidFromValue(edge.from_guid) ||
+      this.extractGuidFromValue(edge.startNodeId) ||
+      null;
+
+    const target =
+      this.extractGuidFromValue(edge.properties?.['toGUID']) ||
+      this.extractGuidFromValue(edge.properties?.['toGuid']) ||
+      this.extractGuidFromValue(edge.properties?.['to_guid']) ||
+      this.extractGuidFromValue(edge.toGUID) ||
+      this.extractGuidFromValue(edge.toGuid) ||
+      this.extractGuidFromValue(edge.to_guid) ||
+      this.extractGuidFromValue(edge.endNodeId) ||
+      null;
+
+    if (!source || !target) {
+      return null;
+    }
+
+    const type = edge.type || edge.properties?.['type'] || 'RELATES_TO';
+    const guid =
+      this.extractGuidFromValue(edge.properties?.['GUID']) ||
+      this.extractGuidFromValue(edge.properties?.['guid']) ||
+      this.extractGuidFromValue(edge.GUID) ||
+      this.extractGuidFromValue(edge.guid) ||
+      `${type}-${source}-${target}`;
+
+    return {
+      id: guid,
+      source,
+      target,
+      type,
+      properties: edge.properties || {}
+    };
+  }
+
+  private extractGuidFromValue(value: any): string | null {
+    if (!value) {
+      return null;
+    }
+
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value;
+    }
+
+    if (typeof value === 'number') {
+      return value.toString();
+    }
+
+    if (typeof value === 'object') {
+      const candidates = [
+        value.GUID,
+        value.guid,
+        value.id,
+        value.elementId,
+        value.element_id,
+        value.identity,
+        value.properties?.['GUID'],
+        value.properties?.['guid'],
+        value.properties?.['id']
+      ];
+
+      for (const candidate of candidates) {
+        const resolved = this.extractGuidFromValue(candidate);
+        if (resolved) {
+          return resolved;
+        }
+      }
+    }
+
+    return null;
   }
 
   private getNodeColor(index: number): string {
-    // Dark Theme Specification colors from WebGL/WASM Dark Theme spec
-    const colors = [
-      '#4A90E2', // Process Color (spec blue)
-      '#7B68EE', // System Color (spec purple)  
-      '#20B2AA', // Service Color (spec teal)
-      '#FF6B6B', // Data Color (spec coral)
-      '#4A90E2', // Process Color (repeat for consistency)
-      '#7B68EE', // System Color (repeat)
-      '#20B2AA', // Service Color (repeat)
-      '#FF6B6B'  // Data Color (repeat)
-    ];
-    return colors[index % colors.length] || '#4A90E2'; // Default to process color
-  }
-
-  private isNode(value: any): boolean {
-    return value && typeof value === 'object' && value.labels && value.properties;
-  }
-
-  private isRelationship(value: any): boolean {
-    return value && typeof value === 'object' && value.type && value.startNodeId && value.endNodeId;
-  }
-
-  private extractNodeData(node: any): any {
-    // After deduplication: neo4jId, GUID, labels, properties
-    return {
-      neo4jId: node.id,
-      GUID: node.properties?.GUID,
-      labels: node.labels || [],
-      properties: { ...node.properties }
-    };
-  }
-
-  private extractRelationshipData(rel: any): any {
-    // After deduplication: neo4jId, GUID, type, fromGUID, toGUID, properties
-    return {
-      neo4jId: rel.id,
-      GUID: rel.properties?.GUID,
-      type: rel.type,
-      fromGUID: rel.properties?.fromGUID,
-      toGUID: rel.properties?.toGUID,
-      startNodeId: rel.startNodeId,
-      endNodeId: rel.endNodeId,
-      properties: { ...rel.properties }
-    };
+    const colors = ['#4A90E2', '#7B68EE', '#20B2AA', '#FF6B6B'];
+    return colors[index % colors.length];
   }
 
   // Unified dynamic method - replaces all hardcoded parsing
@@ -425,13 +444,7 @@ private convertToEntityModels(rawNodes: any[], rawEdges: any[]): {entities: Enti
       const result = await this.directQuery(viewType);
       
       if (result.success && result.data && result.data.results) {
-        // directQuery now returns clean { nodes, edges } structure
-        const cleanData = result.data.results;
-        
-        // Convert to EntityModel format for canvas
-        const canvasData = this.convertToEntityModels(cleanData.nodes, cleanData.edges);
-        
-        return canvasData;
+        return result.data.results as { entities: EntityModel[]; relationships: GraphRelationship[] };
       } else {
         return this.createEmptyState(viewType, 'No data found');
       }

@@ -7,6 +7,7 @@ pub mod logs;
 pub mod mfa_simple;
 pub mod mfa_simple_partial;
 pub mod redis_spa_bridge;
+pub mod runtime;
 // pub mod secure_auth;
 pub mod spa;
 pub mod static_files;

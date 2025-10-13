@@ -1,8 +1,10 @@
-use axum::{http::StatusCode, response::IntoResponse, Json};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde::{Deserialize, Serialize};
-// Unified cypher endpoint
 
-use crate::database::neo4j_simple_working::Neo4jSimpleClient;
+use crate::database::neo4j_gateway::GatewayError;
+use crate::state::AppState;
+use tracing::{error, info};
+use uuid::Uuid;
 
 /// Unified request structure for all Cypher queries
 #[derive(Debug, Deserialize)]
@@ -20,89 +22,87 @@ pub struct UnifiedCypherResponse {
     pub data: Option<serde_json::Value>,
     pub execution_time_ms: u64,
     pub query: String,
+    pub rows_returned: usize,
 }
 
 /// Single unified endpoint for all Cypher queries in the application
 /// Replaces: /v0/cypher/run, /v0/cypher/public, /v0/glen/cypher
 pub async fn execute_unified_cypher(
+    State(state): State<AppState>,
     Json(request): Json<UnifiedCypherRequest>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let start_time = std::time::Instant::now();
-
     // Basic validation
     if request.query.trim().is_empty() {
         return Ok(Json(UnifiedCypherResponse {
             success: false,
             message: "Query cannot be empty".to_string(),
             data: None,
-            execution_time_ms: start_time.elapsed().as_millis() as u64,
+            execution_time_ms: 0,
             query: request.query,
+            rows_returned: 0,
         }));
     }
 
-    // Get Neo4j config from environment
-    let neo4j_uri =
-        std::env::var("NEO4J_URI").unwrap_or_else(|_| "bolt://localhost:7687".to_string());
-    let neo4j_username = std::env::var("NEO4J_USERNAME").unwrap_or_else(|_| "neo4j".to_string());
-    let neo4j_password = std::env::var("NEO4J_PASSWORD").unwrap_or_else(|_| "password".to_string());
-    let _neo4j_database = std::env::var("NEO4J_DATABASE").unwrap_or_else(|_| "neo4j".to_string());
+    let query_id = Uuid::new_v4().to_string();
 
-    // Create working Neo4j client with shared connection
-    tracing::info!(
+    info!(
         target: "kalisi_gateway::handlers::cypher_unified",
-        "Unified Cypher request: query=\"{}\" params={:?}",
-        request.query,
-        request.parameters
+        query_id = %query_id,
+        query = %request.query,
+        parameters = ?request.parameters,
+        "Executing unified Cypher request"
     );
 
-    match Neo4jSimpleClient::connect(&neo4j_uri, &neo4j_username, &neo4j_password) {
-        Ok(client) => {
-            // Execute query
-            match client.run_query(&request.query, &request.parameters).await {
-                Ok(raw_data) => {
-                    let execution_time = start_time.elapsed().as_millis() as u64;
-
-                    let response = UnifiedCypherResponse {
-                        success: true,
-                        message: format!("Query executed successfully in {}ms", execution_time),
-                        data: Some(raw_data),
-                        execution_time_ms: execution_time,
-                        query: request.query.clone(),
-                    };
-
-                    Ok(Json(response))
-                }
-                Err(db_error) => {
-                    let execution_time = start_time.elapsed().as_millis() as u64;
-
-                    println!("NEO4J_ERROR: {}", db_error);
-
-                    let response = UnifiedCypherResponse {
-                        success: false,
-                        message: format!("Query failed: {}", db_error),
-                        data: None,
-                        execution_time_ms: execution_time,
-                        query: request.query.clone(),
-                    };
-
-                    Ok(Json(response))
-                }
-            }
-        }
-        Err(connection_error) => {
-            let execution_time = start_time.elapsed().as_millis() as u64;
-
-            println!("NEO4J_CONNECTION_ERROR: {}", connection_error);
-
+    match state
+        .neo4j
+        .execute(&query_id, &request.query, &request.parameters)
+        .await
+    {
+        Ok(result) => {
             let response = UnifiedCypherResponse {
-                success: false,
-                message: format!("Neo4j connection failed: {}", connection_error),
-                data: None,
-                execution_time_ms: execution_time,
+                success: true,
+                message: format!(
+                    "Query executed successfully in {}ms",
+                    result.metrics.elapsed_ms
+                ),
+                data: Some(result.raw_response),
+                execution_time_ms: result.metrics.elapsed_ms,
                 query: request.query.clone(),
+                rows_returned: result.metrics.result_count,
             };
 
             Ok(Json(response))
+        }
+        Err(error) => {
+            let message = match error {
+                GatewayError::Connection(reason) => {
+                    error!(
+                        target: "kalisi_gateway::handlers::cypher_unified",
+                        query_id = %query_id,
+                        %reason,
+                        "Neo4j connection failed"
+                    );
+                    format!("Neo4j connection failed: {reason}")
+                }
+                GatewayError::Query(reason) => {
+                    error!(
+                        target: "kalisi_gateway::handlers::cypher_unified",
+                        query_id = %query_id,
+                        %reason,
+                        "Neo4j query error"
+                    );
+                    format!("Query failed: {reason}")
+                }
+            };
+
+            Ok(Json(UnifiedCypherResponse {
+                success: false,
+                message,
+                data: None,
+                execution_time_ms: 0,
+                query: request.query.clone(),
+                rows_returned: 0,
+            }))
         }
     }
 }

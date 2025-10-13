@@ -1,5 +1,6 @@
 use crate::config::Config;
 use crate::crypto::CryptoService;
+use crate::database::neo4j_gateway::Neo4jGateway;
 use crate::email::EmailService;
 use crate::logging::CentralLogger;
 use crate::security_metrics::SecurityMonitor;
@@ -13,6 +14,7 @@ use tokio::sync::RwLock;
 pub struct AppState {
     pub config: Arc<Config>,
     pub redis: MultiplexedConnection,
+    pub neo4j: Arc<Neo4jGateway>,
     pub jwt_auth: Arc<JwtAuth>,
     pub email_service: Arc<EmailService>,
     #[allow(dead_code)]
@@ -24,11 +26,13 @@ pub struct AppState {
 
 impl AppState {
     pub async fn new(config: Config) -> anyhow::Result<Self> {
+        let neo4j_gateway = Arc::new(Neo4jGateway::new(&config).await?);
+
         // Initialize Redis connection
         let redis_client = redis::Client::open(config.redis_url.clone())?;
         let redis = redis_client.get_multiplexed_async_connection().await?;
 
-        // Neo4j graph database removed - using raw Bolt TCP client
+        let config = Arc::new(config);
 
         // Initialize JWT auth
         let jwt_auth = Arc::new(JwtAuth::new(&config.jwt_secret));
@@ -55,13 +59,10 @@ impl AppState {
         let redis_manager = redis::aio::ConnectionManager::new(redis_client.clone()).await?;
         let logger = CentralLogger::new(redis_manager, "api-gateway".to_string());
 
-        // Database manager removed - using raw Bolt TCP client
-
-        // Neo4j is set as default connection
-
         Ok(Self {
-            config: Arc::new(config),
+            config: config.clone(),
             redis,
+            neo4j: neo4j_gateway,
             jwt_auth,
             email_service,
             crypto_service,

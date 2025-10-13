@@ -9,6 +9,7 @@ pub mod email;
 pub mod handlers;
 pub mod middleware;
 pub mod routes;
+pub mod runtime;
 pub mod state;
 pub mod storage;
 // pub mod secure_config;

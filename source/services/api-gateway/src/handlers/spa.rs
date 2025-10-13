@@ -1,16 +1,16 @@
 use crate::handlers::CspNonce;
-use once_cell::sync::Lazy;
 use axum::{
     extract::Request,
     http::{HeaderValue, StatusCode},
     response::{Html, IntoResponse},
     Json,
 };
+use once_cell::sync::Lazy;
 use serde_json::json;
 
 // Angular dev server URL - change this when switching between dev and production
-static ANGULAR_DEV_SERVER: Lazy<Option<String>> = Lazy::new(|| {
-    match std::env::var("ANGULAR_DEV_PROXY") {
+static ANGULAR_DEV_SERVER: Lazy<Option<String>> =
+    Lazy::new(|| match std::env::var("ANGULAR_DEV_PROXY") {
         Ok(val) if val.eq_ignore_ascii_case("true") => {
             tracing::info!("Angular dev proxy enabled via env");
             Some("http://localhost:4200".to_string())
@@ -20,8 +20,7 @@ static ANGULAR_DEV_SERVER: Lazy<Option<String>> = Lazy::new(|| {
             None
         }
         Err(_) => None,
-    }
-});
+    });
 
 /// Main SPA handler that serves the Angular application
 pub async fn spa_page(request: Request) -> impl IntoResponse {

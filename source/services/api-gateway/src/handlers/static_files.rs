@@ -7,8 +7,8 @@ use axum::{
 use once_cell::sync::Lazy;
 use std::path::PathBuf;
 
-static ANGULAR_DEV_SERVER: Lazy<Option<String>> = Lazy::new(|| {
-    match std::env::var("ANGULAR_DEV_PROXY") {
+static ANGULAR_DEV_SERVER: Lazy<Option<String>> =
+    Lazy::new(|| match std::env::var("ANGULAR_DEV_PROXY") {
         Ok(val) if val.eq_ignore_ascii_case("true") => {
             tracing::info!("Angular dev proxy enabled via env");
             Some("http://localhost:4200".to_string())
@@ -18,8 +18,7 @@ static ANGULAR_DEV_SERVER: Lazy<Option<String>> = Lazy::new(|| {
             None
         }
         Err(_) => None,
-    }
-});
+    });
 
 /// Get MIME type from file extension
 fn get_mime_type(path: &str) -> &'static str {
