@@ -8,16 +8,53 @@ interface CanvasLayoutContext {
   lastResult: LayoutResult | null;
 }
 
+export type LayoutPriority = 'critical' | 'high' | 'normal' | 'low';
+
+export interface LayoutRequestTelemetry {
+  readonly enqueuedAt: number;
+  readonly queueLength: number;
+  readonly queueWaitMs: number;
+  readonly priority: LayoutPriority;
+}
+
 export interface LayoutRunOptions extends Partial<Omit<LayoutOptions, 'previousGraph' | 'timestamp'>> {
   readonly engineName?: string;
   readonly reason?: LayoutOptions['reason'];
   readonly timestamp?: number;
   readonly source?: CanvasEventSource;
+  readonly priority?: LayoutPriority;
+  readonly telemetry?: LayoutRequestTelemetry;
 }
+
+interface PendingLayoutCommand {
+  readonly id: number;
+  readonly canvasId: string;
+  readonly graph: LayoutGraph;
+  readonly options: LayoutRunOptions;
+  readonly priority: LayoutPriority;
+  readonly enqueuedAt: number;
+  resolve: (result: LayoutResult) => void;
+  reject: (error: unknown) => void;
+}
+
+const PRIORITY_WEIGHT: Record<LayoutPriority, number> = {
+  critical: 3,
+  high: 2,
+  normal: 1,
+  low: 0
+};
+
+const now =
+  typeof performance !== 'undefined' && typeof performance.now === 'function'
+    ? () => performance.now()
+    : () => Date.now();
 
 export class LayoutOrchestrator {
   private readonly engines = new Map<string, LayoutEngine>();
   private readonly contexts = new Map<string, CanvasLayoutContext>();
+  private readonly queues = new Map<string, PendingLayoutCommand[]>();
+  private readonly activeCanvases = new Set<string>();
+  private nextCommandId = 1;
 
   registerEngine(engine: LayoutEngine): void {
     if (this.engines.has(engine.name)) {
@@ -69,6 +106,30 @@ export class LayoutOrchestrator {
     });
   }
 
+  scheduleLayout(canvasId: string, graph: LayoutGraph, options: LayoutRunOptions = {}): Promise<LayoutResult> {
+    const priority = options.priority ?? 'normal';
+    return new Promise<LayoutResult>((resolve, reject) => {
+      const command: PendingLayoutCommand = {
+        id: this.nextCommandId++,
+        canvasId,
+        graph,
+        options: {
+          ...options,
+          priority
+        },
+        priority,
+        enqueuedAt: now(),
+        resolve,
+        reject
+      };
+
+      const queue = this.ensureQueue(canvasId);
+      queue.push(command);
+      queue.sort(this.compareCommands);
+      this.dispatchNext(canvasId);
+    });
+  }
+
   runLayout(canvasId: string, graph: LayoutGraph, options: LayoutRunOptions = {}): LayoutResult {
     const context = this.ensureContext(canvasId);
     const engineName = options.engineName ?? context.activeEngineName;
@@ -85,13 +146,16 @@ export class LayoutOrchestrator {
     const timestamp = options.timestamp ?? Date.now();
     const source = options.source ?? 'system';
 
+    const telemetry = options.telemetry;
+    const payload: Record<string, unknown> | undefined = this.buildEventPayload(options, telemetry);
+
     context.eventBus.emit({
       type: 'LayoutRequested',
       engineName: engine.name,
       canvasId,
       source,
       timestamp,
-      payload: options.engineOptions
+      payload
     });
 
     const layoutOptions: LayoutOptions = {
@@ -102,9 +166,31 @@ export class LayoutOrchestrator {
       engineOptions: options.engineOptions
     };
 
+    const start = now();
     const result = engine.layout(graph, layoutOptions);
-    context.lastGraph = result.graph;
-    context.lastResult = result;
+    const durationMs = now() - start;
+
+    const metrics: Record<string, number> = {
+      ...(result.diagnostics?.metrics ?? {})
+    };
+
+    if (telemetry) {
+      metrics['queueWaitMs'] = telemetry.queueWaitMs;
+      metrics['queueDepth'] = telemetry.queueLength;
+      metrics['queuePriority'] = PRIORITY_WEIGHT[telemetry.priority];
+    }
+
+    const resultWithDiagnostics: LayoutResult = {
+      ...result,
+      diagnostics: {
+        ...(result.diagnostics ?? {}),
+        durationMs,
+        metrics
+      }
+    };
+
+    context.lastGraph = resultWithDiagnostics.graph;
+    context.lastResult = resultWithDiagnostics;
 
     context.eventBus.emit({
       type: 'LayoutApplied',
@@ -112,10 +198,10 @@ export class LayoutOrchestrator {
       canvasId,
       source,
       timestamp,
-      result
+      result: resultWithDiagnostics
     });
 
-    return result;
+    return resultWithDiagnostics;
   }
 
   private ensureContext(canvasId: string): CanvasLayoutContext {
@@ -130,5 +216,81 @@ export class LayoutOrchestrator {
       this.contexts.set(canvasId, context);
     }
     return context;
+  }
+
+  private ensureQueue(canvasId: string): PendingLayoutCommand[] {
+    let queue = this.queues.get(canvasId);
+    if (!queue) {
+      queue = [];
+      this.queues.set(canvasId, queue);
+    }
+    return queue;
+  }
+
+  private dispatchNext(canvasId: string): void {
+    if (this.activeCanvases.has(canvasId)) {
+      return;
+    }
+
+    const queue = this.queues.get(canvasId);
+    if (!queue || queue.length === 0) {
+      return;
+    }
+
+    queue.sort(this.compareCommands);
+    const command = queue.shift();
+    if (!command) {
+      return;
+    }
+
+    this.activeCanvases.add(canvasId);
+
+    const telemetry: LayoutRequestTelemetry = {
+      enqueuedAt: command.enqueuedAt,
+      queueLength: queue.length,
+      queueWaitMs: Math.max(0, now() - command.enqueuedAt),
+      priority: command.priority
+    };
+
+    Promise.resolve()
+      .then(() => this.runLayout(command.canvasId, command.graph, { ...command.options, telemetry }))
+      .then(command.resolve)
+      .catch(command.reject)
+      .finally(() => {
+        this.activeCanvases.delete(canvasId);
+        if (!queue.length) {
+          this.queues.delete(canvasId);
+        }
+        this.dispatchNext(canvasId);
+      });
+  }
+
+  private compareCommands = (a: PendingLayoutCommand, b: PendingLayoutCommand): number => {
+    const priorityDiff = PRIORITY_WEIGHT[b.priority] - PRIORITY_WEIGHT[a.priority];
+    if (priorityDiff !== 0) {
+      return priorityDiff;
+    }
+    return a.enqueuedAt - b.enqueuedAt;
+  };
+
+  private buildEventPayload(
+    options: LayoutRunOptions,
+    telemetry?: LayoutRequestTelemetry
+  ): Record<string, unknown> | undefined {
+    const payload: Record<string, unknown> = {
+      ...(options.engineOptions ?? {})
+    };
+
+    if (options.priority) {
+      payload['priority'] = options.priority;
+    }
+
+    if (telemetry) {
+      payload['queueWaitMs'] = telemetry.queueWaitMs;
+      payload['queueDepth'] = telemetry.queueLength;
+      payload['enqueuedAt'] = telemetry.enqueuedAt;
+    }
+
+    return Object.keys(payload).length > 0 ? payload : undefined;
   }
 }

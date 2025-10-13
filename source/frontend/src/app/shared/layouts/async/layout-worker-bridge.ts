@@ -30,7 +30,7 @@ export class LayoutWorkerBridge {
     };
 
     if (!this.worker) {
-      return this.orchestrator.runLayout(canvasId, graph, effectiveOptions);
+      return this.orchestrator.scheduleLayout(canvasId, graph, effectiveOptions);
     }
 
 

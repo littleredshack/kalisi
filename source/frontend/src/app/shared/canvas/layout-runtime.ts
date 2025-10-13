@@ -1,5 +1,5 @@
 import { CanvasData } from './types';
-import { LayoutOrchestrator, LayoutRunOptions } from '../layouts/core/layout-orchestrator';
+import { LayoutOrchestrator, LayoutPriority, LayoutRunOptions } from '../layouts/core/layout-orchestrator';
 import { registerDefaultLayoutEngines } from '../layouts/engine-registry';
 import { canvasDataToLayoutGraph } from '../layouts/core/layout-graph-utils';
 import { LayoutGraph, RawDataInput } from '../layouts/core/layout-contract';
@@ -212,7 +212,8 @@ export class CanvasLayoutRuntime {
 
     const result = await this.workerBridge.run(this.canvasId, this.store.current.graph, {
       ...options,
-      engineName: normalisedEngine
+      engineName: normalisedEngine,
+      priority: this.resolvePriority(options)
     });
     this.store.update(result);
     this.frame = buildPresentationFrame(result, this.frame ?? undefined, this.lensId);
@@ -258,5 +259,25 @@ export class CanvasLayoutRuntime {
       return structured(data);
     }
     return JSON.parse(JSON.stringify(data));
+  }
+
+  private resolvePriority(options: LayoutRunOptions): LayoutPriority {
+    if (options.priority) {
+      return options.priority;
+    }
+
+    if (options.reason === 'initial') {
+      return 'critical';
+    }
+
+    if (options.reason === 'engine-switch' || options.reason === 'user-command' || options.reason === 'reflow') {
+      return 'high';
+    }
+
+    if (options.source === 'user') {
+      return 'high';
+    }
+
+    return 'normal';
   }
 }
