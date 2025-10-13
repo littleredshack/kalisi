@@ -6,7 +6,6 @@ import { FormsModule } from '@angular/forms';
 import { PropertiesPanelComponent } from '../properties-panel/properties-panel.component';
 import { CanvasControlService, CameraInfo, LayoutEngineOption, GraphLensOption } from '../../core/services/canvas-control.service';
 import { Observable, combineLatest, map } from 'rxjs';
-import { CanvasEventHistoryComponent } from '../canvas-event-history/canvas-event-history.component';
 
 @Component({
   selector: 'app-properties-rhs-panel',
@@ -16,8 +15,7 @@ import { CanvasEventHistoryComponent } from '../canvas-event-history/canvas-even
     ButtonModule,
     TooltipModule,
     FormsModule,
-    PropertiesPanelComponent,
-    CanvasEventHistoryComponent
+    PropertiesPanelComponent
   ],
   templateUrl: './properties-rhs-panel.component.html',
   styleUrls: ['./properties-rhs-panel.component.scss']
