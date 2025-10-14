@@ -1,20 +1,56 @@
 import { Component, EventEmitter, Output, Input, OnInit, OnDestroy, OnChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
-import { FormsModule } from '@angular/forms';
 import { PropertiesPanelComponent } from '../properties-panel/properties-panel.component';
-import { CanvasControlService, CameraInfo, LayoutEngineOption, GraphLensOption } from '../../core/services/canvas-control.service';
-import { Observable, combineLatest, map } from 'rxjs';
+import {
+  CanvasControlService,
+  CameraInfo,
+  LayoutEngineOption,
+  GraphLensOption,
+  CanvasSelectionSnapshot
+} from '../../core/services/canvas-control.service';
+import { Observable, combineLatest, map, startWith } from 'rxjs';
+import { ViewPresetDescriptor } from '../../shared/graph/view-presets';
+import { ResolvedViewPreset } from '../../shared/canvas/presets/preset-manager';
+
+interface LevelOption {
+  label: string;
+  value: number;
+}
+
+interface SelectOptionState<T> {
+  options: T[];
+  activeId: string | null;
+}
+
+interface PanelViewModel {
+  hasCanvas: boolean;
+  camera: CameraInfo | null;
+  autoState: string;
+  canUndo: boolean;
+  canRedo: boolean;
+  layout: SelectOptionState<LayoutEngineOption>;
+  lens: SelectOptionState<GraphLensOption>;
+  levels: LevelOption[];
+  selection: CanvasSelectionSnapshot | null;
+  preset: PresetPanelState;
+}
+
+interface PresetPanelState {
+  options: Array<{ id: string; label: string; description?: string }>;
+  activeId: string | null;
+  activeLabel: string | null;
+  description: string | null;
+  palette: Record<string, string>;
+  hasOverrides: boolean;
+}
 
 @Component({
   selector: 'app-properties-rhs-panel',
   standalone: true,
   imports: [
     CommonModule,
-    ButtonModule,
     TooltipModule,
-    FormsModule,
     PropertiesPanelComponent
   ],
   templateUrl: './properties-rhs-panel.component.html',
@@ -43,12 +79,16 @@ export class PropertiesRhsPanelComponent implements OnInit, OnDestroy, OnChanges
   canRedo$: Observable<boolean>;
   layoutEngines$: Observable<LayoutEngineOption[]>;
   activeLayoutEngine$: Observable<LayoutEngineOption | null>;
-  layoutEngineOptions$: Observable<{ options: LayoutEngineOption[]; activeId: string | null }>;
-  graphLensOptions$: Observable<{ options: GraphLensOption[]; activeId: string | null }>;
-  levelOptions$: Observable<any[]>;
-  selectedLevel: number | null = null;
+  layoutEngineOptions$: Observable<SelectOptionState<LayoutEngineOption>>;
+  graphLensOptions$: Observable<SelectOptionState<GraphLensOption>>;
+  levelOptions$: Observable<LevelOption[]>;
+  presetOptions$: Observable<ReadonlyArray<ViewPresetDescriptor>>;
+  activePreset$: Observable<ResolvedViewPreset | null>;
+  readonly selection$: Observable<CanvasSelectionSnapshot | null>;
+  readonly panelState$: Observable<PanelViewModel>;
 
   constructor(private canvasControlService: CanvasControlService) {
+    this.selection$ = this.canvasControlService.selection$;
     // Initialize observables from service
     this.hasActiveCanvas$ = this.canvasControlService.hasActiveCanvas$;
     this.cameraInfo$ = this.canvasControlService.cameraInfo$;
@@ -81,6 +121,85 @@ export class PropertiesRhsPanelComponent implements OnInit, OnDestroy, OnChanges
         value: level
       })))
     );
+    this.presetOptions$ = this.canvasControlService.presetOptions$;
+    this.activePreset$ = this.canvasControlService.activePreset$;
+
+    const emptyLayout: SelectOptionState<LayoutEngineOption> = { options: [], activeId: null };
+    const emptyLens: SelectOptionState<GraphLensOption> = { options: [], activeId: null };
+    const emptyPresetState: PresetPanelState = {
+      options: [],
+      activeId: null,
+      activeLabel: null,
+      description: null,
+      palette: {},
+      hasOverrides: false
+    };
+
+    this.panelState$ = combineLatest({
+      hasCanvas: this.hasActiveCanvas$,
+      camera: this.cameraInfo$,
+      autoState: this.autoLayoutState$,
+      canUndo: this.canUndo$,
+      canRedo: this.canRedo$,
+      layout: this.layoutEngineOptions$.pipe(startWith(emptyLayout)),
+      lens: this.graphLensOptions$.pipe(startWith(emptyLens)),
+      levels: this.levelOptions$.pipe(startWith([] as LevelOption[])),
+      selection: this.selection$,
+      presetOptions: this.presetOptions$.pipe(startWith([] as ReadonlyArray<ViewPresetDescriptor>)),
+      activePreset: this.activePreset$.pipe(startWith(null as ResolvedViewPreset | null))
+    }).pipe(
+      map(({ hasCanvas, camera, autoState, canUndo, canRedo, layout, lens, levels, selection, presetOptions, activePreset }) => ({
+        hasCanvas,
+        camera: camera ?? null,
+        autoState: autoState ?? 'Auto Layout: OFF',
+        canUndo: !!canUndo,
+        canRedo: !!canRedo,
+        layout: layout ?? emptyLayout,
+        lens: lens ?? emptyLens,
+        levels: levels ?? [],
+        selection: selection ?? null,
+        preset: this.buildPresetPanelState(presetOptions, activePreset) ?? emptyPresetState
+      }))
+    );
+  }
+
+  private buildPresetPanelState(
+    options: ReadonlyArray<ViewPresetDescriptor>,
+    active: ResolvedViewPreset | null
+  ): PresetPanelState {
+    const optionList = options.map(option => ({
+      id: option.id,
+      label: option.label,
+      description: option.description
+    }));
+
+    const paletteRecord: Record<string, string> = {};
+    const palette = active?.preset.style?.palette ?? {};
+    Object.entries(palette).forEach(([key, value]) => {
+      if (typeof value === 'string' && value.trim().length > 0) {
+        paletteRecord[key] = value;
+      }
+    });
+
+    const overrides = active?.overrides ?? null;
+    let hasOverrides = false;
+    if (overrides && typeof overrides === 'object') {
+      const styleOverrides = (overrides as Partial<ViewPresetDescriptor>).style;
+      const paletteOverrides =
+        styleOverrides && typeof styleOverrides === 'object'
+          ? (styleOverrides as { palette?: Record<string, string> }).palette
+          : null;
+      hasOverrides = !!paletteOverrides && Object.keys(paletteOverrides).length > 0;
+    }
+
+    return {
+      options: optionList,
+      activeId: active?.preset.id ?? null,
+      activeLabel: active?.preset.label ?? null,
+      description: active?.preset.description ?? null,
+      palette: paletteRecord,
+      hasOverrides
+    };
   }
 
   ngOnInit(): void {
@@ -148,46 +267,5 @@ export class PropertiesRhsPanelComponent implements OnInit, OnDestroy, OnChanges
 
   private savePanelWidth(): void {
     localStorage.setItem(this.STORAGE_KEY, this.panelWidth.toString());
-  }
-
-  // Canvas control methods
-  onReset(): void {
-    this.canvasControlService.resetCanvas();
-  }
-
-  async onSave(): Promise<void> {
-    await this.canvasControlService.saveLayout();
-  }
-
-  onToggleAutoLayout(): void {
-    this.canvasControlService.toggleAutoLayout();
-  }
-
-  onUndo(): void {
-    this.canvasControlService.undo();
-  }
-
-  onRedo(): void {
-    this.canvasControlService.redo();
-  }
-
-  onCollapseLevel(level: number): void {
-    if (level !== null && level !== undefined) {
-      this.canvasControlService.collapseToLevel(level);
-      // Reset dropdown after selection
-      this.selectedLevel = null;
-    }
-  }
-
-  onLayoutEngineChange(engineId: string): void {
-    if (engineId) {
-      this.canvasControlService.changeLayoutEngine(engineId);
-    }
-  }
-
-  onGraphLensChange(lensId: string): void {
-    if (lensId) {
-      this.canvasControlService.changeGraphLens(lensId);
-    }
   }
 }

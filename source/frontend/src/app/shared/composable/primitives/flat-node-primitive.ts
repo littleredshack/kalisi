@@ -1,4 +1,4 @@
-import { HierarchicalNode, Camera } from '../../canvas/types';
+import { HierarchicalNode, Camera, NodeStyleOverrides, NodeShape } from '../../canvas/types';
 import { DrawingPrimitives } from '../../canvas/drawing-primitives';
 
 /**
@@ -33,18 +33,20 @@ export class FlatNodePrimitive {
       return;
     }
 
-    // Draw rounded rectangle node using drawing primitive - EXACT same styling
+    const metadata = node.metadata as Record<string, unknown> | undefined;
+    const overrides = (metadata?.['styleOverrides'] as NodeStyleOverrides | undefined) ?? undefined;
+    const shape: NodeShape = overrides?.shape ?? 'rounded';
+    const cornerRadius = Math.max(0, overrides?.cornerRadius ?? 12) * camera.zoom;
+
+    // Draw node shape using drawing primitive
     ctx.fillStyle = node.style.fill;
     ctx.strokeStyle = node.style.stroke;
     ctx.lineWidth = 2;
 
-    // EXACT radius from current flat graph: 12 * camera.zoom
-    const radius = 12 * camera.zoom;
-    DrawingPrimitives.drawRoundedRect(ctx, screenX, screenY, screenWidth, screenHeight, radius);
+    DrawingPrimitives.drawShape(ctx, screenX, screenY, screenWidth, screenHeight, shape, cornerRadius);
     ctx.fill();
     ctx.stroke();
 
-    const metadata = node.metadata as Record<string, unknown> | undefined;
     const labelVisible = metadata?.['labelVisible'] !== false;
 
     const icon = node.style.icon;

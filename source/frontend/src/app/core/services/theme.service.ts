@@ -5,6 +5,7 @@ import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 export interface ThemeColors {
   background: string;
   border: string;
+  panelOpacity: number;
 }
 
 export interface ThemePreset {
@@ -20,6 +21,7 @@ export class ThemeService {
   // Default colors (current app colors)
   private readonly DEFAULT_BACKGROUND = '#0b0f14';
   private readonly DEFAULT_BORDER = '#30363d';
+  private readonly DEFAULT_PANEL_OPACITY = 0.85;
 
   // Theme presets for quick selection
   readonly presets: ThemePreset[] = [
@@ -36,10 +38,12 @@ export class ThemeService {
   // Signals for reactive theme colors
   private _backgroundColor = signal<string>(this.DEFAULT_BACKGROUND);
   private _borderColor = signal<string>(this.DEFAULT_BORDER);
+  private _panelOpacity = signal<number>(this.DEFAULT_PANEL_OPACITY);
 
   // Public readonly signals
   readonly backgroundColor = this._backgroundColor.asReadonly();
   readonly borderColor = this._borderColor.asReadonly();
+  readonly panelOpacity = this._panelOpacity.asReadonly();
 
   // Computed values for derived colors
   readonly borderLightColor = computed(() => this.adjustAlpha(this._borderColor(), 0.5));
@@ -55,14 +59,20 @@ export class ThemeService {
 
     // Set up effect to update CSS variables when colors change
     effect(() => {
-      this.updateCssVariables(this._backgroundColor(), this._borderColor());
+      this.updateCssVariables(
+        this._backgroundColor(),
+        this._borderColor(),
+        this._panelOpacity()
+      );
     });
 
     // Set up debounced color updates for smooth real-time changes
     this.colorChangeSubject.pipe(
       debounceTime(10), // 10ms for smooth updates
       distinctUntilChanged((a, b) =>
-        a.background === b.background && a.border === b.border
+        a.background === b.background &&
+        a.border === b.border &&
+        a.panelOpacity === b.panelOpacity
       )
     ).subscribe(colors => {
       this.applyThemeColors(colors);
@@ -79,7 +89,8 @@ export class ThemeService {
     } else {
       this.colorChangeSubject.next({
         background: color,
-        border: this._borderColor()
+        border: this._borderColor(),
+        panelOpacity: this._panelOpacity()
       });
     }
   }
@@ -94,7 +105,8 @@ export class ThemeService {
     } else {
       this.colorChangeSubject.next({
         background: this._backgroundColor(),
-        border: color
+        border: color,
+        panelOpacity: this._panelOpacity()
       });
     }
   }
@@ -108,7 +120,22 @@ export class ThemeService {
       this._borderColor.set(border);
       this.persistTheme();
     } else {
-      this.colorChangeSubject.next({ background, border });
+      this.colorChangeSubject.next({
+        background,
+        border,
+        panelOpacity: this._panelOpacity()
+      });
+    }
+  }
+
+  setPropertiesPanelOpacity(opacity: number, immediate = false): void {
+    const clamped = Math.min(1, Math.max(0, opacity));
+    if (immediate) {
+      this._panelOpacity.set(clamped);
+      this.persistTheme();
+    } else {
+      this._panelOpacity.set(clamped);
+      this.persistTheme();
     }
   }
 
@@ -124,6 +151,7 @@ export class ThemeService {
    */
   resetToDefault(): void {
     this.setThemeColors(this.DEFAULT_BACKGROUND, this.DEFAULT_BORDER, true);
+    this.setPropertiesPanelOpacity(this.DEFAULT_PANEL_OPACITY, true);
   }
 
   /**
@@ -132,7 +160,8 @@ export class ThemeService {
   getCurrentTheme(): ThemeColors {
     return {
       background: this._backgroundColor(),
-      border: this._borderColor()
+      border: this._borderColor(),
+      panelOpacity: this._panelOpacity()
     };
   }
 
@@ -142,18 +171,23 @@ export class ThemeService {
   private applyThemeColors(colors: ThemeColors): void {
     this._backgroundColor.set(colors.background);
     this._borderColor.set(colors.border);
+    if (typeof colors.panelOpacity === 'number') {
+      this._panelOpacity.set(Math.min(1, Math.max(0, colors.panelOpacity)));
+    }
     this.persistTheme();
   }
 
   /**
    * Update CSS variables on the document root
    */
-  private updateCssVariables(background: string, border: string): void {
+  private updateCssVariables(background: string, border: string, panelOpacity: number): void {
     const root = document.documentElement;
 
     // Primary colors
     root.style.setProperty('--app-background', background);
     root.style.setProperty('--app-border', border);
+    root.style.setProperty('--properties-panel-opacity', panelOpacity.toString());
+    root.style.setProperty('--properties-panel-bg', this.adjustAlpha(background, panelOpacity));
 
     // Derived colors
     root.style.setProperty('--app-border-light', this.adjustAlpha(border, 0.5));
@@ -184,7 +218,8 @@ export class ThemeService {
   private persistTheme(): void {
     const theme: ThemeColors = {
       background: this._backgroundColor(),
-      border: this._borderColor()
+      border: this._borderColor(),
+      panelOpacity: this._panelOpacity()
     };
     localStorage.setItem('app_theme_colors', JSON.stringify(theme));
   }
@@ -199,6 +234,9 @@ export class ThemeService {
         const theme: ThemeColors = JSON.parse(stored);
         this._backgroundColor.set(theme.background);
         this._borderColor.set(theme.border);
+        if (typeof theme.panelOpacity === 'number') {
+          this._panelOpacity.set(Math.min(1, Math.max(0, theme.panelOpacity)));
+        }
       } catch (e) {
         console.warn('Failed to load persisted theme:', e);
       }

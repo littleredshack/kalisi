@@ -7,7 +7,15 @@ import { ViewNodeStateService } from '../../core/services/view-node-state.servic
 import { DynamicLayoutService } from '../../core/services/dynamic-layout.service';
 import { MessageService } from 'primeng/api';
 import { ComposableHierarchicalCanvasEngine } from '../../shared/canvas/composable-hierarchical-canvas-engine';
-import { HierarchicalNode, Edge, CanvasData, Camera } from '../../shared/canvas/types';
+import {
+  HierarchicalNode,
+  Edge,
+  CanvasData,
+  Camera,
+  NodeSelectionSnapshot,
+  NodeStyleOverrides,
+  StyleApplicationScope
+} from '../../shared/canvas/types';
 import { SelectEvent, DragStartEvent, DragUpdateEvent, DragStopEvent, HitTestResizeEvent, DoubleClickEvent } from '../../shared/canvas/interaction-events';
 import { ComponentFactory } from '../../shared/canvas/component-factory';
 import { CanvasControlService, CanvasController, CameraInfo } from '../../core/services/canvas-control.service';
@@ -21,6 +29,7 @@ import { ensureRelativeNodeCoordinates } from '../../shared/canvas/utils/relativ
 import { CanvasLayoutRuntime } from '../../shared/canvas/layout-runtime';
 import { layoutGraphToHierarchical } from '../../shared/layouts/core/layout-graph-utils';
 import { ResolvedViewPreset } from '../../shared/canvas/presets/preset-manager';
+import { ViewPresetDescriptor } from '../../shared/graph/view-presets';
 
 @Component({
   selector: 'app-modular-canvas',
@@ -128,16 +137,39 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     this.engine?.destroy();
   }
 
-  setPreset(presetId: string): void {
+  setPreset(presetId: string, overrides?: Partial<ViewPresetDescriptor> | null): void {
     if (!presetId) {
       return;
     }
 
     if (this.engine) {
-      this.engine.setActivePreset(presetId);
+      this.engine.setActivePreset(presetId, overrides);
     } else {
       this.pendingPresetId = presetId;
     }
+  }
+
+  setActivePreset(presetId: string, overrides?: Partial<ViewPresetDescriptor> | null): void {
+    this.setPreset(presetId, overrides);
+  }
+
+  getActivePreset(): ResolvedViewPreset | null {
+    return this.engine?.getCurrentViewPreset() ?? null;
+  }
+
+  applyNodeStyleOverride(
+    nodeId: string,
+    overrides: Partial<NodeStyleOverrides>,
+    scope: StyleApplicationScope
+  ): void {
+    if (!this.engine) {
+      return;
+    }
+    this.engine.applyNodeStyleOverride(nodeId, overrides, scope);
+  }
+
+  getSelectedNodeSnapshot(): NodeSelectionSnapshot | null {
+    return this.engine?.getSelectedNodeSnapshot() ?? null;
   }
 
   async ngOnInit(): Promise<void> {
@@ -537,13 +569,16 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
 
     this.engine.setPresetChangeHandler(preset => {
       this.presetChanged.emit(preset);
+      this.canvasControlService.setActivePresetSnapshot(preset);
     });
 
     if (this.pendingPresetId) {
       this.engine.setActivePreset(this.pendingPresetId);
       this.pendingPresetId = null;
     } else {
-      this.presetChanged.emit(this.engine.getCurrentViewPreset());
+      const preset = this.engine.getCurrentViewPreset();
+      this.presetChanged.emit(preset);
+      this.canvasControlService.setActivePresetSnapshot(preset);
     }
 
     // Inject services for dynamic layout behavior
@@ -588,6 +623,11 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
         this.canvasHistoryService.record(this.canvasId, data);
       }
       this.canvasControlService.notifyStateChange();
+    });
+
+    this.engine.setOnSelectionChanged(node => {
+      const snapshot = node ? (this.engine?.getSelectedNodeSnapshot() ?? null) : null;
+      this.canvasControlService.setSelectionSnapshot(snapshot);
     });
 
     this.canvasControlService.notifyStateChange();

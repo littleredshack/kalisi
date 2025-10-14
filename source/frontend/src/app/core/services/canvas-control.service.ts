@@ -3,7 +3,15 @@ import { BehaviorSubject, Observable } from 'rxjs';
 import { CanvasEventHubService } from './canvas-event-hub.service';
 import { LayoutModuleRegistry } from '../../shared/layouts/layout-module-registry';
 import { GraphLensRegistry } from '../../shared/graph/lens-registry';
-import { CanvasData } from '../../shared/canvas/types';
+import { ViewPresetDescriptor, ViewPresetRegistry } from '../../shared/graph/view-presets';
+import { ResolvedViewPreset } from '../../shared/canvas/presets/preset-manager';
+import {
+  CanvasData,
+  NodeStyleOverrides,
+  StyleApplicationScope,
+  NodeStyleSnapshot,
+  NodeSelectionSnapshot
+} from '../../shared/canvas/types';
 
 export interface CameraInfo {
   x: number;
@@ -26,10 +34,18 @@ export interface CanvasController {
   getActiveGraphLens?(): string | null;
   setGraphLens?(lensId: string): void;
   getAvailableGraphLenses?(): string[];
+  setActivePreset?(presetId: string, overrides?: Partial<ViewPresetDescriptor> | null): void;
+  getActivePreset?(): ResolvedViewPreset | null;
   undo(): void;
   redo(): void;
   canUndo(): boolean;
   canRedo(): boolean;
+  getSelectedNodeSnapshot?(): NodeSelectionSnapshot | null;
+  applyNodeStyleOverride?(
+    nodeId: string,
+    overrides: Partial<NodeStyleOverrides>,
+    scope: StyleApplicationScope
+  ): void;
 }
 
 export interface LayoutEngineOption {
@@ -47,6 +63,8 @@ export interface GraphLensOption {
   readonly tags?: ReadonlyArray<string>;
 }
 
+export type CanvasSelectionSnapshot = NodeSelectionSnapshot;
+
 @Injectable({ providedIn: 'root' })
 export class CanvasControlService {
   private activeCanvas: CanvasController | null = null;
@@ -63,6 +81,9 @@ export class CanvasControlService {
   private readonly activeCanvasIdSubject = new BehaviorSubject<string | null>(null);
   private readonly canUndoSubject = new BehaviorSubject<boolean>(false);
   private readonly canRedoSubject = new BehaviorSubject<boolean>(false);
+  private readonly selectionSubject = new BehaviorSubject<CanvasSelectionSnapshot | null>(null);
+  private readonly presetOptionsSubject = new BehaviorSubject<ReadonlyArray<ViewPresetDescriptor>>(ViewPresetRegistry.list());
+  private readonly activePresetSubject = new BehaviorSubject<ResolvedViewPreset | null>(null);
 
   readonly cameraInfo$ = this.cameraInfoSubject.asObservable();
   readonly availableLevels$ = this.availableLevelsSubject.asObservable();
@@ -75,6 +96,9 @@ export class CanvasControlService {
   readonly activeCanvasId$ = this.activeCanvasIdSubject.asObservable();
   readonly canUndo$ = this.canUndoSubject.asObservable();
   readonly canRedo$ = this.canRedoSubject.asObservable();
+  readonly selection$ = this.selectionSubject.asObservable();
+  readonly presetOptions$ = this.presetOptionsSubject.asObservable();
+  readonly activePreset$ = this.activePresetSubject.asObservable();
 
   constructor(private readonly canvasEventHubService: CanvasEventHubService) {}
 
@@ -84,6 +108,8 @@ export class CanvasControlService {
     this.hasActiveCanvasSubject.next(true);
     this.activeCanvasIdSubject.next(this.activeCanvasId);
     this.canvasEventHubService.setActiveCanvasId(this.activeCanvasId);
+    this.selectionSubject.next(null);
+    this.activePresetSubject.next(this.activeCanvas.getActivePreset?.() ?? null);
     this.updateState();
   }
 
@@ -101,6 +127,8 @@ export class CanvasControlService {
     this.activeCanvasIdSubject.next(null);
     this.canUndoSubject.next(false);
     this.canRedoSubject.next(false);
+    this.selectionSubject.next(null);
+    this.activePresetSubject.next(null);
     this.canvasEventHubService.setActiveCanvasId(null);
   }
 
@@ -190,6 +218,63 @@ export class CanvasControlService {
     }
   }
 
+  changePreset(presetId: string, overrides?: Partial<ViewPresetDescriptor> | null): void {
+    if (!presetId) {
+      return;
+    }
+
+    const canvasId = this.getActiveCanvasId();
+    if (canvasId) {
+      this.canvasEventHubService.emitEvent(canvasId, {
+        type: 'PresetRequested',
+        canvasId,
+        presetId,
+        overrides: overrides ?? undefined,
+        source: 'user',
+        timestamp: Date.now()
+      });
+    } else if (this.activeCanvas?.setActivePreset) {
+      this.activeCanvas.setActivePreset(presetId, overrides ?? undefined);
+      this.notifyStateChange();
+    }
+  }
+
+  updatePresetPalette(palettePatch: Partial<Record<string, string>>): void {
+    if (!palettePatch || Object.keys(palettePatch).length === 0) {
+      return;
+    }
+
+    const active = this.activePresetSubject.value;
+    if (!active) {
+      return;
+    }
+
+    const existingOverrides = (active.overrides ?? null) as Partial<ViewPresetDescriptor> | null;
+    const existingStyle = existingOverrides?.style ?? {};
+    const existingPalette = (existingStyle.palette ?? {}) as Record<string, string>;
+
+    const nextOverrides: Partial<ViewPresetDescriptor> = {
+      ...(existingOverrides ?? {}),
+      style: {
+        ...existingStyle,
+        palette: {
+          ...existingPalette,
+          ...palettePatch
+        }
+      }
+    };
+
+    this.changePreset(active.preset.id, nextOverrides);
+  }
+
+  resetPresetOverrides(): void {
+    const active = this.activePresetSubject.value;
+    if (!active) {
+      return;
+    }
+    this.changePreset(active.preset.id, null);
+  }
+
   undo(): void {
     this.activeCanvas?.undo();
     this.updateState();
@@ -198,6 +283,25 @@ export class CanvasControlService {
   redo(): void {
     this.activeCanvas?.redo();
     this.updateState();
+  }
+
+  setSelectionSnapshot(selection: CanvasSelectionSnapshot | null): void {
+    this.selectionSubject.next(selection);
+  }
+
+  applyNodeStyleOverride(
+    overrides: Partial<NodeStyleOverrides>,
+    scope: StyleApplicationScope
+  ): void {
+    const selection = this.selectionSubject.value;
+    if (!selection || selection.kind !== 'node') {
+      return;
+    }
+
+    if (this.activeCanvas?.applyNodeStyleOverride) {
+      this.activeCanvas.applyNodeStyleOverride(selection.id, overrides, scope);
+      this.refreshSelectionSnapshot();
+    }
   }
 
   updateCameraInfo(info: CameraInfo): void {
@@ -232,10 +336,25 @@ export class CanvasControlService {
     this.activeGraphLensSubject.next(this.resolveLensOption(this.activeCanvas.getActiveGraphLens?.() ?? null));
     this.canUndoSubject.next(this.activeCanvas.canUndo());
     this.canRedoSubject.next(this.activeCanvas.canRedo());
+    this.activePresetSubject.next(this.activeCanvas.getActivePreset?.() ?? null);
+    this.refreshSelectionSnapshot();
   }
 
   notifyStateChange(): void {
     this.updateState();
+  }
+
+  setActivePresetSnapshot(snapshot: ResolvedViewPreset | null): void {
+    this.activePresetSubject.next(snapshot);
+  }
+
+  private refreshSelectionSnapshot(): void {
+    if (this.activeCanvas?.getSelectedNodeSnapshot) {
+      const snapshot = this.activeCanvas.getSelectedNodeSnapshot();
+      this.selectionSubject.next(snapshot ?? null);
+    } else {
+      this.selectionSubject.next(null);
+    }
   }
 
   private resolveEngineOptions(engineIds: string[]): LayoutEngineOption[] {

@@ -1,4 +1,4 @@
-import { CanvasData, Edge, HierarchicalNode } from '../types';
+import { CanvasData, Edge, HierarchicalNode, NodeStyleOverrides, EdgeStyleOverrides } from '../types';
 import { PresetEdgeStyle, PresetNodeStyle, PresetPalette, ViewPresetDescriptor } from '../../graph/view-presets';
 import {
   EdgePresentation,
@@ -17,27 +17,34 @@ function cloneCanvasData(data: CanvasData): CanvasData {
 
 export function applyPresetStyles(data: CanvasData, preset: ViewPresetDescriptor): CanvasData {
   const cloned = cloneCanvasData(data);
+  applyPresetStylesInPlace(cloned, preset);
+  return cloned;
+}
+
+export function applyPresetStylesInPlace(data: CanvasData, preset: ViewPresetDescriptor): void {
   const palette = preset.style?.palette ?? {};
 
-  cloned.nodes = cloned.nodes.map(node => applyNodeStyle(node, preset.style?.node, palette));
-  cloned.edges = cloned.edges.map(edge => applyEdgeStyle(edge, preset.style?.edge, palette));
+  data.nodes.forEach(node => applyNodeStyle(node, preset.style?.node, palette));
+  data.edges.forEach(edge => applyEdgeStyle(edge, preset.style?.edge, palette));
 
-  if (cloned.originalEdges && cloned.originalEdges.length > 0) {
-    cloned.originalEdges = cloned.originalEdges.map(edge => applyEdgeStyle(edge, preset.style?.edge, palette));
+  if (data.originalEdges && data.originalEdges.length > 0) {
+    data.originalEdges.forEach(edge => applyEdgeStyle(edge, preset.style?.edge, palette));
   }
 
-  const metadata: Record<string, unknown> = { ...(cloned.metadata ?? {}), presetId: preset.id };
+  const metadata = ensureMetadata(data);
+  metadata['presetId'] = preset.id;
+
   if (preset.layoutHints) {
     metadata['layoutHints'] = preset.layoutHints;
+  } else if (metadata['layoutHints']) {
+    delete metadata['layoutHints'];
   }
 
   if (preset.style?.background) {
     metadata['background'] = preset.style.background;
+  } else if (metadata['background']) {
+    delete metadata['background'];
   }
-
-  cloned.metadata = metadata;
-
-  return cloned;
 }
 
 function applyNodeStyle(node: HierarchicalNode, style: PresetNodeStyle | undefined, palette: PresetPalette): HierarchicalNode {
@@ -70,6 +77,7 @@ function applyEdgeStyle(edge: Edge, style: PresetEdgeStyle | undefined, palette:
 
 function applyNodePresentation(node: HierarchicalNode, presentation: NodePresentation): void {
   const metadata = ensureMetadata(node);
+  const overrides = getNodeStyleOverrides(metadata);
 
   node.style.fill = presentation.fill ?? node.style.fill ?? '#1f2937';
   node.style.stroke = presentation.stroke ?? node.style.stroke ?? '#4b5563';
@@ -102,6 +110,27 @@ function applyNodePresentation(node: HierarchicalNode, presentation: NodePresent
     metadata['labelVisible'] = presentation.labelVisible;
   }
 
+  if (overrides) {
+    if (overrides.fill !== undefined) {
+      node.style.fill = overrides.fill;
+    }
+    if (overrides.stroke !== undefined) {
+      node.style.stroke = overrides.stroke;
+    }
+    if (overrides.icon !== undefined) {
+      node.style.icon = overrides.icon;
+    }
+    if (overrides.labelVisible !== undefined) {
+      metadata['labelVisible'] = overrides.labelVisible;
+    }
+    if (overrides.badges) {
+      metadata['badges'] = overrides.badges.map(badge => ({
+        text: badge.text,
+        color: badge.color ?? '#64748b'
+      }));
+    }
+  }
+
   const currentPresentation = (metadata['presentation'] as Record<string, unknown>) ?? {};
   metadata['presentation'] = {
     ...currentPresentation,
@@ -111,6 +140,7 @@ function applyNodePresentation(node: HierarchicalNode, presentation: NodePresent
 
 function applyEdgePresentation(edge: Edge, presentation: EdgePresentation): void {
   const metadata = ensureMetadata(edge);
+  const overrides = getEdgeStyleOverrides(metadata);
 
   edge.style.stroke = presentation.stroke ?? edge.style.stroke ?? '#6ea8fe';
 
@@ -128,6 +158,24 @@ function applyEdgePresentation(edge: Edge, presentation: EdgePresentation): void
 
   if (presentation.labelVisible !== undefined) {
     metadata['labelVisible'] = presentation.labelVisible;
+  }
+
+  if (overrides) {
+    if (overrides.stroke !== undefined) {
+      edge.style.stroke = overrides.stroke;
+    }
+    if (overrides.strokeWidth !== undefined) {
+      edge.style.strokeWidth = Math.max(1, overrides.strokeWidth);
+    }
+    if (overrides.strokeDashArray !== undefined) {
+      edge.style.strokeDashArray = overrides.strokeDashArray ? [...overrides.strokeDashArray] : null;
+    }
+    if (overrides.label !== undefined) {
+      edge.label = overrides.label;
+    }
+    if (overrides.labelVisible !== undefined) {
+      metadata['labelVisible'] = overrides.labelVisible;
+    }
   }
 
   const currentPresentation = (metadata['presentation'] as Record<string, unknown>) ?? {};
@@ -185,4 +233,12 @@ function ensureMetadata(target: { metadata?: Record<string, unknown> }): Record<
     target.metadata = {};
   }
   return target.metadata as Record<string, unknown>;
+}
+
+function getNodeStyleOverrides(metadata: Record<string, unknown>): NodeStyleOverrides | undefined {
+  return metadata['styleOverrides'] as NodeStyleOverrides | undefined;
+}
+
+function getEdgeStyleOverrides(metadata: Record<string, unknown>): EdgeStyleOverrides | undefined {
+  return metadata['styleOverrides'] as EdgeStyleOverrides | undefined;
 }

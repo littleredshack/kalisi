@@ -1,4 +1,4 @@
-import { Point } from './types';
+import { Point, NodeShape } from './types';
 
 /**
  * Reusable drawing primitives for canvas rendering
@@ -24,6 +24,47 @@ export class DrawingPrimitives {
     ctx.arcTo(x, y + height, x, y, radius);
     ctx.arcTo(x, y, x + width, y, radius);
     ctx.closePath();
+  }
+
+  static drawShape(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    shape: NodeShape,
+    cornerRadius: number
+  ): void {
+    switch (shape) {
+      case 'circle': {
+        const radiusX = width / 2;
+        const radiusY = height / 2;
+        ctx.beginPath();
+        ctx.ellipse(x + radiusX, y + radiusY, radiusX, radiusY, 0, 0, Math.PI * 2);
+        ctx.closePath();
+        break;
+      }
+      case 'triangle': {
+        ctx.beginPath();
+        ctx.moveTo(x + width / 2, y);
+        ctx.lineTo(x + width, y + height);
+        ctx.lineTo(x, y + height);
+        ctx.closePath();
+        break;
+      }
+      case 'rectangle': {
+        ctx.beginPath();
+        ctx.rect(x, y, width, height);
+        ctx.closePath();
+        break;
+      }
+      case 'rounded':
+      default: {
+        const radius = Math.max(0, Math.min(cornerRadius, Math.min(width, height) / 2));
+        DrawingPrimitives.drawRoundedRect(ctx, x, y, width, height, radius);
+        break;
+      }
+    }
   }
 
   /**

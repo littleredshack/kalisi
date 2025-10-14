@@ -7,8 +7,9 @@
   width: 340px; // Default width, will be overridden by resizing
   min-width: 280px; // Minimum width
   max-width: 600px; // Maximum width
-  background: var(--app-background); // Use theme variable
-  border-left: 1px solid rgba(110, 168, 254, 0.2); // Match exact border
+  background: var(--properties-panel-bg, rgba(11, 15, 20, 0.85)); // Dynamic neon glass background
+  border-left: 1px solid rgba(110, 168, 254, 0.25); // Match exact border
+  box-shadow: -12px 0 30px rgba(110, 168, 254, 0.12);
   backdrop-filter: blur(10px);
   transform: translateX(100%); // Match transform pattern (opposite direction)
   transition: transform 600ms ease, right 400ms cubic-bezier(0.23, 1, 0.32, 1); // Match exact timing
@@ -134,94 +135,28 @@
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
+  gap: 0.75rem;
 }
 
-// Canvas Controls Section
-.canvas-controls-section {
-  padding: 16px;
-  border-bottom: 1px solid rgba(110, 168, 254, 0.2);
-  background: rgba(0, 0, 0, 0.2);
-}
-
-.section-title {
-  margin: 0 0 12px 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #6ea8fe;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.control-buttons {
+.camera-summary {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 16px;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.65rem 0.75rem;
+  background: rgba(15, 23, 42, 0.35);
+  border: 1px solid rgba(110, 168, 254, 0.25);
+  border-radius: 6px;
+  font-family: 'IBM Plex Mono', 'Fira Code', monospace;
+  font-size: 0.85rem;
 }
 
-.control-button {
-  width: 100%;
-  justify-content: flex-start;
-
-  &.p-button-sm {
-    padding: 8px 12px;
-    font-size: 13px;
-  }
+.camera-label {
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
-.collapse-level-control {
-  margin-bottom: 16px;
-}
-
-.control-label {
-  display: block;
-  margin-bottom: 8px;
-  font-size: 13px;
-  color: #a0a9b8;
+.camera-value {
+  color: var(--text-primary);
   font-weight: 500;
-}
-
-.level-selector {
-  width: 100%;
-  padding: 8px 12px;
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(110, 168, 254, 0.2);
-  border-radius: 4px;
-  color: #e6edf3;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-
-  &:hover {
-    background: rgba(0, 0, 0, 0.6);
-    border-color: rgba(110, 168, 254, 0.4);
-  }
-
-  &:focus {
-    outline: none;
-    border-color: #6ea8fe;
-    box-shadow: 0 0 0 2px rgba(110, 168, 254, 0.1);
-  }
-
-  option {
-    background: var(--app-background);
-    color: #e6edf3;
-  }
-}
-
-.camera-info {
-  padding: 8px 12px;
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 4px;
-  font-size: 12px;
-  font-family: 'Monaco', 'Courier New', monospace;
-}
-
-.info-label {
-  color: #a0a9b8;
-  margin-right: 8px;
-}
-
-.info-value {
-  color: #e6edf3;
 }

@@ -1,4 +1,4 @@
-import { HierarchicalNode, Camera } from '../../canvas/types';
+import { HierarchicalNode, Camera, NodeStyleOverrides, NodeShape } from '../../canvas/types';
 import { DrawingPrimitives } from '../../canvas/drawing-primitives';
 import { CollapseBehavior } from '../../../core/services/view-node-state.service';
 
@@ -68,17 +68,20 @@ export class HierarchicalNodePrimitive {
       return;
     }
 
-    // Draw the node using exact same styling
+    const metadata = node.metadata as Record<string, unknown> | undefined;
+    const overrides = (metadata?.['styleOverrides'] as NodeStyleOverrides | undefined) ?? undefined;
+    const shape: NodeShape = overrides?.shape ?? 'rounded';
+    const cornerRadius = Math.max(0, overrides?.cornerRadius ?? 8) * camera.zoom;
+
+    // Draw the node using styling (supports overrides)
     ctx.fillStyle = node.style.fill;
     ctx.strokeStyle = node.style.stroke;
     ctx.lineWidth = 2;
 
-    // Use drawing primitive for rounded rectangle - EXACT same radius
-    DrawingPrimitives.drawRoundedRect(ctx, screenX, screenY, screenWidth, screenHeight, 8 * camera.zoom);
+    DrawingPrimitives.drawShape(ctx, screenX, screenY, screenWidth, screenHeight, shape, cornerRadius);
     ctx.fill();
     ctx.stroke();
 
-    const metadata = node.metadata as Record<string, unknown> | undefined;
     const labelVisible = metadata?.['labelVisible'] !== false;
     const icon = node.style.icon;
 

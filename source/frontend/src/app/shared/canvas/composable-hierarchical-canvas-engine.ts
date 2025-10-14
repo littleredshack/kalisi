@@ -1,4 +1,17 @@
-import { HierarchicalNode, Edge, CanvasData, Camera, Point, InteractionEvent, Bounds } from './types';
+import {
+  HierarchicalNode,
+  Edge,
+  CanvasData,
+  Camera,
+  Point,
+  InteractionEvent,
+  Bounds,
+  NodeStyleOverrides,
+  StyleApplicationScope,
+  NodeSelectionSnapshot,
+  NodeStyleSnapshot,
+  NodeShape
+} from './types';
 import { PresentationFrame } from '../render/presentation-frame';
 import { CanvasViewStateService, CanvasMutationType } from './state/canvas-view-state.service';
 import { CameraSystem } from './camera';
@@ -13,7 +26,8 @@ import { LayoutRunOptions } from '../layouts/core/layout-orchestrator';
 import { CanvasEventHubService } from '../../core/services/canvas-event-hub.service';
 import { CanvasInteractionHandler } from './canvas-interaction-handler';
 import { ViewPresetManager, ResolvedViewPreset } from './presets/preset-manager';
-import { applyPresetStyles } from './presets/preset-style-applier';
+import { ViewPresetDescriptor } from '../graph/view-presets';
+import { applyPresetStyles, applyPresetStylesInPlace } from './presets/preset-style-applier';
 
 const COLLAPSED_NODE_WIDTH = 220;
 const COLLAPSED_NODE_HEIGHT = 64;
@@ -204,11 +218,14 @@ export class ComposableHierarchicalCanvasEngine {
     this.render();
   }
 
-  setActivePreset(presetId: string): void {
+  setActivePreset(presetId: string, overrides?: Partial<ViewPresetDescriptor> | null): void {
     if (!presetId) {
       return;
     }
 
+    if (overrides !== undefined) {
+      this.viewPresetManager.applyOverrides(overrides);
+    }
     this.viewPresetManager.setActivePresetId(presetId);
     this.refreshViewPreset(presetId);
     this.pendingRendererInvalidation = true;
@@ -319,6 +336,9 @@ export class ComposableHierarchicalCanvasEngine {
 
   setOnSelectionChanged(callback: (node: HierarchicalNode | null) => void): void {
     this.onSelectionChanged = callback;
+    // Immediately emit current selection so observers stay in sync
+    const selected = this.interactionHandler.getSelectedNode();
+    this.onSelectionChanged(selected ?? null);
   }
 
   /**
@@ -901,6 +921,44 @@ export class ComposableHierarchicalCanvasEngine {
     return this.interactionHandler;
   }
 
+  getSelectedNodeSnapshot(): NodeSelectionSnapshot | null {
+    const node = this.interactionHandler.getSelectedNode();
+    return node ? this.createNodeSelectionSnapshot(node) : null;
+  }
+
+  applyNodeStyleOverride(
+    nodeId: string,
+    overrides: Partial<NodeStyleOverrides>,
+    scope: StyleApplicationScope = 'node'
+  ): void {
+    const targetNode = this.findNodeByGUID(nodeId);
+    if (!targetNode) {
+      console.warn('[CanvasEngine] applyNodeStyleOverride: node not found', nodeId);
+      return;
+    }
+
+    const nodesToUpdate = scope === 'type'
+      ? this.collectNodesByType(targetNode.type)
+      : [targetNode];
+
+    nodesToUpdate.forEach(node => {
+      this.mergeNodeStyleOverrides(node, overrides);
+      this.applyOverridesToNode(node);
+    });
+
+    const affectedIds = nodesToUpdate.map(node => node.GUID ?? node.id).filter(Boolean) as string[];
+    if (affectedIds.length > 0) {
+      affectedIds.forEach(id => this.invalidateRendererCache(id));
+    } else {
+      this.invalidateRendererCache();
+    }
+
+    this.pendingRendererInvalidation = true;
+    this.render();
+    this.notifyDataChanged();
+    this.syncRuntimeFromCurrentData('user');
+  }
+
   getCameraSystem(): CameraSystem {
     return this.cameraSystem;
   }
@@ -1227,7 +1285,8 @@ export class ComposableHierarchicalCanvasEngine {
         break;
       case 'PresetRequested':
         this.withEventSuppressed(() => {
-          this.setActivePreset(event.presetId);
+          const overrides = event.overrides as Partial<ViewPresetDescriptor> | null | undefined;
+          this.setActivePreset(event.presetId, overrides ?? undefined);
         });
         break;
       case 'CameraChanged':
@@ -1790,13 +1849,153 @@ export class ComposableHierarchicalCanvasEngine {
     return findParentRecursive(this.data.nodes);
   }
 
+  private collectNodesByType(type: string): HierarchicalNode[] {
+    const normalizedType = typeof type === 'string' ? type.trim().toLowerCase() : '';
+    if (!normalizedType) {
+      return [];
+    }
+    const results: HierarchicalNode[] = [];
+    const visit = (nodes: HierarchicalNode[]) => {
+      nodes.forEach(node => {
+        const nodeType = (node.type ?? node.metadata?.['type']) as string | undefined;
+        const normalizedNodeType = typeof nodeType === 'string' ? nodeType.trim().toLowerCase() : '';
+        if (normalizedNodeType === normalizedType) {
+          results.push(node);
+        }
+        if (node.children && node.children.length > 0) {
+          visit(node.children);
+        }
+      });
+    };
+    visit(this.data.nodes);
+    return results;
+  }
+
+  private mergeNodeStyleOverrides(node: HierarchicalNode, overrides: Partial<NodeStyleOverrides>): void {
+    if (!overrides) {
+      return;
+    }
+    const metadata = this.ensureNodeMetadata(node);
+    const current = { ...(metadata['styleOverrides'] as NodeStyleOverrides | undefined) };
+
+    let changed = false;
+    Object.entries(overrides).forEach(([key, value]) => {
+      const hasExisting = Object.prototype.hasOwnProperty.call(current, key);
+      if (value === undefined) {
+        if (hasExisting) {
+          delete (current as Record<string, unknown>)[key];
+          changed = true;
+        }
+        return;
+      }
+      changed = true;
+      if (value === null) {
+        delete (current as Record<string, unknown>)[key];
+      } else {
+        (current as Record<string, unknown>)[key] = value as unknown;
+      }
+    });
+
+    if (!changed) {
+      return;
+    }
+
+    if (Object.keys(current).length === 0) {
+      delete metadata['styleOverrides'];
+    } else {
+      metadata['styleOverrides'] = current;
+    }
+  }
+
+  private applyOverridesToNode(node: HierarchicalNode): void {
+    const metadata = this.ensureNodeMetadata(node);
+    const overrides = (metadata['styleOverrides'] as NodeStyleOverrides | undefined) ?? {};
+    const presentation = (metadata['presentation'] as Record<string, unknown> | undefined)?.['node'] as
+      | {
+          fill?: string;
+          stroke?: string;
+          icon?: string;
+          labelVisible?: boolean;
+        }
+      | undefined;
+
+    const baseFill = presentation?.fill ?? node.style.fill ?? '#1f2937';
+    const baseStroke = presentation?.stroke ?? node.style.stroke ?? '#4b5563';
+    const baseIcon = presentation?.icon ?? node.style.icon;
+    const baseLabelVisible = presentation?.labelVisible;
+
+    node.style.fill = overrides.fill ?? baseFill;
+    node.style.stroke = overrides.stroke ?? baseStroke;
+    node.style.icon = overrides.icon !== undefined ? overrides.icon : baseIcon;
+    if (overrides.labelVisible !== undefined) {
+      metadata['labelVisible'] = overrides.labelVisible;
+    } else if (baseLabelVisible !== undefined) {
+      metadata['labelVisible'] = baseLabelVisible;
+    } else {
+      delete metadata['labelVisible'];
+    }
+
+    if (overrides.badges) {
+      metadata['badges'] = overrides.badges.map(badge => ({
+        text: badge.text,
+        color: badge.color ?? '#64748b'
+      }));
+    } else if (metadata['badges'] && overrides.badges === undefined) {
+      // Preserve existing badges computed from preset; do nothing
+    }
+  }
+
+  private createNodeSelectionSnapshot(node: HierarchicalNode): NodeSelectionSnapshot {
+    const metadata = this.ensureNodeMetadata(node);
+    const overrides = (metadata['styleOverrides'] as NodeStyleOverrides | undefined) ?? {};
+    const shape: NodeShape = overrides.shape ?? 'rounded';
+    const cornerRadius = overrides.cornerRadius ?? this.getDefaultCornerRadius();
+    const labelVisible = overrides.labelVisible ?? (metadata['labelVisible'] !== false);
+
+    return {
+      kind: 'node',
+      id: node.GUID ?? node.id,
+      guid: node.GUID ?? undefined,
+      label: node.text,
+      type: node.type,
+      style: {
+        fill: node.style.fill,
+        stroke: node.style.stroke,
+        icon: node.style.icon,
+        shape,
+        cornerRadius,
+        labelVisible
+      },
+      overrides: this.cloneOverrides(overrides)
+    };
+  }
+
+  private cloneOverrides(overrides: NodeStyleOverrides): NodeStyleOverrides {
+    return {
+      ...overrides,
+      badges: overrides.badges ? overrides.badges.map(badge => ({ ...badge })) : undefined
+    };
+  }
+
+  private getDefaultCornerRadius(): number {
+    const rendererName = this.renderer.getName?.() ?? '';
+    return rendererName === 'composable-hierarchical' ? 8 : 12;
+  }
+
+  private ensureNodeMetadata(node: HierarchicalNode): Record<string, unknown> {
+    if (!node.metadata) {
+      node.metadata = {};
+    }
+    return node.metadata;
+  }
+
   private findNodeByGUID(nodeGUID: string): HierarchicalNode | null {
     if (!nodeGUID) {
       return null;
     }
     const findRecursive = (nodes: HierarchicalNode[]): HierarchicalNode | null => {
       for (const node of nodes) {
-        if (node.GUID === nodeGUID) return node;
+        if (node.GUID === nodeGUID || node.id === nodeGUID) return node;
         const foundInChildren = findRecursive(node.children);
         if (foundInChildren) return foundInChildren;
       }

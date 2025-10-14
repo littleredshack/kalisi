@@ -21,111 +21,27 @@
 
   <!-- Properties Content -->
   <div class="properties-content">
-    <!-- Canvas Controls Section -->
-    <div class="canvas-controls-section" *ngIf="hasActiveCanvas$ | async">
-      <h4 class="section-title">Canvas Controls</h4>
-
-      <div class="control-buttons">
-        <button
-          pButton
-          type="button"
-          label="Reset"
-          icon="pi pi-refresh"
-          (click)="onReset()"
-          class="p-button-sm control-button"
-          pTooltip="Reset canvas to initial state">
-        </button>
-
-        <button
-          pButton
-          type="button"
-          label="Save Layout"
-          icon="pi pi-save"
-          (click)="onSave()"
-          class="p-button-sm control-button p-button-success"
-          pTooltip="Save current layout to database">
-        </button>
-
-        <button
-          pButton
-          type="button"
-          label="Undo"
-          icon="pi pi-undo"
-          (click)="onUndo()"
-          class="p-button-sm control-button"
-          [disabled]="!(canUndo$ | async)"
-          pTooltip="Undo last change">
-        </button>
-
-        <button
-          pButton
-          type="button"
-          label="Redo"
-          icon="pi pi-redo"
-          (click)="onRedo()"
-          class="p-button-sm control-button"
-          [disabled]="!(canRedo$ | async)"
-          pTooltip="Redo last undone change">
-        </button>
-
-        <button
-          pButton
-          type="button"
-          [label]="(autoLayoutState$ | async) || 'Auto Layout: OFF'"
-          icon="pi pi-sitemap"
-          (click)="onToggleAutoLayout()"
-          class="p-button-sm control-button"
-          [ngClass]="(autoLayoutState$ | async) === 'Auto Layout: ON' ? 'p-button-warning' : 'p-button-secondary'"
-          pTooltip="Toggle automatic layout when nodes collapse">
-        </button>
-      </div>
-
-      <div class="collapse-level-control" *ngIf="(availableLevels$ | async) && (availableLevels$ | async)!.length > 0">
-        <label class="control-label">Collapse to Level:</label>
-        <select class="level-selector" (change)="onCollapseLevel($any($event.target).value)">
-          <option value="">Select level</option>
-          <option *ngFor="let option of levelOptions$ | async" [value]="option.value">
-            {{ option.label }}
-          </option>
-        </select>
-      </div>
-
-      <div class="layout-engine-control" *ngIf="layoutEngineOptions$ | async as layoutVm">
-        <label class="control-label">Layout Engine:</label>
-        <select
-          class="layout-engine-selector"
-          [ngModel]="layoutVm.activeId"
-          (ngModelChange)="onLayoutEngineChange($event)">
-          <option *ngFor="let option of layoutVm.options" [value]="option.id">
-            {{ option.label }}
-          </option>
-        </select>
-      </div>
-
-      <div class="layout-engine-control" *ngIf="graphLensOptions$ | async as lensVm">
-        <label class="control-label">Graph Lens:</label>
-        <select
-          class="layout-engine-selector"
-          [ngModel]="lensVm.activeId"
-          (ngModelChange)="onGraphLensChange($event)">
-          <option *ngFor="let lens of lensVm.options" [value]="lens.id">
-            {{ lens.label }}
-          </option>
-        </select>
-      </div>
-
-      <div class="camera-info">
-        <span class="info-label">Camera:</span>
-        <span class="info-value">
-          ({{ (cameraInfo$ | async)?.x }}, {{ (cameraInfo$ | async)?.y }})
-          Zoom: {{ (cameraInfo$ | async)?.zoom }}x
-        </span>
-      </div>
-    </div>
-
-    <app-properties-panel
-      [selectedLibraryItem]="selectedLibraryItem"
-      [selectedViewNodeDetails]="selectedViewNodeDetails">
-    </app-properties-panel>
+    <ng-container *ngIf="panelState$ | async as vm">
+      <app-properties-panel
+        [selectedLibraryItem]="selectedLibraryItem"
+        [selectedViewNodeDetails]="selectedViewNodeDetails"
+        [nodeSelection]="vm.selection"
+        [hasActiveCanvas]="vm.hasCanvas"
+        [cameraInfo]="vm.camera"
+        [autoLayoutLabel]="vm.autoState"
+        [isAutoLayoutEnabled]="vm.autoState === 'Auto Layout: ON'"
+        [canUndo]="vm.canUndo"
+        [canRedo]="vm.canRedo"
+        [collapseLevelOptions]="vm.levels"
+        [layoutOptions]="vm.layout.options.length ? vm.layout : null"
+        [lensOptions]="vm.lens.options.length ? vm.lens : null"
+        [presetOptions]="vm.preset.options"
+        [activePresetId]="vm.preset.activeId"
+        [activePresetLabel]="vm.preset.activeLabel"
+        [presetDescription]="vm.preset.description"
+        [presetPalette]="vm.preset.palette"
+        [hasPresetOverrides]="vm.preset.hasOverrides">
+      </app-properties-panel>
+    </ng-container>
   </div>
 </div>

@@ -68,6 +68,47 @@ export interface Point {
   y: number;
 }
 
+export type NodeShape = 'rounded' | 'rectangle' | 'circle' | 'triangle';
+
+export interface NodeStyleOverrides {
+  fill?: string;
+  stroke?: string;
+  icon?: string;
+  badges?: Array<{ text: string; color?: string }>;
+  cornerRadius?: number;
+  shape?: NodeShape;
+  labelVisible?: boolean;
+}
+
+export interface EdgeStyleOverrides {
+  stroke?: string;
+  strokeWidth?: number;
+  strokeDashArray?: number[] | null;
+  label?: string;
+  labelVisible?: boolean;
+}
+
+export type StyleApplicationScope = 'node' | 'type';
+
+export interface NodeStyleSnapshot {
+  readonly fill: string;
+  readonly stroke: string;
+  readonly icon?: string;
+  readonly shape: NodeShape;
+  readonly cornerRadius: number;
+  readonly labelVisible: boolean;
+}
+
+export interface NodeSelectionSnapshot {
+  readonly kind: 'node';
+  readonly id: string;
+  readonly guid?: string;
+  readonly label: string;
+  readonly type: string;
+  readonly style: NodeStyleSnapshot;
+  readonly overrides: NodeStyleOverrides;
+}
+
 // Events for interaction system
 export interface NodeEvent {
   node: HierarchicalNode;
