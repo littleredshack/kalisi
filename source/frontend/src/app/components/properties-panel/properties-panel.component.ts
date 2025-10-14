@@ -1,10 +1,11 @@
-import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, Input, OnChanges, SimpleChanges, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Accordion, AccordionPanel, AccordionHeader, AccordionContent } from 'primeng/accordion';
 import { ButtonModule } from 'primeng/button';
 import { ColorPickerModule } from 'primeng/colorpicker';
 import { CanvasControlService } from '../../core/services/canvas-control.service';
+import { ThemeService } from '../../core/services/theme.service';
 import { NodeSelectionSnapshot, StyleApplicationScope, NodeShape, NodeStyleOverrides } from '../../shared/canvas/types';
 
 interface EditableNodeStyle {
@@ -39,7 +40,7 @@ interface EditableNodeStyle {
             </span>
           </p-accordion-header>
           <p-accordion-content>
-            <div class="section section--canvas" style="background: rgba(15, 23, 42, max(var(--properties-panel-opacity, 0.85), 0.05));">
+            <div class="section section--canvas">
               <div class="section-summary">
                 <div class="summary-primary">
                   <span class="summary-title">{{ getCurrentViewName() }}</span>
@@ -168,7 +169,7 @@ interface EditableNodeStyle {
             </span>
           </p-accordion-header>
           <p-accordion-content>
-            <div class="section section--node" *ngIf="nodeStyle; else nodeStyleEmpty" style="background: rgba(15, 23, 42, max(var(--properties-panel-opacity, 0.85), 0.05));">
+            <div class="section section--node" *ngIf="nodeStyle; else nodeStyleEmpty">
               <div class="section-summary">
                 <div class="summary-primary">
                   <span class="summary-title">{{ nodeSelection!.label || 'Selected node' }}</span>
@@ -279,8 +280,20 @@ interface EditableNodeStyle {
           </p-accordion-content>
         </p-accordion-panel>
       </p-accordion>
+      <div class="panel-footer">
+        <label>
+          Panel opacity
+          <span>{{ (panelOpacity * 100) | number:'1.0-0' }}%</span>
+        </label>
+        <input type="range"
+               min="0"
+               max="1"
+               step="0.05"
+               [ngModel]="panelOpacity"
+               (ngModelChange)="onPanelOpacityChange($event)">
+      </div>
     </div>
-`,
+  `,
   styles: [`
     .properties-panel {
       display: flex;
@@ -288,13 +301,36 @@ interface EditableNodeStyle {
       gap: 0.75rem;
     }
 
+    :host {
+      --panel-opacity: var(--properties-panel-opacity, 0.85);
+    }
+
+    :host ::ng-deep .p-accordion-header-link {
+      background: transparent;
+      border: none;
+      padding: 0;
+    }
+
+    .accordion-header {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.4rem 0.55rem;
+      border-radius: 6px;
+      background: rgba(15, 23, 42, calc(var(--panel-opacity) * 0.6));
+      border: 1px solid rgba(110, 168, 254, calc(var(--panel-opacity) * 0.35));
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+
     .section {
       display: flex;
       flex-direction: column;
       gap: 1rem;
       padding: 1rem;
-      background: rgba(15, 23, 42, max(var(--properties-panel-opacity, 0.85), 0.05));
+      background: rgba(15, 23, 42, calc(var(--panel-opacity) * 0.85));
+      border: 1px solid rgba(110, 168, 254, calc(var(--panel-opacity) * 0.35));
       border-radius: 8px;
+      transition: background 0.2s ease, border-color 0.2s ease;
     }
 
     .form-grid {
@@ -325,10 +361,12 @@ interface EditableNodeStyle {
     .form-row input[type="text"] {
       padding: 0.5rem 0.65rem;
       border-radius: 6px;
-      background: rgba(15, 23, 42, max(calc(var(--properties-panel-opacity, 0.85) * 0.6), 0.04));
-      border: 1px solid rgba(110, 168, 254, 0.25);
+      background: rgba(15, 23, 42, calc(var(--panel-opacity) * 0.55));
+      border: 1px solid rgba(110, 168, 254, calc(var(--panel-opacity) * 0.35));
       color: var(--text-primary);
       font-size: 0.9rem;
+      transition: background 0.2s ease, border-color 0.2s ease;
+      transition: background 0.2s ease, border-color 0.2s ease;
     }
 
     .section-summary {
@@ -425,8 +463,9 @@ interface EditableNodeStyle {
       margin-top: 1rem;
       padding: 0.75rem;
       border-radius: 8px;
-      background: rgba(15, 23, 42, max(calc(var(--properties-panel-opacity, 0.85) * 0.6), 0.04));
-      border: 1px solid rgba(110, 168, 254, 0.18);
+      transition: background 0.2s ease, border-color 0.2s ease;
+      background: rgba(15, 23, 42, calc(var(--panel-opacity) * 0.55));
+      border: 1px solid rgba(110, 168, 254, calc(var(--panel-opacity) * 0.3));
       display: flex;
       flex-direction: column;
       gap: 0.5rem;
@@ -456,10 +495,11 @@ interface EditableNodeStyle {
     .scope-group select {
       padding: 0.45rem 0.6rem;
       border-radius: 6px;
-      background: rgba(15, 23, 42, max(calc(var(--properties-panel-opacity, 0.85) * 0.6), 0.04));
-      border: 1px solid rgba(110, 168, 254, 0.25);
+      background: rgba(15, 23, 42, calc(var(--panel-opacity) * 0.55));
+      border: 1px solid rgba(110, 168, 254, calc(var(--panel-opacity) * 0.35));
       color: var(--text-primary);
       font-size: 0.9rem;
+      transition: background 0.2s ease, border-color 0.2s ease;
     }
 
     .empty {
@@ -508,8 +548,8 @@ interface EditableNodeStyle {
       gap: 0.5rem;
       padding: 0.75rem;
       border-radius: 6px;
-      background: rgba(15, 23, 42, max(calc(var(--properties-panel-opacity, 0.85) * 0.6), 0.04));
-      border: 1px solid rgba(110, 168, 254, 0.2);
+      background: rgba(15, 23, 42, calc(var(--panel-opacity) * 0.55));
+      border: 1px solid rgba(110, 168, 254, calc(var(--panel-opacity) * 0.3));
       color: var(--text-secondary);
       font-size: 0.9rem;
     }
@@ -556,7 +596,8 @@ interface EditableNodeStyle {
       padding: 0.45rem 0.55rem;
       border-radius: 6px;
       border: 1px solid rgba(110, 168, 254, 0.25);
-      background: rgba(15, 23, 42, max(calc(var(--properties-panel-opacity, 0.85) * 0.6), 0.04));
+      background: rgba(15, 23, 42, calc(var(--panel-opacity) * 0.55));
+      border: 1px solid rgba(110, 168, 254, calc(var(--panel-opacity) * 0.35));
       color: var(--text-primary);
       font-family: 'IBM Plex Mono', 'Fira Code', monospace;
       font-size: 0.85rem;
@@ -661,8 +702,8 @@ interface EditableNodeStyle {
     .info-item {
       padding: 0.65rem;
       border-radius: 6px;
-      background: rgba(15, 23, 42, max(calc(var(--properties-panel-opacity, 0.85) * 0.6), 0.04));
-      border: 1px solid rgba(110, 168, 254, 0.2);
+      background: rgba(15, 23, 42, calc(var(--panel-opacity) * 0.55));
+      border: 1px solid rgba(110, 168, 254, calc(var(--panel-opacity) * 0.3));
       display: flex;
       flex-direction: column;
       gap: 0.25rem;
@@ -686,6 +727,65 @@ interface EditableNodeStyle {
       align-items: center;
       gap: 0.35rem;
     }
+    .panel-footer {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      padding: 0.75rem 1rem;
+      margin-top: 0.25rem;
+      background: rgba(15, 23, 42, calc(var(--panel-opacity) * 0.6));
+      border: 1px solid rgba(110, 168, 254, calc(var(--panel-opacity) * 0.3));
+      border-radius: 8px;
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+
+    .panel-footer label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .panel-footer span {
+      font-family: 'IBM Plex Mono', 'Fira Code', monospace;
+      color: var(--text-primary);
+    }
+
+    .panel-footer input[type="range"] {
+      width: 100%;
+      accent-color: #6ea8fe;
+    }
+
+    .panel-footer input[type="range"]::-webkit-slider-thumb {
+      width: 14px;
+      height: 14px;
+    }
+
+    .panel-footer input[type="range"]::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+    }
+
+    .panel-footer input[type="range"]::-ms-thumb {
+      width: 14px;
+      height: 14px;
+    }
+
+    .panel-footer input[type="range"]::-webkit-slider-runnable-track {
+      height: 4px;
+      border-radius: 2px;
+    }
+
+    .panel-footer input[type="range"]::-moz-range-track {
+      height: 4px;
+      border-radius: 2px;
+    }
+
+    .panel-footer input[type="range"]::-ms-track {
+      height: 4px;
+      border-radius: 2px;
+    }
+
   `]
 })
 export class PropertiesPanelComponent implements OnChanges {
@@ -712,6 +812,7 @@ export class PropertiesPanelComponent implements OnChanges {
   nodeStyle: EditableNodeStyle | null = null;
   currentScope: StyleApplicationScope = 'node';
   containmentEnabled = false;
+  panelOpacity = 0.85;
   paletteDraft: Record<string, string> = {};
 
   readonly scopeOptions: Array<{ value: StyleApplicationScope; label: string }> = [
@@ -736,7 +837,14 @@ export class PropertiesPanelComponent implements OnChanges {
     { key: 'danger', label: 'Danger', fallback: '#f97316' }
   ];
 
-  constructor(private readonly canvasControlService: CanvasControlService) {}
+  constructor(
+    private readonly canvasControlService: CanvasControlService,
+    private readonly themeService: ThemeService
+  ) {
+    effect(() => {
+      this.panelOpacity = this.themeService.panelOpacity();
+    });
+  }
 
   ngOnChanges(changes: SimpleChanges): void {
     if ('nodeSelection' in changes) {
@@ -872,6 +980,16 @@ export class PropertiesPanelComponent implements OnChanges {
   resetCornerRadius(): void {
     this.applyOverrides({ cornerRadius: undefined });
   }
+  onPanelOpacityChange(value: number | string): void {
+    const numeric = typeof value === 'string' ? Number(value) : value;
+    if (!Number.isFinite(numeric)) {
+      return;
+    }
+    const clamped = Math.min(1, Math.max(0, numeric));
+    this.panelOpacity = clamped;
+    this.themeService.setPropertiesPanelOpacity(clamped);
+  }
+
 
   onScopeChange(scope: StyleApplicationScope): void {
     this.currentScope = scope;

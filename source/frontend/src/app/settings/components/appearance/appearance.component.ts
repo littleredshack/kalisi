@@ -94,21 +94,6 @@ import { takeUntil } from 'rxjs/operators';
             </div>
           </div>
 
-          <div class="opacity-group">
-            <label>
-              Properties Panel Opacity
-              <span class="opacity-value">{{ (panelOpacity * 100) | number:'1.0-0' }}%</span>
-            </label>
-            <div class="opacity-slider-row">
-              <input
-                type="range"
-                min="0.3"
-                max="1"
-                step="0.05"
-                [(ngModel)]="panelOpacity"
-                (ngModelChange)="onPanelOpacityChange($event)">
-            </div>
-          </div>
         </div>
 
         <p-divider></p-divider>
@@ -153,35 +138,6 @@ import { takeUntil } from 'rxjs/operators';
       color: var(--text-color);
     }
 
-    .opacity-group {
-      margin-bottom: 0.5rem;
-    }
-
-    .opacity-group label {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-weight: 600;
-      color: var(--text-color);
-      margin-bottom: 0.5rem;
-    }
-
-    .opacity-value {
-      font-family: 'IBM Plex Mono', 'Fira Code', monospace;
-      font-size: 0.85rem;
-      color: var(--text-secondary, #94a3b8);
-    }
-
-    .opacity-slider-row {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
-
-    .opacity-slider-row input[type="range"] {
-      width: 100%;
-      accent-color: #6ea8fe;
-    }
 
     .color-picker-row {
       display: flex;
@@ -311,7 +267,6 @@ import { takeUntil } from 'rxjs/operators';
 export class AppearanceComponent implements OnInit, OnDestroy {
   backgroundColor = '#0b0f14';
   borderColor = '#30363d';
-  panelOpacity = 0.85;
   selectedPreset: ThemePreset | null = null;
 
   private destroy$ = new Subject<void>();
@@ -323,7 +278,6 @@ export class AppearanceComponent implements OnInit, OnDestroy {
     const currentTheme = this.themeService.getCurrentTheme();
     this.backgroundColor = currentTheme.background;
     this.borderColor = currentTheme.border;
-    this.panelOpacity = currentTheme.panelOpacity;
 
     // Signals are accessed directly with () not subscribe
     // They're already reactive in the template
@@ -350,14 +304,6 @@ export class AppearanceComponent implements OnInit, OnDestroy {
     }
   }
 
-  onPanelOpacityChange(value: number | string): void {
-    const numeric = typeof value === 'string' ? Number(value) : value;
-    if (Number.isFinite(numeric)) {
-      this.panelOpacity = Math.min(1, Math.max(0.3, numeric));
-      this.themeService.setPropertiesPanelOpacity(this.panelOpacity);
-    }
-  }
-
   onPresetChange(event: any): void {
     if (event.value) {
       this.applyPreset(event.value);
@@ -376,7 +322,6 @@ export class AppearanceComponent implements OnInit, OnDestroy {
     const currentTheme = this.themeService.getCurrentTheme();
     this.backgroundColor = currentTheme.background;
     this.borderColor = currentTheme.border;
-    this.panelOpacity = currentTheme.panelOpacity;
   }
 
   private isValidHexColor(color: string): boolean {
