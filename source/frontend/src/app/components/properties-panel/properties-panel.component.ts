@@ -30,259 +30,261 @@ interface EditableNodeStyle {
     ButtonModule,
     ColorPickerModule
   ],
-  template: `    <div class="properties-panel">
-      <p-accordion [(value)]="openPanels" [multiple]="true">
-        <p-accordion-panel value="canvas-settings" *ngIf="hasActiveCanvas">
-          <p-accordion-header>
-            <span class="accordion-header" >
-              <i class="pi pi-sliders-h"></i>
-              <span>Canvas Settings</span>
-            </span>
-          </p-accordion-header>
-          <p-accordion-content>
-            <div class="section section--canvas">
-              <div class="section-summary">
-                <div class="summary-primary">
-                  <span class="summary-title">{{ getCurrentViewName() }}</span>
-                  <span class="summary-meta" *ngIf="autoLayoutLabel">{{ autoLayoutLabel }}</span>
+  template: `    <div class="properties-panel" [style.--panel-opacity]="panelOpacity">
+      <div class="accordion-container">
+        <p-accordion class="panel-accordion" [(value)]="openPanels" [multiple]="true">
+          <p-accordion-panel value="canvas-settings" *ngIf="hasActiveCanvas">
+            <p-accordion-header>
+              <span class="accordion-header">
+                <i class="pi pi-sliders-h"></i>
+                <span>Canvas Settings</span>
+              </span>
+            </p-accordion-header>
+            <p-accordion-content>
+              <div class="section section--canvas">
+                <div class="section-summary">
+                  <div class="summary-primary">
+                    <span class="summary-title">{{ getCurrentViewName() }}</span>
+                    <span class="summary-meta" *ngIf="autoLayoutLabel">{{ autoLayoutLabel }}</span>
+                  </div>
+                  <div class="summary-camera" *ngIf="cameraInfo">
+                    {{ cameraInfo.x }}, {{ cameraInfo.y }} · {{ cameraInfo.zoom }}x
+                  </div>
                 </div>
-                <div class="summary-camera" *ngIf="cameraInfo">
-                  {{ cameraInfo.x }}, {{ cameraInfo.y }} · {{ cameraInfo.zoom }}x
+
+                <div class="button-row">
+                  <button pButton type="button" label="Reset" icon="pi pi-refresh" class="p-button-sm"
+                          (click)="resetCanvas()"></button>
+                  <button pButton type="button" label="Save Layout" icon="pi pi-save" class="p-button-sm p-button-success"
+                          (click)="saveLayout()"></button>
+                  <button pButton type="button" label="Undo" icon="pi pi-undo" class="p-button-sm"
+                          [disabled]="!canUndo" (click)="undo()"></button>
+                  <button pButton type="button" label="Redo" icon="pi pi-redo" class="p-button-sm"
+                          [disabled]="!canRedo" (click)="redo()"></button>
+                  <button pButton type="button"
+                          [label]="isAutoLayoutEnabled ? 'Auto Layout On' : 'Auto Layout Off'"
+                          icon="pi pi-sitemap"
+                          class="p-button-sm"
+                          [ngClass]="isAutoLayoutEnabled ? 'p-button-warning' : 'p-button-secondary'"
+                          (click)="toggleAutoLayout()"></button>
+                </div>
+
+                <div class="form-grid form-grid--canvas">
+                  <div class="form-row" *ngIf="collapseLevelOptions?.length">
+                    <label>Collapse to level</label>
+                    <select (change)="collapseToLevel($any($event.target).value)">
+                      <option value="">Select level</option>
+                      <option *ngFor="let option of collapseLevelOptions" [value]="option.value">
+                        {{ option.label }}
+                      </option>
+                    </select>
+                  </div>
+
+                  <div class="form-row" *ngIf="layoutOptions">
+                    <label>Layout engine</label>
+                    <select [ngModel]="layoutOptions!.activeId" (ngModelChange)="changeLayoutEngine($event)">
+                      <option *ngFor="let option of layoutOptions!.options" [value]="option.id">
+                        {{ option.label }}
+                      </option>
+                    </select>
+                  </div>
+
+                  <div class="form-row" *ngIf="lensOptions">
+                    <label>Graph lens</label>
+                    <select [ngModel]="lensOptions!.activeId" (ngModelChange)="changeGraphLens($event)">
+                      <option *ngFor="let lens of lensOptions!.options" [value]="lens.id">
+                        {{ lens.label }}
+                      </option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="preset-block" *ngIf="hasPresetControls()">
+                  <div class="preset-header">
+                    <span class="preset-title">View preset</span>
+                    <button type="button" class="link-button" (click)="resetPresetOverrides()" *ngIf="hasPresetOverrides">
+                      Reset overrides
+                    </button>
+                  </div>
+                  <div class="form-row">
+                    <select [ngModel]="activePresetId" (ngModelChange)="onPresetSelect($event)">
+                      <option *ngFor="let option of presetOptions" [value]="option.id">
+                        {{ option.label }}
+                      </option>
+                    </select>
+                  </div>
+                  <p class="preset-description" *ngIf="presetDescription">{{ presetDescription }}</p>
+                  <div class="palette-grid" *ngIf="activePresetId; else presetPlaceholder">
+                    <div class="palette-row" *ngFor="let palette of paletteKeys">
+                      <span class="palette-label">{{ palette.label }}</span>
+                      <div class="style-control color-control">
+                        <p-colorPicker
+                          [(ngModel)]="paletteDraft[palette.key]"
+                          format="hex"
+                          [appendTo]="'body'"
+                          [disabled]="!activePresetId"
+                          (ngModelChange)="onPresetColorChange(palette.key, $event)"
+                          class="color-swatch-button"
+                        ></p-colorPicker>
+                        <span class="color-preview" [style.background]="paletteDraft[palette.key]"></span>
+                        <input
+                          type="text"
+                          class="hex-input"
+                          [(ngModel)]="paletteDraft[palette.key]"
+                          (ngModelChange)="onPresetColorInputChange(palette.key, $event)"
+                          [disabled]="!activePresetId"
+                          placeholder="#0f172a"
+                          maxlength="7"
+                          pattern="^#[0-9A-Fa-f]{6}$">
+                      </div>
+                    </div>
+                  </div>
+                  <ng-template #presetPlaceholder>
+                    <div class="preset-empty">
+                      <i class="pi pi-info-circle"></i>
+                      <span>Select a preset to adjust colours.</span>
+                    </div>
+                  </ng-template>
+                </div>
+
+                <div class="containment-card" *ngIf="isCanvasView()">
+                  <label class="toggle-switch">
+                    <input type="checkbox" [(ngModel)]="containmentEnabled" />
+                    <span class="slider"></span>
+                    <span class="toggle-label">Enable containment nesting</span>
+                  </label>
+                  <div class="containment-meta">
+                    <span>Edges: <strong>CONTAINS</strong></span>
+                    <span class="status" *ngIf="containmentEnabled"><i class="pi pi-check-circle"></i> Active</span>
+                  </div>
                 </div>
               </div>
+            </p-accordion-content>
+          </p-accordion-panel>
 
-              <div class="button-row">
-                <button pButton type="button" label="Reset" icon="pi pi-refresh" class="p-button-sm"
-                        (click)="resetCanvas()"></button>
-                <button pButton type="button" label="Save Layout" icon="pi pi-save" class="p-button-sm p-button-success"
-                        (click)="saveLayout()"></button>
-                <button pButton type="button" label="Undo" icon="pi pi-undo" class="p-button-sm"
-                        [disabled]="!canUndo" (click)="undo()"></button>
-                <button pButton type="button" label="Redo" icon="pi pi-redo" class="p-button-sm"
-                        [disabled]="!canRedo" (click)="redo()"></button>
-                <button pButton type="button"
-                        [label]="isAutoLayoutEnabled ? 'Auto Layout On' : 'Auto Layout Off'"
-                        icon="pi pi-sitemap"
-                        class="p-button-sm"
-                        [ngClass]="isAutoLayoutEnabled ? 'p-button-warning' : 'p-button-secondary'"
-                        (click)="toggleAutoLayout()"></button>
-              </div>
-
-              <div class="form-grid form-grid--canvas">
-                <div class="form-row" *ngIf="collapseLevelOptions?.length">
-                  <label>Collapse to level</label>
-                  <select (change)="collapseToLevel($any($event.target).value)">
-                    <option value="">Select level</option>
-                    <option *ngFor="let option of collapseLevelOptions" [value]="option.value">
-                      {{ option.label }}
-                    </option>
-                  </select>
+          <p-accordion-panel value="node-settings" *ngIf="nodeSelection">
+            <p-accordion-header>
+              <span class="accordion-header">
+                <i class="pi pi-palette"></i>
+                <span>Node / Relationship Settings</span>
+              </span>
+            </p-accordion-header>
+            <p-accordion-content>
+              <div class="section section--node" *ngIf="nodeStyle; else nodeStyleEmpty">
+                <div class="section-summary">
+                  <div class="summary-primary">
+                    <span class="summary-title">{{ nodeSelection!.label || 'Selected node' }}</span>
+                    <span class="summary-meta summary-meta--badge">{{ nodeSelection!.type }}</span>
+                  </div>
+                  <div class="scope-group">
+                    <label>Apply to</label>
+                    <select [ngModel]="currentScope" (ngModelChange)="onScopeChange($event)">
+                      <option *ngFor="let option of scopeOptions" [value]="option.value">
+                        {{ option.label }}
+                      </option>
+                    </select>
+                  </div>
                 </div>
 
-                <div class="form-row" *ngIf="layoutOptions">
-                  <label>Layout engine</label>
-                  <select [ngModel]="layoutOptions!.activeId" (ngModelChange)="changeLayoutEngine($event)">
-                    <option *ngFor="let option of layoutOptions!.options" [value]="option.id">
-                      {{ option.label }}
-                    </option>
-                  </select>
-                </div>
-
-                <div class="form-row" *ngIf="lensOptions">
-                  <label>Graph lens</label>
-                  <select [ngModel]="lensOptions!.activeId" (ngModelChange)="changeGraphLens($event)">
-                    <option *ngFor="let lens of lensOptions!.options" [value]="lens.id">
-                      {{ lens.label }}
-                    </option>
-                  </select>
-                </div>
-              </div>
-
-              <div class="preset-block" *ngIf="hasPresetControls()">
-                <div class="preset-header">
-                  <span class="preset-title">View preset</span>
-                  <button type="button" class="link-button" (click)="resetPresetOverrides()" *ngIf="hasPresetOverrides">
-                    Reset overrides
-                  </button>
-                </div>
-                <div class="form-row">
-                  <select [ngModel]="activePresetId" (ngModelChange)="onPresetSelect($event)">
-                    <option *ngFor="let option of presetOptions" [value]="option.id">
-                      {{ option.label }}
-                    </option>
-                  </select>
-                </div>
-                <p class="preset-description" *ngIf="presetDescription">{{ presetDescription }}</p>
-                <div class="palette-grid" *ngIf="activePresetId; else presetPlaceholder">
-                  <div class="palette-row" *ngFor="let palette of paletteKeys">
-                    <span class="palette-label">{{ palette.label }}</span>
+                <div class="style-grid">
+                  <div class="style-row">
+                    <span class="style-label">Fill</span>
                     <div class="style-control color-control">
                       <p-colorPicker
-                        [(ngModel)]="paletteDraft[palette.key]"
+                        [(ngModel)]="nodeStyle.fill"
                         format="hex"
                         [appendTo]="'body'"
-                        [disabled]="!activePresetId"
-                        (ngModelChange)="onPresetColorChange(palette.key, $event)"
+                        (ngModelChange)="onFillChange($event)"
                         class="color-swatch-button"
                       ></p-colorPicker>
-                      <span class="color-preview" [style.background]="paletteDraft[palette.key]"></span>
+                      <span class="color-preview" [style.background]="nodeStyle.fill"></span>
                       <input
                         type="text"
                         class="hex-input"
-                        [(ngModel)]="paletteDraft[palette.key]"
-                        (ngModelChange)="onPresetColorInputChange(palette.key, $event)"
-                        [disabled]="!activePresetId"
-                        placeholder="#0f172a"
+                        [(ngModel)]="nodeStyle.fill"
+                        (ngModelChange)="onFillInputChange($event)"
+                        placeholder="#1f2937"
                         maxlength="7"
                         pattern="^#[0-9A-Fa-f]{6}$">
                     </div>
+                    <button type="button" class="ghost-button" (click)="resetFill()">Reset</button>
                   </div>
-                </div>
-                <ng-template #presetPlaceholder>
-                  <div class="preset-empty">
-                    <i class="pi pi-info-circle"></i>
-                    <span>Select a preset to adjust colours.</span>
+
+                  <div class="style-row">
+                    <span class="style-label">Border</span>
+                    <div class="style-control color-control">
+                      <p-colorPicker
+                        [(ngModel)]="nodeStyle.stroke"
+                        format="hex"
+                        [appendTo]="'body'"
+                        (ngModelChange)="onStrokeChange($event)"
+                        class="color-swatch-button"
+                      ></p-colorPicker>
+                      <span class="color-preview" [style.background]="nodeStyle.stroke"></span>
+                      <input
+                        type="text"
+                        class="hex-input"
+                        [(ngModel)]="nodeStyle.stroke"
+                        (ngModelChange)="onStrokeInputChange($event)"
+                        placeholder="#4b5563"
+                        maxlength="7"
+                        pattern="^#[0-9A-Fa-f]{6}$">
+                    </div>
+                    <button type="button" class="ghost-button" (click)="resetStroke()">Reset</button>
                   </div>
-                </ng-template>
-              </div>
 
-              <div class="containment-card" *ngIf="isCanvasView()">
-                <label class="toggle-switch">
-                  <input type="checkbox" [(ngModel)]="containmentEnabled" />
-                  <span class="slider"></span>
-                  <span class="toggle-label">Enable containment nesting</span>
-                </label>
-                <div class="containment-meta">
-                  <span>Edges: <strong>CONTAINS</strong></span>
-                  <span class="status" *ngIf="containmentEnabled"><i class="pi pi-check-circle"></i> Active</span>
-                </div>
-              </div>
-            </div>
-          </p-accordion-content>
-        </p-accordion-panel>
-
-        <p-accordion-panel value="node-settings" *ngIf="nodeSelection">
-          <p-accordion-header>
-            <span class="accordion-header" >
-              <i class="pi pi-palette"></i>
-              <span>Node / Relationship Settings</span>
-            </span>
-          </p-accordion-header>
-          <p-accordion-content>
-            <div class="section section--node" *ngIf="nodeStyle; else nodeStyleEmpty">
-              <div class="section-summary">
-                <div class="summary-primary">
-                  <span class="summary-title">{{ nodeSelection!.label || 'Selected node' }}</span>
-                  <span class="summary-meta summary-meta--badge">{{ nodeSelection!.type }}</span>
-                </div>
-                <div class="scope-group">
-                  <label>Apply to</label>
-                  <select [ngModel]="currentScope" (ngModelChange)="onScopeChange($event)">
-                    <option *ngFor="let option of scopeOptions" [value]="option.value">
-                      {{ option.label }}
-                    </option>
-                  </select>
-                </div>
-              </div>
-
-              <div class="style-grid">
-                <div class="style-row">
-                  <span class="style-label">Fill</span>
-                  <div class="style-control color-control">
-                    <p-colorPicker
-                      [(ngModel)]="nodeStyle.fill"
-                      format="hex"
-                      [appendTo]="'body'"
-                      (ngModelChange)="onFillChange($event)"
-                      class="color-swatch-button"
-                    ></p-colorPicker>
-                    <span class="color-preview" [style.background]="nodeStyle.fill"></span>
-                    <input
-                      type="text"
-                      class="hex-input"
-                      [(ngModel)]="nodeStyle.fill"
-                      (ngModelChange)="onFillInputChange($event)"
-                      placeholder="#1f2937"
-                      maxlength="7"
-                      pattern="^#[0-9A-Fa-f]{6}$">
+                  <div class="style-row">
+                    <span class="style-label">Label</span>
+                    <div class="style-control">
+                      <label class="toggle">
+                        <input type="checkbox" [checked]="nodeStyle.labelVisible" (change)="onLabelToggle($event.target.checked)">
+                        <span>Visible</span>
+                      </label>
+                    </div>
+                    <button type="button" class="ghost-button" (click)="resetLabelVisibility()">Reset</button>
                   </div>
-                  <button type="button" class="ghost-button" (click)="resetFill()">Reset</button>
-                </div>
 
-                <div class="style-row">
-                  <span class="style-label">Border</span>
-                  <div class="style-control color-control">
-                    <p-colorPicker
-                      [(ngModel)]="nodeStyle.stroke"
-                      format="hex"
-                      [appendTo]="'body'"
-                      (ngModelChange)="onStrokeChange($event)"
-                      class="color-swatch-button"
-                    ></p-colorPicker>
-                    <span class="color-preview" [style.background]="nodeStyle.stroke"></span>
-                    <input
-                      type="text"
-                      class="hex-input"
-                      [(ngModel)]="nodeStyle.stroke"
-                      (ngModelChange)="onStrokeInputChange($event)"
-                      placeholder="#4b5563"
-                      maxlength="7"
-                      pattern="^#[0-9A-Fa-f]{6}$">
+                  <div class="style-row">
+                    <span class="style-label">Icon</span>
+                    <div class="style-control">
+                      <input type="text" [(ngModel)]="nodeStyle.icon" (blur)="onIconChange(nodeStyle.icon)" placeholder="Emoji or glyph" />
+                    </div>
+                    <button type="button" class="ghost-button" (click)="resetIcon()">Reset</button>
                   </div>
-                  <button type="button" class="ghost-button" (click)="resetStroke()">Reset</button>
-                </div>
 
-                <div class="style-row">
-                  <span class="style-label">Label</span>
-                  <div class="style-control">
-                    <label class="toggle">
-                      <input type="checkbox" [checked]="nodeStyle.labelVisible" (change)="onLabelToggle($event.target.checked)">
-                      <span>Visible</span>
-                    </label>
+                  <div class="style-row">
+                    <span class="style-label">Shape</span>
+                    <div class="style-control">
+                      <select [ngModel]="nodeStyle.shape" (ngModelChange)="onShapeChange($event)">
+                        <option *ngFor="let shape of shapeOptions" [value]="shape.value">{{ shape.label }}</option>
+                      </select>
+                    </div>
+                    <button type="button" class="ghost-button" (click)="resetShape()">Reset</button>
                   </div>
-                  <button type="button" class="ghost-button" (click)="resetLabelVisibility()">Reset</button>
-                </div>
 
-                <div class="style-row">
-                  <span class="style-label">Icon</span>
-                  <div class="style-control">
-                    <input type="text" [(ngModel)]="nodeStyle.icon" (blur)="onIconChange(nodeStyle.icon)" placeholder="Emoji or glyph" />
+                  <div class="style-row" *ngIf="nodeStyle.shape === 'rounded'">
+                    <span class="style-label">Radius</span>
+                    <div class="style-control range-control">
+                      <input type="range" min="0" max="100" [value]="nodeStyle.cornerRadius" (input)="onCornerRadiusChange($any($event.target).value)" />
+                      <span class="range-value">{{ nodeStyle.cornerRadius }}</span>
+                    </div>
+                    <button type="button" class="ghost-button" (click)="resetCornerRadius()">Reset</button>
                   </div>
-                  <button type="button" class="ghost-button" (click)="resetIcon()">Reset</button>
-                </div>
-
-                <div class="style-row">
-                  <span class="style-label">Shape</span>
-                  <div class="style-control">
-                    <select [ngModel]="nodeStyle.shape" (ngModelChange)="onShapeChange($event)">
-                      <option *ngFor="let shape of shapeOptions" [value]="shape.value">{{ shape.label }}</option>
-                    </select>
-                  </div>
-                  <button type="button" class="ghost-button" (click)="resetShape()">Reset</button>
-                </div>
-
-                <div class="style-row" *ngIf="nodeStyle.shape === 'rounded'">
-                  <span class="style-label">Radius</span>
-                  <div class="style-control range-control">
-                    <input type="range" min="0" max="100" [value]="nodeStyle.cornerRadius" (input)="onCornerRadiusChange($any($event.target).value)" />
-                    <span class="range-value">{{ nodeStyle.cornerRadius }}</span>
-                  </div>
-                  <button type="button" class="ghost-button" (click)="resetCornerRadius()">Reset</button>
                 </div>
               </div>
-            </div>
-            <ng-template #nodeStyleEmpty>
-              <div class="section empty">
-                <i class="pi pi-info-circle"></i>
-                <p>Select a node to adjust its style.</p>
-              </div>
-            </ng-template>
-          </p-accordion-content>
-        </p-accordion-panel>
-      </p-accordion>
+              <ng-template #nodeStyleEmpty>
+                <div class="section empty">
+                  <i class="pi pi-info-circle"></i>
+                  <p>Select a node on the canvas to adjust styling.</p>
+                </div>
+              </ng-template>
+            </p-accordion-content>
+          </p-accordion-panel>
+        </p-accordion>
+      </div>
       <div class="panel-footer">
         <label>
-          Panel opacity
+          <span>Panel opacity</span>
           <span>{{ (panelOpacity * 100) | number:'1.0-0' }}%</span>
         </label>
         <input type="range"
@@ -293,22 +295,53 @@ interface EditableNodeStyle {
                (ngModelChange)="onPanelOpacityChange($event)">
       </div>
     </div>
-  `,
+`,
   styles: [`
     .properties-panel {
       display: flex;
       flex-direction: column;
+      height: 100%;
       gap: 0.75rem;
     }
 
+    .accordion-container {
+      flex: 1;
+      display: flex;
+    }
+
+    .panel-accordion {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
     :host {
+      display: block;
       --panel-opacity: var(--properties-panel-opacity, 0.85);
     }
 
-    :host ::ng-deep .p-accordion-header-link {
+    :host ::ng-deep .panel-accordion .p-accordion {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    :host ::ng-deep .p-accordion-content {
+      background: transparent !important;
+      border: none !important;
+      padding: 0 !important;
+    }
+
+    :host ::ng-deep .p-accordion-tab {
       background: transparent;
       border: none;
+    }
+
+    :host ::ng-deep .p-accordion-header-link {
+      display: block;
       padding: 0;
+      background: transparent;
+      border: none;
     }
 
     .accordion-header {
@@ -366,7 +399,6 @@ interface EditableNodeStyle {
       color: var(--text-primary);
       font-size: 0.9rem;
       transition: background 0.2s ease, border-color 0.2s ease;
-      transition: background 0.2s ease, border-color 0.2s ease;
     }
 
     .section-summary {
@@ -408,7 +440,7 @@ interface EditableNodeStyle {
       font-family: 'IBM Plex Mono', 'Fira Code', monospace;
       font-size: 0.78rem;
       color: var(--text-secondary);
-      background: rgba(15, 23, 42, 0.4);
+      background: rgba(15, 23, 42, calc(var(--panel-opacity) * 0.45));
       padding: 0.4rem 0.6rem;
       border-radius: 6px;
     }
@@ -732,7 +764,7 @@ interface EditableNodeStyle {
       flex-direction: column;
       gap: 0.5rem;
       padding: 0.75rem 1rem;
-      margin-top: 0.25rem;
+      margin-top: auto;
       background: rgba(15, 23, 42, calc(var(--panel-opacity) * 0.6));
       border: 1px solid rgba(110, 168, 254, calc(var(--panel-opacity) * 0.3));
       border-radius: 8px;
