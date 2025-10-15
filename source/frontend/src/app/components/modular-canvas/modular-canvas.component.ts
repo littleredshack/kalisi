@@ -268,26 +268,17 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
 
 
       if (result.entities.length > 0) {
-        // Store raw data for layout engine processing during engine creation
         this.rawViewNodeData = result;
-        
-        // If ViewNode has saved layout, use it directly
+
+        let baseData = this.convertToHierarchicalFormat(result);
         if (viewNode.layout) {
           try {
-            const savedLayoutData = JSON.parse(viewNode.layout);
-            if (savedLayoutData.nodes && savedLayoutData.nodes.length > 0) {
-              this.normaliseCanvasData(savedLayoutData);
-              this.data = savedLayoutData;
-              this.rawViewNodeData = null; // Don't process with strategy
-            } else {
-              this.data = this.createDefaultData(); // Temporary placeholder
-            }
+            baseData = this.mergeSavedLayout(baseData, viewNode.layout);
           } catch (error) {
-            this.data = this.createDefaultData(); // Temporary placeholder
+            console.warn('Failed to merge saved layout; using raw data', error);
           }
-        } else {
-          this.data = this.createDefaultData(); // Temporary placeholder
         }
+        this.data = baseData;
 
         // After loading layout data, also load Auto Layout settings
         const autoLayoutState = viewNode.autoLayoutSettings
@@ -320,27 +311,55 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   }
 
   // FR-030: Apply saved layout from ViewNode
-  private applyViewNodeLayout(layoutJson: string): void {
-    try {
-      const layout = JSON.parse(layoutJson);
-      if ((globalThis as any).__LAYOUT_DEBUG__) {
-        console.debug('[VIEWNODE LAYOUT] raw root', JSON.stringify(layout.nodes?.[0] ?? null));
-      }
-      this.normaliseCanvasData(layout);
-      if ((globalThis as any).__LAYOUT_DEBUG__) {
-        console.debug('[VIEWNODE LAYOUT] normalised root', JSON.stringify(layout.nodes?.[0] ?? null));
-      }
-      // Apply layout directly to engine if it exists, otherwise store for later
-      if (this.engine) {
-        this.canvasViewStateService.initialize(this.canvasId, layout, 'external');
-        this.engine.setData(layout);
-      } else {
-        // Engine not ready yet, store temporarily for createEngineWithData
-        this.pendingViewNodeLayout = layout;
-      }
-    } catch (error) {
-      console.error('Failed to apply ViewNode layout:', error);
+  private mergeSavedLayout(baseData: CanvasData, layoutJson: string): CanvasData {
+    const layout = JSON.parse(layoutJson) as CanvasData;
+    this.normaliseCanvasData(layout);
+
+    const savedMap = new Map<string, HierarchicalNode>();
+    const collect = (nodes: HierarchicalNode[]) => {
+      nodes.forEach(node => {
+        const key = node.GUID ?? node.id;
+        if (key) {
+          savedMap.set(key, node);
+        }
+        if (node.children && node.children.length > 0) {
+          collect(node.children);
+        }
+      });
+    };
+    collect(layout.nodes ?? []);
+
+    const apply = (nodes: HierarchicalNode[]) => {
+      nodes.forEach(node => {
+        const key = node.GUID ?? node.id;
+        if (key && savedMap.has(key)) {
+          const snapshot = savedMap.get(key)!;
+          node.x = snapshot.x;
+          node.y = snapshot.y;
+          node.width = snapshot.width;
+          node.height = snapshot.height;
+          node.collapsed = snapshot.collapsed ?? node.collapsed;
+          node.visible = snapshot.visible ?? node.visible;
+          node.style = { ...node.style, ...(snapshot.style ?? {}) };
+          node.metadata = this.mergeNodeMetadata(snapshot.metadata, node.metadata);
+        }
+        if (node.children && node.children.length > 0) {
+          apply(node.children);
+        }
+      });
+    };
+    apply(baseData.nodes ?? []);
+
+    if (layout.camera) {
+      baseData.camera = layout.camera;
     }
+
+    baseData.metadata = {
+      ...(layout.metadata ?? {}),
+      ...(baseData.metadata ?? {})
+    };
+
+    return this.normaliseCanvasData(baseData);
   }
 
   private convertToHierarchicalFormat(neo4jData: {entities: any[], relationships: any[]}): CanvasData {
@@ -476,6 +495,29 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     };
 
     return this.normaliseCanvasData(data);
+  }
+
+  private mergeNodeMetadata(
+    saved?: Record<string, unknown>,
+    current?: Record<string, unknown>
+  ): Record<string, unknown> | undefined {
+    if (!saved && !current) {
+      return undefined;
+    }
+
+    const merged: Record<string, unknown> = {
+      ...(saved ?? {}),
+      ...(current ?? {})
+    };
+
+    if (saved && 'styleOverrides' in saved) {
+      merged['styleOverrides'] = saved['styleOverrides'];
+    }
+    if (saved && 'presentation' in saved) {
+      merged['presentation'] = saved['presentation'];
+    }
+
+    return merged;
   }
 
   private createEngineWithData(): void {
