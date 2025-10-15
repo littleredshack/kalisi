@@ -5,47 +5,13 @@ import {
   TreeTableColumn,
   TreeTableNode,
   TreeTableQueryResult,
-  TreeTableValue,
+  TreeTableValue
 } from '../../shared/tree-table/tree-table.types';
 import { TreeTableLayoutResult } from '../../shared/tree-table/tree-table-layout-engine';
+import { RawEntity, RawRelationship, RawDataInput } from '../../shared/layouts/core/layout-contract';
 
-// Simple entity model without renderer dependency
-interface EntityModel {
-  id: string;
-  name: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  color: string;
-  stroke?: string;
-  icon?: string;
-  badges?: Array<{ text: string; color?: string }>;
-  labelVisible?: boolean;
-  properties?: Record<string, any>;
-  parent: string | null;
-  children: string[];
-  expanded: boolean;
-  animating: boolean;
-}
-// Consolidated Neo4j service - no separate parser needed
-
-// =============================================================================
-// NEO4J DATA SERVICE  
-// Pure data operations for Neo4j queries and transformations
-// =============================================================================
-
-export interface GraphRelationship {
-  id: string;
-  source: string;
-  target: string;
-  type: string;
-  properties?: Record<string, any>;
-  color?: string;
-  width?: number;
-  dash?: number[];
-  label?: string;
-  labelVisible?: boolean;
+export interface GraphRawData extends RawDataInput {
+  readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
 interface RuntimeGraphResponse {
@@ -170,7 +136,7 @@ export class Neo4jDataService {
     }
   }
 
-  async executeViewNodeQuery(viewNode: any): Promise<{entities: EntityModel[], relationships: GraphRelationship[]}> {
+  async executeViewNodeQuery(viewNode: any): Promise<GraphRawData> {
     try {
       // Get the cypherQuery from the associated QueryNode instead of ViewNode
       let queryToExecute = await this.getQueryFromQueryNode(viewNode);
@@ -199,11 +165,11 @@ export class Neo4jDataService {
       return this.convertRuntimeGraph(runtimeResponse);
     } catch (error) {
       console.error('Error executing ViewNode query:', error);
-      return { entities: [], relationships: [] };
+      return this.createEmptyState(viewNode?.name ?? 'view', 'Failed to load view data');
     }
   }
 
-  async directQuery(entityName: string): Promise<any> {
+  async directQuery(entityName: string): Promise<GraphRawData> {
     const startTime = performance.now();
     console.log(`⏰ CLICK START: ${new Date().toISOString()} - ${startTime}ms`);
     
@@ -250,19 +216,10 @@ export class Neo4jDataService {
       console.log(`⏱️ TOTAL TIME: ${totalTime.toFixed(2)}ms (Click to Final JSON)`);
       console.log(`⏰ COMPLETED: ${new Date().toISOString()} - ${endTime}ms`);
 
-      const converted = this.convertLegacyLists(cleanNodes, cleanEdges);
-
-      return {
-        success: true,
-        data: {
-          count: result.data.count,
-          query: cypherQuery,
-          results: converted
-        }
-      };
+      return this.convertLegacyLists(cleanNodes, cleanEdges);
     } catch (error) {
       console.error('🚨 QUERY FAILED:', error);
-      throw error;
+      return this.createEmptyState(entityName, `Error: ${String(error)}`);
     }
   }
 
