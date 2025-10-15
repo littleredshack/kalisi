@@ -1081,7 +1081,7 @@ export class ComposableHierarchicalCanvasEngine {
     };
 
     try {
-      const presentation = this.layoutRuntime.computePresentation(resolved.preset);
+      const presentation = this.layoutRuntime?.computePresentation?.(resolved.preset);
       applyPresetStylesInPlace(this.data, resolved.preset, presentation);
     } catch (error) {
       console.warn('[CanvasEngine] Failed to apply preset presentation via runtime', error);
