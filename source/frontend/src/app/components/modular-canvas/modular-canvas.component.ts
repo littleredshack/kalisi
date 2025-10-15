@@ -268,17 +268,26 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
 
 
       if (result.entities.length > 0) {
-        this.rawViewNodeData = result;
-
-        let baseData = this.convertToHierarchicalFormat(result);
         if (viewNode.layout) {
           try {
-            baseData = this.mergeSavedLayout(baseData, viewNode.layout);
+            const savedLayoutData = JSON.parse(viewNode.layout);
+            if (savedLayoutData.nodes && savedLayoutData.nodes.length > 0) {
+              this.normaliseCanvasData(savedLayoutData);
+              this.data = savedLayoutData;
+              this.rawViewNodeData = null;
+            } else {
+              this.data = this.convertToHierarchicalFormat(result);
+              this.rawViewNodeData = result;
+            }
           } catch (error) {
-            console.warn('Failed to merge saved layout; using raw data', error);
+            console.warn('Failed to parse saved layout; using raw data', error);
+            this.data = this.convertToHierarchicalFormat(result);
+            this.rawViewNodeData = result;
           }
+        } else {
+          this.data = this.convertToHierarchicalFormat(result);
+          this.rawViewNodeData = result;
         }
-        this.data = baseData;
 
         // After loading layout data, also load Auto Layout settings
         const autoLayoutState = viewNode.autoLayoutSettings
@@ -311,60 +320,10 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   }
 
   // FR-030: Apply saved layout from ViewNode
-  private mergeSavedLayout(baseData: CanvasData, layoutJson: string): CanvasData {
-    const layout = JSON.parse(layoutJson) as CanvasData;
-    this.normaliseCanvasData(layout);
-
-    const savedMap = new Map<string, HierarchicalNode>();
-    const collect = (nodes: HierarchicalNode[]) => {
-      nodes.forEach(node => {
-        const key = node.GUID ?? node.id;
-        if (key) {
-          savedMap.set(key, node);
-        }
-        if (node.children && node.children.length > 0) {
-          collect(node.children);
-        }
-      });
-    };
-    collect(layout.nodes ?? []);
-
-    const apply = (nodes: HierarchicalNode[]) => {
-      nodes.forEach(node => {
-        const key = node.GUID ?? node.id;
-        if (key && savedMap.has(key)) {
-          const snapshot = savedMap.get(key)!;
-          node.x = snapshot.x;
-          node.y = snapshot.y;
-          node.width = snapshot.width;
-          node.height = snapshot.height;
-          node.collapsed = snapshot.collapsed ?? node.collapsed;
-          node.visible = snapshot.visible ?? node.visible;
-          node.style = { ...node.style, ...(snapshot.style ?? {}) };
-          node.metadata = this.mergeNodeMetadata(snapshot.metadata, node.metadata);
-        }
-        if (node.children && node.children.length > 0) {
-          apply(node.children);
-        }
-      });
-    };
-    apply(baseData.nodes ?? []);
-
-    if (layout.camera) {
-      baseData.camera = layout.camera;
-    }
-
-    baseData.metadata = {
-      ...(layout.metadata ?? {}),
-      ...(baseData.metadata ?? {})
-    };
-
-    return this.normaliseCanvasData(baseData);
-  }
-
   private convertToHierarchicalFormat(neo4jData: {entities: any[], relationships: any[]}): CanvasData {
     // Use runtime data processing instead of legacy layout engine
-    const tempRuntime = new CanvasLayoutRuntime(`${this.canvasId}-test`, this.data!, {
+    const seedData = this.data ?? this.createDefaultData();
+    const tempRuntime = new CanvasLayoutRuntime(`${this.canvasId}-runtime`, seedData, {
       defaultEngine: 'containment-grid',
       runLayoutOnInit: false
     });
@@ -495,29 +454,6 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     };
 
     return this.normaliseCanvasData(data);
-  }
-
-  private mergeNodeMetadata(
-    saved?: Record<string, unknown>,
-    current?: Record<string, unknown>
-  ): Record<string, unknown> | undefined {
-    if (!saved && !current) {
-      return undefined;
-    }
-
-    const merged: Record<string, unknown> = {
-      ...(saved ?? {}),
-      ...(current ?? {})
-    };
-
-    if (saved && 'styleOverrides' in saved) {
-      merged['styleOverrides'] = saved['styleOverrides'];
-    }
-    if (saved && 'presentation' in saved) {
-      merged['presentation'] = saved['presentation'];
-    }
-
-    return merged;
   }
 
   private createEngineWithData(): void {
