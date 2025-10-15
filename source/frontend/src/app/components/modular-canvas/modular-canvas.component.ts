@@ -268,8 +268,6 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
 
 
       if (result.entities.length > 0) {
-        this.rawViewNodeData = result;
-
         let baseData = this.convertToHierarchicalFormat(result);
         if (viewNode.layout) {
           try {
@@ -279,6 +277,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
           }
         }
         this.data = baseData;
+        this.rawViewNodeData = null;
 
         // After loading layout data, also load Auto Layout settings
         const autoLayoutState = viewNode.autoLayoutSettings
