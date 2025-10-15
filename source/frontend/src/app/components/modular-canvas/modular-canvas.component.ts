@@ -268,25 +268,12 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
 
 
       if (result.entities.length > 0) {
-        // Store raw data for layout engine processing during engine creation
         this.rawViewNodeData = result;
-        
-        // If ViewNode has saved layout, use it directly
+
         if (viewNode.layout) {
-          try {
-            const savedLayoutData = JSON.parse(viewNode.layout);
-            if (savedLayoutData.nodes && savedLayoutData.nodes.length > 0) {
-              this.normaliseCanvasData(savedLayoutData);
-              this.data = savedLayoutData;
-              this.rawViewNodeData = null; // Don't process with strategy
-            } else {
-              this.data = this.createDefaultData(); // Temporary placeholder
-            }
-          } catch (error) {
-            this.data = this.createDefaultData(); // Temporary placeholder
-          }
+          this.applyViewNodeLayout(viewNode.layout);
         } else {
-          this.data = this.createDefaultData(); // Temporary placeholder
+          this.data = this.createDefaultData();
         }
 
         // After loading layout data, also load Auto Layout settings
