@@ -268,13 +268,26 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
 
 
       if (result.entities.length > 0) {
-        const baseGraph = this.convertToHierarchicalFormat(result);
         if (viewNode.layout) {
-          this.data = this.applySavedLayout(baseGraph, viewNode.layout);
+          try {
+            const savedLayoutData = JSON.parse(viewNode.layout);
+            if (savedLayoutData.nodes && savedLayoutData.nodes.length > 0) {
+              this.normaliseCanvasData(savedLayoutData);
+              this.data = savedLayoutData;
+              this.rawViewNodeData = null;
+            } else {
+              this.data = this.convertToHierarchicalFormat(result);
+              this.rawViewNodeData = result;
+            }
+          } catch (error) {
+            console.warn('Failed to parse saved layout; using raw data', error);
+            this.data = this.convertToHierarchicalFormat(result);
+            this.rawViewNodeData = result;
+          }
         } else {
-          this.data = baseGraph;
+          this.data = this.convertToHierarchicalFormat(result);
+          this.rawViewNodeData = result;
         }
-        this.rawViewNodeData = result;
 
         // After loading layout data, also load Auto Layout settings
         const autoLayoutState = viewNode.autoLayoutSettings
@@ -308,7 +321,9 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
 
   // FR-030: Apply saved layout from ViewNode
   private convertToHierarchicalFormat(neo4jData: {entities: any[], relationships: any[]}): CanvasData {
-    const tempRuntime = new CanvasLayoutRuntime(`${this.canvasId}-runtime`, this.createEmptyCanvasData(), {
+    // Use runtime data processing instead of legacy layout engine
+    const seedData = this.data ?? this.createDefaultData();
+    const tempRuntime = new CanvasLayoutRuntime(`${this.canvasId}-runtime`, seedData, {
       defaultEngine: 'containment-grid',
       runLayoutOnInit: false
     });
@@ -439,132 +454,6 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     };
 
     return this.normaliseCanvasData(data);
-  }
-
-  private createEmptyCanvasData(): CanvasData {
-    return {
-      nodes: [],
-      edges: [],
-      originalEdges: [],
-      camera: undefined
-    };
-  }
-
-  private applySavedLayout(raw: CanvasData, layoutJson: string): CanvasData {
-    try {
-      const savedLayout = JSON.parse(layoutJson) as CanvasData;
-      this.normaliseCanvasData(savedLayout);
-
-      const savedNodeMap = new Map<string, HierarchicalNode>();
-      const collectSavedNodes = (nodes: HierarchicalNode[]): void => {
-        nodes.forEach(node => {
-          const key = node.GUID ?? node.id;
-          if (key) {
-            savedNodeMap.set(key, node);
-          }
-          if (node.children && node.children.length > 0) {
-            collectSavedNodes(node.children);
-          }
-        });
-      };
-      collectSavedNodes(savedLayout.nodes ?? []);
-
-      const applyGeometry = (node: HierarchicalNode): void => {
-        const key = node.GUID ?? node.id;
-        const saved = key ? savedNodeMap.get(key) : undefined;
-        if (saved) {
-          node.x = saved.x;
-          node.y = saved.y;
-          node.width = saved.width;
-          node.height = saved.height;
-          node.text = saved.text ?? node.text;
-          node.collapsed = saved.collapsed ?? node.collapsed;
-          node.visible = saved.visible ?? node.visible;
-          node.style = { ...node.style, ...(saved.style ?? {}) };
-          node.metadata = this.mergeNodeMetadata(saved.metadata, node.metadata);
-        }
-        node.children?.forEach(child => applyGeometry(child));
-      };
-      raw.nodes?.forEach(node => applyGeometry(node));
-
-      raw.edges = this.mergeEdgeState(raw.edges ?? [], savedLayout.edges ?? []);
-      raw.originalEdges = this.mergeEdgeState(raw.originalEdges ?? [], savedLayout.originalEdges ?? []);
-
-      raw.camera = savedLayout.camera ?? raw.camera;
-      raw.metadata = {
-        ...(raw.metadata ?? {}),
-        ...(savedLayout.metadata ?? {})
-      };
-
-      return this.normaliseCanvasData(raw);
-    } catch (error) {
-      console.warn('[ModularCanvas] applySavedLayout failed, using raw data', error);
-      return raw;
-    }
-  }
-
-  private mergeEdgeState(rawEdges: Edge[], savedEdges: Edge[]): Edge[] {
-    if (savedEdges.length === 0) {
-      return rawEdges;
-    }
-
-    const rawMap = new Map<string, Edge>();
-    rawEdges.forEach(edge => rawMap.set(edge.id, edge));
-
-    const merged: Edge[] = [];
-
-    savedEdges.forEach(saved => {
-      const raw = rawMap.get(saved.id);
-      if (raw) {
-        merged.push({
-          ...raw,
-          from: saved.from ?? raw.from,
-          to: saved.to ?? raw.to,
-          fromGUID: saved.fromGUID ?? raw.fromGUID,
-          toGUID: saved.toGUID ?? raw.toGUID,
-          label: saved.label ?? raw.label,
-          style: { ...raw.style, ...(saved.style ?? {}) },
-          metadata: this.mergeNodeMetadata(saved.metadata, raw.metadata),
-          waypoints: saved.waypoints
-            ? saved.waypoints.map(point => ({ ...point }))
-            : raw.waypoints
-        });
-      } else {
-        merged.push({
-          id: saved.id,
-          from: saved.from,
-          to: saved.to,
-          fromGUID: saved.fromGUID,
-          toGUID: saved.toGUID,
-          label: saved.label,
-          style: { ...saved.style },
-          waypoints: saved.waypoints ? saved.waypoints.map(point => ({ ...point })) : undefined,
-          metadata: saved.metadata ? { ...saved.metadata } : undefined
-        });
-      }
-    });
-
-    rawEdges.forEach(edge => {
-      if (!rawMap.has(edge.id) || savedEdges.some(saved => saved.id === edge.id)) {
-        return;
-      }
-      merged.push(edge);
-    });
-
-    return merged;
-  }
-
-  private mergeNodeMetadata(
-    saved?: Record<string, unknown>,
-    current?: Record<string, unknown>
-  ): Record<string, unknown> | undefined {
-    if (!saved && !current) {
-      return undefined;
-    }
-    return {
-      ...(current ?? {}),
-      ...(saved ?? {})
-    };
   }
 
   private createEngineWithData(): void {
