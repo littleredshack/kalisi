@@ -5,9 +5,10 @@ import {
   TreeTableColumn,
   TreeTableNode,
   TreeTableQueryResult,
-  TreeTableValue,
+  TreeTableValue
 } from '../../shared/tree-table/tree-table.types';
 import { TreeTableLayoutResult } from '../../shared/tree-table/tree-table-layout-engine';
+import { RawEntity, RawRelationship, RawDataInput } from '../../shared/layouts/core/layout-contract';
 
 // Simple entity model without renderer dependency
 interface EntityModel {
@@ -46,6 +47,10 @@ export interface GraphRelationship {
   dash?: number[];
   label?: string;
   labelVisible?: boolean;
+}
+
+export interface GraphRawData extends RawDataInput {
+  readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
 interface RuntimeGraphResponse {
@@ -201,6 +206,14 @@ export class Neo4jDataService {
       console.error('Error executing ViewNode query:', error);
       return { entities: [], relationships: [] };
     }
+  }
+
+  async loadRawGraph(viewNode: any): Promise<GraphRawData> {
+    const result = await this.executeViewNodeQuery(viewNode);
+    return this.convertEntitiesToRawData(result.entities, result.relationships, {
+      viewNodeId: viewNode?.id,
+      viewName: viewNode?.name ?? viewNode?.label
+    });
   }
 
   async directQuery(entityName: string): Promise<any> {
@@ -628,6 +641,85 @@ export class Neo4jDataService {
       }],
       relationships: []
     };
+  }
+
+  private createEmptyRawState(viewType: string, message: string): GraphRawData {
+    return {
+      entities: [
+        {
+          id: `empty-${viewType}`,
+          name: message,
+          type: 'message',
+          properties: { viewType, message }
+        }
+      ],
+      relationships: [],
+      metadata: {
+        empty: true,
+        viewType,
+        message
+      }
+    };
+  }
+
+  private convertEntitiesToRawData(
+    entities: EntityModel[],
+    relationships: GraphRelationship[],
+    metadata?: Record<string, unknown>
+  ): GraphRawData {
+    const rawEntities: RawEntity[] = entities.map(entity => {
+      const baseProperties: Record<string, unknown> = {
+        ...(entity.properties ?? {}),
+        position: { x: entity.x, y: entity.y },
+        size: { width: entity.width, height: entity.height },
+        color: entity.color,
+        stroke: entity.stroke,
+        icon: entity.icon,
+        badges: entity.badges,
+        labelVisible: entity.labelVisible,
+        parent: entity.parent
+      };
+
+      return {
+        id: entity.id,
+        name: entity.name,
+        type: this.resolveRawEntityType(entity, baseProperties),
+        properties: baseProperties
+      };
+    });
+
+    const rawRelationships: RawRelationship[] = relationships.map(rel => ({
+      id: rel.id,
+      source: rel.source,
+      target: rel.target,
+      type: rel.type,
+      properties: {
+        ...(rel.properties ?? {}),
+        color: rel.color,
+        width: rel.width,
+        dash: rel.dash,
+        label: rel.label,
+        labelVisible: rel.labelVisible
+      }
+    }));
+
+    return {
+      entities: rawEntities,
+      relationships: rawRelationships,
+      metadata
+    };
+  }
+
+  private resolveRawEntityType(entity: EntityModel, properties: Record<string, unknown>): string {
+    const propType = properties['type'];
+    if (typeof propType === 'string' && propType.trim().length > 0) {
+      return propType;
+    }
+    const entityType = entity.properties?.['type'];
+    if (typeof entityType === 'string' && entityType.trim().length > 0) {
+      return entityType;
+    }
+    return 'Node';
   }
 
   // Get cypherQuery from parent SetNode's QueryNode via hierarchical relationship
