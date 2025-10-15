@@ -17,12 +17,16 @@ export interface GraphRawData extends RawDataInput {
 interface RuntimeGraphResponse {
   query_id: string;
   cypher: string;
-  parameters: Record<string, unknown>;
+  parameters: Record<string, any>;
   nodes: Array<{
     guid: string;
     labels?: string[];
     parent_guid?: string | null;
-    position?: { x: number; y: number; z?: number | null };
+    position?: {
+      x: number;
+      y: number;
+      z?: number | null;
+    };
     display?: {
       width?: number;
       height?: number;
@@ -33,7 +37,7 @@ interface RuntimeGraphResponse {
       label_visible?: boolean;
     };
     tags?: Record<string, string[]>;
-    properties: Record<string, unknown>;
+    properties: Record<string, any>;
   }>;
   relationships: Array<{
     guid: string;
@@ -47,7 +51,7 @@ interface RuntimeGraphResponse {
       label_visible?: boolean;
       dash?: number[];
     };
-    properties: Record<string, unknown>;
+    properties: Record<string, any>;
   }>;
   metadata: {
     elapsed_ms: number;
@@ -57,11 +61,20 @@ interface RuntimeGraphResponse {
   raw_rows?: Array<Record<string, unknown>>;
 }
 
-@Injectable({ providedIn: 'root' })
+
+@Injectable({
+  providedIn: 'root'
+})
 export class Neo4jDataService {
-
-  constructor(private readonly http: HttpClient) {}
-
+  
+  constructor(
+    private http: HttpClient
+  ) {}
+  /**
+   * Fetch the flattened tree-table data in the canonical format consumed by
+   * the TreeTable layout/renderer stack. If no batch id is supplied we use
+   * the most recent import.
+   */
   async fetchTreeTable(viewNode?: { id?: string; batchId?: string; import_batch?: string }): Promise<TreeTableLayoutResult> {
     interface UnifiedCypherResponse {
       success: boolean;
@@ -73,18 +86,20 @@ export class Neo4jDataService {
     const viewNodeId = viewNode?.id ?? 'tree-table-view';
 
     const query = await this.getTreeTableQuery(viewNodeId, batchId);
-    console.debug('[TreeTable] executing query', query.query);
+    console.log('[TreeTable] Executing query:', query.query);
 
     const response = await firstValueFrom(
       this.http.post<UnifiedCypherResponse>('/v0/cypher/unified', {
         query: query.query,
-        parameters: query.parameters
-      })
+        parameters: query.parameters,
+      }),
     );
 
     if (!response.success || !response.data?.results?.length) {
-      console.error('[TreeTable] unified endpoint error', response);
-      throw new Error(`TreeTable query failed: ${response.message || 'No data returned'}`);
+      console.error('[TreeTable] Unified endpoint error', response);
+      throw new Error(
+        `TreeTable query failed: ${response.message || 'No data returned'}`,
+      );
     }
 
     const row = response.data.results[0] as { result?: TreeTableQueryResult };
@@ -95,14 +110,19 @@ export class Neo4jDataService {
     return this.normaliseTreeTableResult(row.result);
   }
 
+  // ViewNode API methods for FR-030 using existing cypher endpoint
   async getAllViewNodes(): Promise<any[]> {
     try {
       const cypherQuery = 'MATCH (vn:ViewNode) RETURN vn ORDER BY vn.name ASC';
+      
       const result: any = await firstValueFrom(
-        this.http.post('/v0/cypher/unified', { query: cypherQuery, parameters: {} })
+        this.http.post('/v0/cypher/unified', { 
+          query: cypherQuery,
+          parameters: {}
+        })
       );
-
-      if (result.success && result.data?.results) {
+      
+      if (result.success && result.data && result.data.results) {
         return result.data.results.map((record: any) => ({
           ...record.vn.properties
         }));
@@ -118,241 +138,245 @@ export class Neo4jDataService {
 
   async executeViewNodeQuery(viewNode: any): Promise<GraphRawData> {
     try {
-      const cypher = await this.getQueryFromQueryNode(viewNode);
+      // Get the cypherQuery from the associated QueryNode instead of ViewNode
+      let queryToExecute = await this.getQueryFromQueryNode(viewNode);
+
+      // Temporary override while tree renderer is stabilised; avoids stale DB queries
+      if (viewNode.name === 'Code Model') {
+        queryToExecute = `
+          MATCH (root:CodeElement {name: "workspace"})
+          WITH root.import_batch AS batch
+          MATCH (n:CodeElement {import_batch: batch})
+          OPTIONAL MATCH (n)-[r:HAS_CHILD]->(m:CodeElement {import_batch: batch})
+          RETURN n, r, m
+        `;
+      }
 
       const runtimeResponse = await firstValueFrom(
         this.http.post<RuntimeGraphResponse>('/runtime/canvas/data', {
-          query: cypher,
+          query: queryToExecute,
           parameters: {},
           include_raw_rows: true
         })
       );
 
-      if (runtimeResponse.nodes && runtimeResponse.nodes.length > 0) {
-        return this.convertRuntimeGraph(runtimeResponse);
-      }
+      console.log('[RuntimeGraph] Metadata:', runtimeResponse.metadata);
 
-      if (runtimeResponse.raw_rows && runtimeResponse.raw_rows.length > 0) {
-        return this.convertRawRows(runtimeResponse.raw_rows, {
-          source: 'runtime-raw',
-          queryId: runtimeResponse.query_id,
-          cypher
-        });
-      }
-
-      return this.createEmptyState(viewNode?.name ?? 'view', 'Query returned no data');
+      return this.convertRuntimeGraph(runtimeResponse);
     } catch (error) {
       console.error('Error executing ViewNode query:', error);
-      return this.createEmptyState(viewNode?.name ?? 'view', `Failed: ${String(error)}`);
+      return this.createEmptyState(viewNode?.name ?? 'view', 'Failed to load view data');
     }
   }
 
   async directQuery(entityName: string): Promise<GraphRawData> {
     const startTime = performance.now();
+    console.log(`⏰ CLICK START: ${new Date().toISOString()} - ${startTime}ms`);
+    
+    // Convert entity name to proper database name
+    const dbName = entityName.charAt(0).toUpperCase() + entityName.slice(1);
+    
+    // Build query
     const cypherQuery = `
-      MATCH (root {name: $entityName})
-      OPTIONAL MATCH (root)-[r:CONTAINS*0..]->(descendant)
-      OPTIONAL MATCH (descendant)-[rel]->(child)
+      MATCH (root {name: "${dbName}"}) 
+      OPTIONAL MATCH (root)-[r:CONTAINS*0..]->(descendant) 
+      OPTIONAL MATCH (descendant)-[rel]->(child) 
       RETURN root, descendant, rel, child
     `;
-
+    
     try {
       const result: any = await firstValueFrom(
-        this.http.post('/v0/cypher/unified', {
+        this.http.post('/v0/cypher/unified', { 
           query: cypherQuery,
-          parameters: { entityName: entityName.charAt(0).toUpperCase() + entityName.slice(1) }
+          parameters: {}
         })
       );
-
+      
+      // Backend now returns clean JSON objects directly
       const cleanNodes: any[] = [];
       const cleanEdges: any[] = [];
-
-      result.data?.results?.forEach((record: any) => {
+      
+      // Extract nodes and edges from clean JSON results
+      result.data.results.forEach((record: any) => {
         Object.values(record).forEach((value: any) => {
-          if (!value || typeof value !== 'object') {
-            return;
-          }
-          if (value.labels && value.properties) {
-            cleanNodes.push(value);
-          } else if (value.type && (value.startNodeId || value.endNodeId)) {
-            cleanEdges.push(value);
+          if (value && typeof value === 'object') {
+            if (value.labels && value.properties) {
+              cleanNodes.push(value);
+            } else if (value.type && value.startNodeId && value.endNodeId) {
+              cleanEdges.push(value);
+            }
           }
         });
       });
+      
+      const endTime = performance.now();
+      const totalTime = endTime - startTime;
 
-      const duration = performance.now() - startTime;
-      console.debug('[directQuery] parsed nodes/edges', {
-        nodes: cleanNodes.length,
-        edges: cleanEdges.length,
-        durationMs: duration
-      });
+      console.log(`🟢 PARSED OBJECT:`, { nodes: cleanNodes, edges: cleanEdges });
+      console.log(`⏱️ TOTAL TIME: ${totalTime.toFixed(2)}ms (Click to Final JSON)`);
+      console.log(`⏰ COMPLETED: ${new Date().toISOString()} - ${endTime}ms`);
 
-      return this.convertLegacyRecords(cleanNodes, cleanEdges, {
-        source: 'directQuery',
-        durationMs: duration,
-        entityName
-      });
+      return this.convertLegacyLists(cleanNodes, cleanEdges);
     } catch (error) {
-      console.error('🚨 directQuery failed:', error);
+      console.error('🚨 QUERY FAILED:', error);
       return this.createEmptyState(entityName, `Error: ${String(error)}`);
     }
   }
 
-  async getViewGraph(viewType: 'processes' | 'systems' | 'test-modular'): Promise<GraphRawData> {
-    return this.directQuery(viewType);
+
+  private convertRuntimeGraph(response: RuntimeGraphResponse): { entities: EntityModel[]; relationships: GraphRelationship[] } {
+    if (response.nodes && response.nodes.length > 0) {
+      const entities = response.nodes.map((node, index) => this.createEntityFromCanonical(node, index));
+      const relationships = response.relationships.map(rel => ({
+        id: rel.guid,
+        source: rel.source_guid,
+        target: rel.target_guid,
+        type: rel.type,
+        properties: rel.properties,
+        color: rel.display?.color,
+        width: rel.display?.width,
+        dash: rel.display?.dash,
+        label: rel.display?.label ?? rel.properties?.['label'],
+        labelVisible: rel.display?.label_visible
+      }));
+      return { entities, relationships };
+    }
+
+    if (response.raw_rows && response.raw_rows.length > 0) {
+      return this.convertRawRows(response.raw_rows);
+    }
+
+    return { entities: [], relationships: [] };
   }
 
-  private convertRuntimeGraph(response: RuntimeGraphResponse): GraphRawData {
-    const entities: RawEntity[] = response.nodes.map(node => this.createRawEntityFromCanonical(node));
-    const relationships: RawRelationship[] = response.relationships.map(rel => this.createRawRelationshipFromCanonical(rel));
+  private convertLegacyLists(rawNodes: any[], rawEdges: any[]): { entities: EntityModel[]; relationships: GraphRelationship[] } {
+    const nodeMap = new Map<string, EntityModel>();
 
-    return {
-      entities,
-      relationships,
-      metadata: {
-        source: 'runtime',
-        queryId: response.query_id,
-        cypher: response.cypher,
-        elapsedMs: response.metadata?.elapsed_ms,
-        rowCount: response.metadata?.rows_returned
-      }
-    };
-  }
-
-  private convertRawRows(rows: Array<Record<string, unknown>>, metadata?: Record<string, unknown>): GraphRawData {
-    const nodes: any[] = [];
-    const edges: any[] = [];
-    const seen = new Set<string>();
-
-    rows.forEach(row => {
-      Object.values(row).forEach(value => {
-        if (!value || typeof value !== 'object') {
-          return;
-        }
-
-        const candidate = value as any;
-        if (Array.isArray(candidate.labels) && candidate.properties) {
-          const guid = this.extractGuid(candidate);
-          if (guid && !seen.has(guid)) {
-            nodes.push(candidate);
-            seen.add(guid);
-          }
-        } else if (candidate.type && (candidate.properties?.['fromGUID'] || candidate.fromGUID || candidate.startNodeId)) {
-          edges.push(candidate);
-        }
-      });
-    });
-
-    return this.convertLegacyRecords(nodes, edges, metadata);
-  }
-
-  private convertLegacyRecords(
-    rawNodes: any[],
-    rawEdges: any[],
-    metadata?: Record<string, unknown>
-  ): GraphRawData {
-    const nodeMap = new Map<string, RawEntity>();
     rawNodes.forEach(node => {
-      const guid = this.extractGuid(node);
+      const guid = this.extractGuidFromValue(node);
       if (!guid || nodeMap.has(guid)) {
         return;
       }
-      nodeMap.set(guid, this.createRawEntityFromLegacy(node, guid));
+      const index = nodeMap.size;
+      nodeMap.set(guid, this.createEntityFromLegacy(node, guid, index));
     });
 
-    const edgeMap = new Map<string, RawRelationship>();
+    const relationshipMap = new Map<string, GraphRelationship>();
+
     rawEdges.forEach(edge => {
-      const relationship = this.createRawRelationshipFromLegacy(edge);
-      if (relationship && !edgeMap.has(relationship.id)) {
-        edgeMap.set(relationship.id, relationship);
+      const relationship = this.createRelationshipFromLegacy(edge);
+      if (relationship && !relationshipMap.has(relationship.id)) {
+        relationshipMap.set(relationship.id, relationship);
       }
     });
 
     return {
       entities: Array.from(nodeMap.values()),
-      relationships: Array.from(edgeMap.values()),
-      metadata
+      relationships: Array.from(relationshipMap.values())
     };
   }
 
-  private createRawEntityFromCanonical(node: RuntimeGraphResponse['nodes'][number]): RawEntity {
-    const properties: Record<string, unknown> = { ...(node.properties ?? {}) };
-    if (node.parent_guid !== undefined) {
-      properties['parent_guid'] = node.parent_guid;
-    }
-    if (node.position) {
-      properties['position'] = node.position;
-    }
-    if (node.display) {
-      properties['display'] = node.display;
-    }
-    if (node.tags) {
-      properties['tags'] = node.tags;
-    }
+  private convertRawRows(rows: Array<Record<string, unknown>>): { entities: EntityModel[]; relationships: GraphRelationship[] } {
+    const nodes: any[] = [];
+    const relationships: any[] = [];
+    const seenNodes = new Set<string>();
+
+    rows.forEach(record => {
+      Object.values(record).forEach(value => {
+        if (!value || typeof value !== 'object') {
+          return;
+        }
+
+        const candidate = value as any;
+
+        if (Array.isArray(candidate.labels) && candidate.properties) {
+          const guid = this.extractGuidFromValue(candidate);
+          if (guid && !seenNodes.has(guid)) {
+            nodes.push(candidate);
+            seenNodes.add(guid);
+          }
+        } else if (candidate.type && (candidate.properties?.['fromGUID'] || candidate.fromGUID || candidate.startNodeId)) {
+          relationships.push(candidate);
+        }
+      });
+    });
+
+    return this.convertLegacyLists(nodes, relationships);
+  }
+
+  private createEntityFromCanonical(node: RuntimeGraphResponse['nodes'][number], index: number): EntityModel {
+    const display = node.display ?? {};
+    const position = node.position;
+    const baseWidth = typeof display.width === 'number' ? display.width : 200;
+    const baseHeight = typeof display.height === 'number' ? display.height : 100;
+
+    const fallbackX = (index % 4) * (baseWidth + 40);
+    const fallbackY = Math.floor(index / 4) * (baseHeight + 60);
 
     return {
       id: node.guid,
-      name: this.resolveNodeName(node.guid, properties),
-      type: this.resolveNodeType(node.labels, properties),
-      properties
+      name: node.properties?.['name'] || node.guid,
+      x: typeof position?.x === 'number' ? position.x : fallbackX,
+      y: typeof position?.y === 'number' ? position.y : fallbackY,
+      width: baseWidth,
+      height: baseHeight,
+      color: display.color ?? this.getNodeColor(index),
+      stroke: display.border_color,
+      icon: display.icon,
+      badges: display.badges,
+      labelVisible: display.label_visible,
+      properties: node.properties || {},
+      parent: node.parent_guid ?? null,
+      children: [],
+      expanded: false,
+      animating: false
     };
   }
 
-  private createRawEntityFromLegacy(node: any, guid: string): RawEntity {
-    const properties: Record<string, unknown> = { ...(node.properties ?? {}) };
-    if (node.parent_guid || node.parentGuid) {
-      properties['parent_guid'] = node.parent_guid ?? node.parentGuid;
-    }
-    if (node.display) {
-      properties['display'] = node.display;
-    }
-    if (node.position) {
-      properties['position'] = node.position;
-    }
-    if (node.tags) {
-      properties['tags'] = node.tags;
-    }
+  private createEntityFromLegacy(node: any, guid: string, index: number): EntityModel {
+    const name = node.properties?.['name'] || node.name || guid;
+    const parentGuid =
+      node.parent_guid ??
+      node.parentGuid ??
+      node.properties?.['parentGUID'] ??
+      node.properties?.['parent_guid'] ??
+      null;
+
     return {
       id: guid,
-      name: this.resolveNodeName(guid, properties),
-      type: this.resolveNodeType(node.labels, properties),
-      properties
+      name,
+      x: (index % 4) * 200,
+      y: Math.floor(index / 4) * 160,
+      width: 200,
+      height: 100,
+      color: this.getNodeColor(index),
+      properties: node.properties || {},
+      parent: parentGuid,
+      children: [],
+      expanded: false,
+      animating: false
     };
   }
 
-  private createRawRelationshipFromCanonical(rel: RuntimeGraphResponse['relationships'][number]): RawRelationship {
-    const properties: Record<string, unknown> = { ...(rel.properties ?? {}) };
-    if (rel.display) {
-      properties['display'] = rel.display;
-    }
-    return {
-      id: rel.guid,
-      source: rel.source_guid,
-      target: rel.target_guid,
-      type: rel.type,
-      properties
-    };
-  }
-
-  private createRawRelationshipFromLegacy(edge: any): RawRelationship | null {
+  private createRelationshipFromLegacy(edge: any): GraphRelationship | null {
     const source =
-      this.extractGuid(edge.properties?.['fromGUID']) ||
-      this.extractGuid(edge.properties?.['fromGuid']) ||
-      this.extractGuid(edge.properties?.['from_guid']) ||
-      this.extractGuid(edge.fromGUID) ||
-      this.extractGuid(edge.fromGuid) ||
-      this.extractGuid(edge.from_guid) ||
-      this.extractGuid(edge.startNodeId) ||
+      this.extractGuidFromValue(edge.properties?.['fromGUID']) ||
+      this.extractGuidFromValue(edge.properties?.['fromGuid']) ||
+      this.extractGuidFromValue(edge.properties?.['from_guid']) ||
+      this.extractGuidFromValue(edge.fromGUID) ||
+      this.extractGuidFromValue(edge.fromGuid) ||
+      this.extractGuidFromValue(edge.from_guid) ||
+      this.extractGuidFromValue(edge.startNodeId) ||
       null;
 
     const target =
-      this.extractGuid(edge.properties?.['toGUID']) ||
-      this.extractGuid(edge.properties?.['toGuid']) ||
-      this.extractGuid(edge.properties?.['to_guid']) ||
-      this.extractGuid(edge.toGUID) ||
-      this.extractGuid(edge.toGuid) ||
-      this.extractGuid(edge.to_guid) ||
-      this.extractGuid(edge.endNodeId) ||
+      this.extractGuidFromValue(edge.properties?.['toGUID']) ||
+      this.extractGuidFromValue(edge.properties?.['toGuid']) ||
+      this.extractGuidFromValue(edge.properties?.['to_guid']) ||
+      this.extractGuidFromValue(edge.toGUID) ||
+      this.extractGuidFromValue(edge.toGuid) ||
+      this.extractGuidFromValue(edge.to_guid) ||
+      this.extractGuidFromValue(edge.endNodeId) ||
       null;
 
     if (!source || !target) {
@@ -361,10 +385,10 @@ export class Neo4jDataService {
 
     const type = edge.type || edge.properties?.['type'] || 'RELATES_TO';
     const guid =
-      this.extractGuid(edge.properties?.['GUID']) ||
-      this.extractGuid(edge.properties?.['guid']) ||
-      this.extractGuid(edge.GUID) ||
-      this.extractGuid(edge.guid) ||
+      this.extractGuidFromValue(edge.properties?.['GUID']) ||
+      this.extractGuidFromValue(edge.properties?.['guid']) ||
+      this.extractGuidFromValue(edge.GUID) ||
+      this.extractGuidFromValue(edge.guid) ||
       `${type}-${source}-${target}`;
 
     return {
@@ -372,40 +396,38 @@ export class Neo4jDataService {
       source,
       target,
       type,
-      properties: { ...(edge.properties ?? {}) }
+      properties: edge.properties || {}
     };
   }
 
-  private extractGuid(candidate: unknown): string | null {
-    if (!candidate) {
+  private extractGuidFromValue(value: any): string | null {
+    if (!value) {
       return null;
     }
 
-    if (typeof candidate === 'string' && candidate.trim().length > 0) {
-      return candidate;
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value;
     }
 
-    if (typeof candidate === 'number') {
-      return candidate.toString();
+    if (typeof value === 'number') {
+      return value.toString();
     }
 
-    if (typeof candidate === 'object') {
-      const record = candidate as Record<string, unknown>;
-      const props = record['properties'] as Record<string, unknown> | undefined;
-      const guidSources = [
-        record['GUID'],
-        record['guid'],
-        record['id'],
-        record['elementId'],
-        record['element_id'],
-        record['identity'],
-        props?.['GUID'],
-        props?.['guid'],
-        props?.['id']
+    if (typeof value === 'object') {
+      const candidates = [
+        value.GUID,
+        value.guid,
+        value.id,
+        value.elementId,
+        value.element_id,
+        value.identity,
+        value.properties?.['GUID'],
+        value.properties?.['guid'],
+        value.properties?.['id']
       ];
 
-      for (const source of guidSources) {
-        const resolved = this.extractGuid(source);
+      for (const candidate of candidates) {
+        const resolved = this.extractGuidFromValue(candidate);
         if (resolved) {
           return resolved;
         }
@@ -415,113 +437,37 @@ export class Neo4jDataService {
     return null;
   }
 
-  private resolveNodeName(fallback: string, properties: Record<string, unknown>): string {
-    const name = properties['name'] ?? properties['label'] ?? fallback;
-    return typeof name === 'string' && name.trim().length > 0 ? name : fallback;
+  private getNodeColor(index: number): string {
+    const colors = ['#4A90E2', '#7B68EE', '#20B2AA', '#FF6B6B'];
+    return colors[index % colors.length];
   }
 
-  private resolveNodeType(labels?: string[], properties?: Record<string, unknown>): string {
-    const typeCandidate = properties?.['type'];
-    if (typeof typeCandidate === 'string' && typeCandidate.trim().length > 0) {
-      return typeCandidate;
-    }
-    if (Array.isArray(labels) && labels.length > 0) {
-      return labels[0];
-    }
-    return 'Node';
-  }
-
-  private createEmptyState(viewType: string, message: string): GraphRawData {
-    return {
-      entities: [
-        {
-          id: `empty-${viewType}`,
-          name: message,
-          type: 'message',
-          properties: { message, viewType }
-        }
-      ],
-      relationships: [],
-      metadata: {
-        empty: true,
-        message,
-        viewType
-      }
-    };
-  }
-
-  private async getQueryFromQueryNode(viewNode: any): Promise<string> {
+  // Unified dynamic method - replaces all hardcoded parsing
+  async getViewGraph(viewType: 'processes' | 'systems' | 'test-modular'): Promise<{entities: EntityModel[], relationships: GraphRelationship[]}> {
     try {
-      const cypherQuery = `
-        MATCH (vn:ViewNode {id: $viewNodeId})<-[:HAS_VIEWNODE]-(sn:SetNode)-[:HAS_QUERYNODE]->(qn:QueryNode)
-        RETURN qn.cypherQuery AS query
-      `;
-
-      const result: any = await firstValueFrom(
-        this.http.post('/v0/cypher/unified', {
-          query: cypherQuery,
-          parameters: { viewNodeId: viewNode.id }
-        })
-      );
-
-      const queryFromQueryNode = result.data?.results?.[0]?.query;
-      if (result.success && typeof queryFromQueryNode === 'string' && queryFromQueryNode.trim()) {
-        return queryFromQueryNode;
+      // Use the existing directQuery method for consistency
+      const result = await this.directQuery(viewType);
+      
+      if (result.success && result.data && result.data.results) {
+        return result.data.results as { entities: EntityModel[]; relationships: GraphRelationship[] };
+      } else {
+        return this.createEmptyState(viewType, 'No data found');
       }
-
-      console.warn('No SetNode QueryNode found or query empty, falling back to ViewNode cypherQuery');
-      return viewNode.cypherQuery || viewNode.cypher_query || '';
     } catch (error) {
-      console.error('Error fetching query from SetNode QueryNode, falling back to ViewNode:', error);
-      return viewNode.cypherQuery || viewNode.cypher_query || '';
-    }
-  }
-
-  async getAllSetNodes(): Promise<any[]> {
-    try {
-      const cypherQuery = `
-        MATCH (sn:SetNode)
-        OPTIONAL MATCH (sn)-[:HAS_VIEWNODE]->(vn:ViewNode)
-        OPTIONAL MATCH (sn)-[:HAS_QUERYNODE]->(qn:QueryNode)
-        WITH sn, collect(DISTINCT vn) as viewNodes, collect(DISTINCT qn) as queryNodes
-        RETURN sn, viewNodes, head(queryNodes) as qn
-        ORDER BY sn.name ASC
-      `;
-
-      const result: any = await firstValueFrom(
-        this.http.post('/v0/cypher/unified', {
-          query: cypherQuery,
-          parameters: {}
-        })
-      );
-
-      if (result.success && result.data?.results) {
-        return result.data.results.map((record: any) => ({
-          ...record.sn.properties,
-          viewNodes: record.viewNodes.map((vn: any) => ({
-            ...vn.properties
-          })),
-          queryDetails: record.qn ? { ...record.qn.properties } : null
-        }));
-      }
-
-      console.error('Failed to fetch SetNodes:', result.error);
-      return [];
-    } catch (error) {
-      console.error('Error fetching SetNodes:', error);
-      return [];
+      console.log('❌ DYNAMIC ERROR:', error);
+      return this.createEmptyState(viewType, `Error: ${error}`);
     }
   }
 
   private normaliseTreeTableResult(result: TreeTableQueryResult): TreeTableLayoutResult {
-    const columns = result.columns.map(column => this.normaliseTreeTableColumn(column));
-    const nodes = result.nodes.map(node => this.normaliseTreeTableNode(node));
+    const columns = result.columns.map((column) => this.normaliseTreeTableColumn(column));
+    const nodes = result.nodes.map((node) => this.normaliseTreeTableNode(node));
 
     return {
       columns,
       nodes,
       batchId: result.batchId,
-      generatedAt: result.generatedAt
+      generatedAt: result.generatedAt,
     };
   }
 
@@ -532,7 +478,7 @@ export class Neo4jDataService {
       valueType: column.valueType,
       description: column.description,
       isDefault: column.isDefault,
-      allowAggregation: column.allowAggregation
+      allowAggregation: column.allowAggregation,
     };
   }
 
@@ -549,33 +495,45 @@ export class Neo4jDataService {
       tags: node.tags ?? [],
       metadataJson: this.parseTreeTableMetadata(node.metadataJson),
       values: this.normaliseTreeTableValueMap(node.values),
-      aggregates: node.aggregates ? this.normaliseTreeTableValueMap(node.aggregates) : undefined
+      aggregates: node.aggregates
+        ? this.normaliseTreeTableValueMap(node.aggregates)
+        : undefined,
     };
   }
 
-  private normaliseTreeTableValueMap(values: Record<string, TreeTableValue | undefined>): Record<string, TreeTableValue | undefined> {
-    return Object.entries(values ?? {}).reduce((acc, [key, value]) => {
-      acc[key] = value
-        ? {
-            raw: value.raw,
-            formatted: value.formatted,
-            meta: value.meta
-          }
-        : undefined;
-      return acc;
-    }, {} as Record<string, TreeTableValue | undefined>);
+  private normaliseTreeTableValueMap(
+    values: Record<string, TreeTableValue | undefined>,
+  ): Record<string, TreeTableValue | undefined> {
+    return Object.entries(values ?? {}).reduce(
+      (acc, [key, value]) => ({
+        ...acc,
+        [key]: value
+          ? {
+              raw: value.raw,
+              formatted: value.formatted,
+              meta: value.meta,
+            }
+          : undefined,
+      }),
+      {} as Record<string, TreeTableValue | undefined>,
+    );
   }
 
-  private parseTreeTableMetadata(metadata: Record<string, unknown> | string | undefined): Record<string, unknown> | undefined {
+  private parseTreeTableMetadata(
+    metadata: Record<string, unknown> | string | undefined,
+  ): Record<string, unknown> | undefined {
     if (metadata && typeof metadata === 'object') {
       return metadata;
     }
 
-    if (typeof metadata === 'string') {
+    if (typeof metadata === 'string' && metadata.trim().length > 0) {
       try {
         return JSON.parse(metadata);
       } catch (error) {
-        console.warn('[TreeTable] failed to parse metadata JSON', { metadata, error });
+        console.warn('[Neo4jDataService] Failed to parse metadata JSON', {
+          metadata,
+          error,
+        });
       }
     }
 
@@ -608,4 +566,98 @@ export class Neo4jDataService {
       parameters: { batchId }
     };
   }
+
+  private createEmptyState(viewType: string, message: string): {entities: EntityModel[], relationships: GraphRelationship[]} {
+    return {
+      entities: [{
+        id: 'empty-state',
+        name: message,
+        x: 0,
+        y: 0,
+        width: 200,
+        height: 80,
+        color: '#666',
+        properties: { type: 'message' },
+        parent: null,
+        children: [],
+        expanded: false,
+        animating: false
+      }],
+      relationships: []
+    };
+  }
+
+  // Get cypherQuery from parent SetNode's QueryNode via hierarchical relationship
+  private async getQueryFromQueryNode(viewNode: any): Promise<string> {
+    try {
+      // Primary path: Get query from parent SetNode's QueryNode
+      const cypherQuery = `
+        MATCH (vn:ViewNode {id: "${viewNode.id}"})<-[:HAS_VIEWNODE]-(sn:SetNode)-[:HAS_QUERYNODE]->(qn:QueryNode)
+        RETURN qn.cypherQuery as query
+      `;
+      
+      const result: any = await firstValueFrom(
+        this.http.post('/v0/cypher/unified', { 
+          query: cypherQuery,
+          parameters: {}
+        })
+      );
+      
+      if (result.success && result.data && result.data.results && result.data.results.length > 0) {
+        const queryFromQueryNode = result.data.results[0].query;
+        if (queryFromQueryNode && queryFromQueryNode.trim()) {
+          return queryFromQueryNode;
+        }
+      }
+      
+      // Secondary path: Fallback to ViewNode's own cypherQuery only if SetNode/QueryNode fails
+      console.warn('No SetNode QueryNode found or empty query, falling back to ViewNode cypherQuery');
+      return viewNode.cypherQuery || viewNode.cypher_query || '';
+      
+    } catch (error) {
+      console.error('Error fetching query from SetNode QueryNode, falling back to ViewNode:', error);
+      // Fallback to ViewNode's own cypherQuery only on error
+      return viewNode.cypherQuery || viewNode.cypher_query || '';
+    }
+  }
+
+  // Load SetNodes with their ViewNodes for hierarchical Library display
+  async getAllSetNodes(): Promise<any[]> {
+    try {
+      const cypherQuery = `
+        MATCH (sn:SetNode)
+        OPTIONAL MATCH (sn)-[:HAS_VIEWNODE]->(vn:ViewNode)
+        OPTIONAL MATCH (sn)-[:HAS_QUERYNODE]->(qn:QueryNode)
+        WITH sn, collect(DISTINCT vn) as viewNodes, collect(DISTINCT qn) as queryNodes
+        RETURN sn, viewNodes, head(queryNodes) as qn
+        ORDER BY sn.name ASC
+      `;
+      
+      const result: any = await firstValueFrom(
+        this.http.post('/v0/cypher/unified', { 
+          query: cypherQuery,
+          parameters: {}
+        })
+      );
+      
+      if (result.success && result.data && result.data.results) {
+        return result.data.results.map((record: any) => ({
+          ...record.sn.properties,
+          viewNodes: record.viewNodes.map((vn: any) => ({
+            ...vn.properties
+          })),
+          queryDetails: record.qn ? {
+            ...record.qn.properties
+          } : null
+        }));
+      }
+
+      console.error('Failed to fetch SetNodes:', result.error);
+      return [];
+    } catch (error) {
+      console.error('Error fetching SetNodes:', error);
+      return [];
+    }
+  }
+
 }
