@@ -298,10 +298,21 @@ export class CanvasControlService {
       return;
     }
 
-    if (this.activeCanvas?.applyNodeStyleOverride) {
+    const canvasId = this.getActiveCanvasId();
+    if (canvasId) {
+      this.canvasEventHubService.emitEvent(canvasId, {
+        type: 'StyleOverrideRequested',
+        canvasId,
+        nodeId: selection.id,
+        overrides,
+        scope,
+        source: 'user',
+        timestamp: Date.now()
+      });
+    } else if (this.activeCanvas?.applyNodeStyleOverride) {
       this.activeCanvas.applyNodeStyleOverride(selection.id, overrides, scope);
-      this.refreshSelectionSnapshot();
     }
+    this.refreshSelectionSnapshot();
   }
 
   updateCameraInfo(info: CameraInfo): void {

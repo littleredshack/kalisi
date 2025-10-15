@@ -3,7 +3,8 @@ import { LayoutOrchestrator, LayoutPriority, LayoutRunOptions } from '../layouts
 import { registerDefaultLayoutEngines } from '../layouts/engine-registry';
 import { canvasDataToLayoutGraph } from '../layouts/core/layout-graph-utils';
 import { LayoutGraph, RawDataInput } from '../layouts/core/layout-contract';
-import { GraphStore } from '../graph/graph-store';
+import { GraphStore, GraphPresentationSnapshot } from '../graph/graph-store';
+import { ViewPresetDescriptor } from '../graph/view-presets';
 import { PresentationFrame, buildPresentationFrame } from '../render/presentation-frame';
 import { CanvasEventBus, CanvasEventSource } from '../layouts/core/layout-events';
 import { LayoutWorkerBridge } from '../layouts/async/layout-worker-bridge';
@@ -90,6 +91,10 @@ export class CanvasLayoutRuntime {
 
   getLayoutGraph(): LayoutGraph {
     return this.store.current.graph;
+  }
+
+  computePresentation(preset: ViewPresetDescriptor): GraphPresentationSnapshot {
+    return this.store.computePresentation(preset);
   }
 
   setCanvasData(data: CanvasData, runLayout = false, source: CanvasEventSource = 'system'): void {

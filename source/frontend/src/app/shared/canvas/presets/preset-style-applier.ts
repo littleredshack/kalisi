@@ -1,8 +1,10 @@
 import { CanvasData, Edge, HierarchicalNode, NodeStyleOverrides, EdgeStyleOverrides } from '../types';
 import { PresetEdgeStyle, PresetNodeStyle, PresetPalette, ViewPresetDescriptor } from '../../graph/view-presets';
+import { GraphPresentationSnapshot } from '../../graph/graph-store';
 import {
   EdgePresentation,
   NodePresentation,
+  BadgePresentation,
   resolveEdgePresentation,
   resolveNodePresentation
 } from '../../graph/preset-presentation';
@@ -15,20 +17,30 @@ function cloneCanvasData(data: CanvasData): CanvasData {
   return JSON.parse(JSON.stringify(data));
 }
 
-export function applyPresetStyles(data: CanvasData, preset: ViewPresetDescriptor): CanvasData {
+export function applyPresetStyles(
+  data: CanvasData,
+  preset: ViewPresetDescriptor,
+  presentation?: GraphPresentationSnapshot
+): CanvasData {
   const cloned = cloneCanvasData(data);
-  applyPresetStylesInPlace(cloned, preset);
+  applyPresetStylesInPlace(cloned, preset, presentation);
   return cloned;
 }
 
-export function applyPresetStylesInPlace(data: CanvasData, preset: ViewPresetDescriptor): void {
+export function applyPresetStylesInPlace(
+  data: CanvasData,
+  preset: ViewPresetDescriptor,
+  presentation?: GraphPresentationSnapshot
+): void {
   const palette = preset.style?.palette ?? {};
+  const nodePresentationMap = presentation?.nodes ?? null;
+  const edgePresentationMap = presentation?.edges ?? null;
 
-  data.nodes.forEach(node => applyNodeStyle(node, preset.style?.node, palette));
-  data.edges.forEach(edge => applyEdgeStyle(edge, preset.style?.edge, palette));
+  data.nodes.forEach(node => applyNodeStyle(node, preset.style?.node, palette, nodePresentationMap));
+  data.edges.forEach(edge => applyEdgeStyle(edge, preset.style?.edge, palette, edgePresentationMap));
 
   if (data.originalEdges && data.originalEdges.length > 0) {
-    data.originalEdges.forEach(edge => applyEdgeStyle(edge, preset.style?.edge, palette));
+    data.originalEdges.forEach(edge => applyEdgeStyle(edge, preset.style?.edge, palette, edgePresentationMap));
   }
 
   const metadata = ensureMetadata(data);
@@ -47,30 +59,45 @@ export function applyPresetStylesInPlace(data: CanvasData, preset: ViewPresetDes
   }
 }
 
-function applyNodeStyle(node: HierarchicalNode, style: PresetNodeStyle | undefined, palette: PresetPalette): HierarchicalNode {
+function applyNodeStyle(
+  node: HierarchicalNode,
+  style: PresetNodeStyle | undefined,
+  palette: PresetPalette,
+  nodePresentationMap: GraphPresentationSnapshot['nodes'] | null
+): HierarchicalNode {
   const mutated = node;
   mutated.metadata = mutated.metadata ? { ...mutated.metadata } : {};
   mutated.style = mutated.style ? { ...mutated.style } : { fill: '#1f2937', stroke: '#4b5563' };
 
   const normalisedStyle = normaliseNodeStyle(style);
-  const presentation = resolveNodePresentation(mutated.metadata ?? {}, normalisedStyle, palette);
-  applyNodePresentation(mutated, presentation);
+  const nodeId = mutated.GUID ?? mutated.id;
+  const presentation = nodePresentationMap?.[nodeId] ?? resolveNodePresentation(mutated.metadata ?? {}, normalisedStyle, palette);
+  if (presentation) {
+    applyNodePresentation(mutated, presentation);
+  }
 
   if (mutated.children && mutated.children.length > 0) {
-    mutated.children = mutated.children.map(child => applyNodeStyle(child, style, palette));
+    mutated.children = mutated.children.map(child => applyNodeStyle(child, style, palette, nodePresentationMap));
   }
 
   return mutated;
 }
 
-function applyEdgeStyle(edge: Edge, style: PresetEdgeStyle | undefined, palette: PresetPalette): Edge {
+function applyEdgeStyle(
+  edge: Edge,
+  style: PresetEdgeStyle | undefined,
+  palette: PresetPalette,
+  edgePresentationMap: GraphPresentationSnapshot['edges'] | null
+): Edge {
   const mutated = edge;
   mutated.metadata = mutated.metadata ? { ...mutated.metadata } : {};
   mutated.style = mutated.style ? { ...mutated.style } : { stroke: '#6ea8fe', strokeWidth: 2 };
 
   const normalisedStyle = normaliseEdgeStyle(style);
-  const presentation = resolveEdgePresentation(mutated.metadata ?? {}, normalisedStyle, palette);
-  applyEdgePresentation(mutated, presentation);
+  const presentation = edgePresentationMap?.[mutated.id] ?? resolveEdgePresentation(mutated.metadata ?? {}, normalisedStyle, palette);
+  if (presentation) {
+    applyEdgePresentation(mutated, presentation);
+  }
 
   return mutated;
 }
@@ -91,7 +118,7 @@ function applyNodePresentation(node: HierarchicalNode, presentation: NodePresent
   }
 
   if (presentation.badges && presentation.badges.length > 0) {
-    metadata['badges'] = presentation.badges.map(badge => ({
+    metadata['badges'] = presentation.badges.map((badge: BadgePresentation) => ({
       text: badge.text,
       color: badge.color ?? '#64748b'
     }));

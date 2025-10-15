@@ -1,3 +1,26 @@
+## Current Execution Context (2024-12-??)
+
+- **North Star**: Deliver a graph-powered, AI-centric observability platform. Visual authoring, view presets, and data-driven canvases are the active focus.
+- **Preset & Styling State**:
+  - Presets now include palettes, icons, badges, layout hints, and metadata tokens (`frontend/src/app/shared/graph/view-presets.ts`).
+  - `preset-presentation` and the preset style applier translate raw metadata into renderer-friendly attributes, but preset-driven engine/renderer switching plus layout-hint propagation are still TODO.
+  - Renderers draw richer visuals; the canvas engine must be updated so `setActivePreset` swaps layout/renderer/lens and forwards hints into layout runs.
+- **Rendering Pipeline Gap**: `GraphStore.computePresentation` exists for diff-aware frames but the engine still clones entire hierarchies every render. Integrating presentation frames is a priority.
+- **Runtime & Ingestion**:
+  - `CanvasLayoutRuntime.setRawData` converts Neo4j entities into layout graphs, yet `Neo4jDataService` mixes parameterised requests with hard-coded fallbacks. We need metadata-rich ingestion, no placeholder data, and strict GUID usage.
+  - Lenses (`GraphLensRegistry`) only filter cloned snapshots; a data-tier lens API/AI endpoint remains on the roadmap.
+- **Database Inventory Highlights**:
+  - Sets: `codebase-set-001`, `test-set-001` (legacy `Imported`), plus `code-model-set` (new schema).
+  - Views (6 total): legacy imported canvases with saved layouts; `compliance-001` is orphaned; `code-model-view` is the clean model-driven entry with summary/detail.
+  - Queries (6 total entries) include duplicates (same GUID/name, missing `id`) for “TestModularQuery” and “query-001”; duplicates show up in `HAS_QUERYNODE` edges. All future work must rely solely on GUIDs—never Neo4j internal ids.
+  - Menu wiring is data-driven: `SetNode-[:HAS_VIEWNODE]->ViewNode` and `SetNode-[:HAS_QUERYNODE]->QueryNode`. Deduplicate the legacy relationships to avoid UI noise.
+- **Immediate Implementation Steps**:
+  1. Update preset switching to change layout engine, renderer, and lens, and pass `layoutHints` into layout runs.
+  2. Route rendering through `GraphStore.computePresentation` for delta-aware frames.
+  3. Harden Neo4j ingestion: eliminate placeholder data, parameterise Cypher, honour lenses/presets for filtered datasets.
+  4. Clean the legacy Neo4j entries (dedupe `QueryNode`s/relationships, reattach or retire `compliance-001`) using GUID-based operations only.
+- **Working Agreements**: Compile/test frequently, commit in small increments, and never touch Neo4j internal ids.
+
 • To push Visual Authoring + View Presets forward, here’s the high-level plan:
 
   1. Preset Schema & Registry

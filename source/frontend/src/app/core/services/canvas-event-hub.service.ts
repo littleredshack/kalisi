@@ -1,10 +1,12 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
 import { CanvasEvent, CanvasEventBus } from '../../shared/layouts/core/layout-events';
+import { NodeStyleOverrides, NodeShape } from '../../shared/canvas/types';
 import { LayoutPriority } from '../../shared/layouts/core/layout-orchestrator';
 
 const HISTORY_LIMIT = 500;
 type PresetRequestedEvent = Extract<CanvasEvent, { readonly type: 'PresetRequested' }>;
+type StyleOverrideRequestedEvent = Extract<CanvasEvent, { readonly type: 'StyleOverrideRequested' }>;
 
 export interface LayoutMetricsEvent {
   readonly canvasId: string;
@@ -94,6 +96,10 @@ export class CanvasEventHubService {
         events.push(directive);
       }
     });
+    const styleDirectives = this.extractStyleOverrideDirectives(message, targetCanvasId);
+    styleDirectives.forEach(directive => {
+      events.push(directive);
+    });
     events.forEach(event => this.emitEvent(targetCanvasId, event));
     return events;
   }
@@ -131,6 +137,30 @@ export class CanvasEventHubService {
         source: 'ai',
         timestamp: Date.now()
       } satisfies PresetRequestedEvent);
+    }
+    return directives;
+  }
+
+  private extractStyleOverrideDirectives(message: string, canvasId: string): StyleOverrideRequestedEvent[] {
+    const directives: StyleOverrideRequestedEvent[] = [];
+    const stylePattern = /\bstyle\s+node\s+([a-z0-9-]+)\s+([^\n\r]+)/gi;
+    let match: RegExpExecArray | null;
+    while ((match = stylePattern.exec(message)) !== null) {
+      const nodeId = match[1];
+      const tokenString = match[2] ?? '';
+      const overrides = this.parseStyleOverrideTokens(tokenString);
+      if (!overrides || Object.keys(overrides).length === 0) {
+        continue;
+      }
+      directives.push({
+        type: 'StyleOverrideRequested',
+        canvasId,
+        nodeId,
+        overrides,
+        scope: 'node',
+        source: 'ai',
+        timestamp: Date.now()
+      } satisfies StyleOverrideRequestedEvent);
     }
     return directives;
   }
@@ -197,10 +227,66 @@ export class CanvasEventHubService {
     }
     return 'low';
   }
+
+  private parseStyleOverrideTokens(input: string): Partial<NodeStyleOverrides> | null {
+    const overrides: Partial<NodeStyleOverrides> = {};
+    const tokens = input
+      .split(/\s+/)
+      .map(token => token.trim())
+      .filter(Boolean);
+    tokens.forEach(token => {
+      const [rawKey, rawValue] = token.split('=');
+      if (!rawKey || rawValue === undefined) {
+        return;
+      }
+      const key = rawKey.toLowerCase();
+      const value = rawValue.trim();
+      switch (key) {
+        case 'fill':
+        case 'color':
+          overrides.fill = value;
+          break;
+        case 'stroke':
+        case 'border':
+          overrides.stroke = value;
+          break;
+        case 'icon':
+          overrides.icon = value;
+          break;
+        case 'corner':
+        case 'cornerradius':
+        case 'radius': {
+          const parsed = Number(value);
+          if (!Number.isNaN(parsed)) {
+            overrides.cornerRadius = parsed;
+          }
+          break;
+        }
+        case 'shape': {
+          const lower = value.toLowerCase();
+          if (isValidNodeShape(lower)) {
+            overrides.shape = lower as NodeShape;
+          }
+          break;
+        }
+        case 'label':
+        case 'labelvisible':
+          overrides.labelVisible = value.toLowerCase() === 'true' || value === '1';
+          break;
+        default:
+          break;
+      }
+    });
+    return Object.keys(overrides).length > 0 ? overrides : null;
+  }
 }
 
 function isPresetRequested(
   event: CanvasEvent
 ): event is Extract<CanvasEvent, { readonly type: 'PresetRequested' }> {
   return event.type === 'PresetRequested';
+}
+
+function isValidNodeShape(value: string): value is NodeShape {
+  return value === 'rounded' || value === 'rectangle' || value === 'circle' || value === 'triangle';
 }

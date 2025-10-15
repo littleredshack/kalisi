@@ -869,6 +869,8 @@ export class PropertiesPanelComponent implements OnChanges {
     { key: 'danger', label: 'Danger', fallback: '#f97316' }
   ];
 
+  private pendingNodeOverrides: Partial<NodeStyleOverrides> = {};
+
   constructor(
     private readonly canvasControlService: CanvasControlService,
     private readonly themeService: ThemeService
@@ -890,11 +892,13 @@ export class PropertiesPanelComponent implements OnChanges {
   private syncNodeSelection(): void {
     if (this.nodeSelection) {
       this.nodeStyle = this.createEditableStyle(this.nodeSelection);
+      this.pendingNodeOverrides = this.extractSelectionOverrides() ?? {};
       if (!this.openPanels.includes('node-settings')) {
         this.openPanels = [...this.openPanels, 'node-settings'];
       }
     } else {
       this.nodeStyle = null;
+      this.pendingNodeOverrides = {};
       this.openPanels = this.openPanels.filter(panel => panel !== 'node-settings');
     }
   }
@@ -940,6 +944,7 @@ export class PropertiesPanelComponent implements OnChanges {
     if (!this.nodeSelection) {
       return;
     }
+    this.updatePendingOverrides(overrides);
     this.canvasControlService.applyNodeStyleOverride(overrides, this.currentScope);
   }
 
@@ -1027,7 +1032,7 @@ export class PropertiesPanelComponent implements OnChanges {
     this.currentScope = scope;
 
     if (scope === 'type') {
-      const overrides = this.extractSelectionOverrides();
+      const overrides = this.normalizePendingOverrides();
       if (overrides) {
         this.canvasControlService.applyNodeStyleOverride(overrides, scope);
       }
@@ -1116,6 +1121,25 @@ export class PropertiesPanelComponent implements OnChanges {
       result.badges = overrides.badges.map(badge => ({ ...badge }));
     }
 
+    return Object.keys(result).length > 0 ? result : null;
+  }
+
+  private updatePendingOverrides(patch: Partial<NodeStyleOverrides>): void {
+    this.pendingNodeOverrides = { ...this.pendingNodeOverrides };
+    Object.entries(patch).forEach(([key, value]) => {
+      (this.pendingNodeOverrides as Record<string, unknown>)[key] = value;
+    });
+  }
+
+  private normalizePendingOverrides(): Partial<NodeStyleOverrides> | null {
+    const entries = Object.entries(this.pendingNodeOverrides ?? {});
+    if (entries.length === 0) {
+      return null;
+    }
+    const result: Partial<NodeStyleOverrides> = {};
+    entries.forEach(([key, value]) => {
+      (result as Record<string, unknown>)[key] = value;
+    });
     return Object.keys(result).length > 0 ? result : null;
   }
 
