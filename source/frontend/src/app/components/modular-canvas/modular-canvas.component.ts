@@ -265,6 +265,14 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
 
       // Execute ViewNode query for canvas-based views
       const result = await this.neo4jDataService.executeViewNodeQuery(viewNode);
+      if ((globalThis as any).__LAYOUT_DEBUG__ && viewNode.layout) {
+        try {
+          const savedLayoutSnapshot = JSON.parse(viewNode.layout);
+          this.compareRawGraphWithLayout(result, savedLayoutSnapshot);
+        } catch (layoutError) {
+          console.warn('[GraphDiff] Failed to analyse layout snapshot', layoutError);
+        }
+      }
 
 
       if (result.entities.length > 0) {
@@ -455,6 +463,71 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
 
     return this.normaliseCanvasData(data);
   }
+private createEmptyCanvasData(): CanvasData {
+  return {
+    nodes: [],
+    edges: [],
+    originalEdges: [],
+    camera: undefined
+  };
+}
+
+private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any[] }, layout: CanvasData): void {
+  try {
+    const rawNodeIds = new Set<string>();
+    rawData.entities?.forEach(entity => {
+      const key = entity?.id ?? entity?.GUID ?? entity?.guid;
+      if (typeof key === 'string' && key.trim().length > 0) {
+        rawNodeIds.add(key);
+      }
+    });
+
+    const layoutNodeIds = new Set<string>();
+    const collectNodes = (nodes: HierarchicalNode[] | undefined): void => {
+      nodes?.forEach(node => {
+        const key = node.GUID ?? node.id;
+        if (key) {
+          layoutNodeIds.add(key);
+        }
+        collectNodes(node.children);
+      });
+    };
+    collectNodes(layout.nodes);
+
+    const nodesOnlyInLayout = Array.from(layoutNodeIds).filter(id => !rawNodeIds.has(id));
+    const nodesOnlyInRaw = Array.from(rawNodeIds).filter(id => !layoutNodeIds.has(id));
+    if (nodesOnlyInLayout.length || nodesOnlyInRaw.length) {
+      console.debug('[GraphDiff] Nodes only in layout', nodesOnlyInLayout);
+      console.debug('[GraphDiff] Nodes only in raw', nodesOnlyInRaw);
+    }
+
+    const rawEdgeKeys = new Set<string>();
+    rawData.relationships?.forEach(rel => {
+      const key = rel?.id ?? `${rel?.source ?? rel?.from}->${rel?.target ?? rel?.to}`;
+      if (typeof key === 'string' && key.trim().length > 0) {
+        rawEdgeKeys.add(key);
+      }
+    });
+
+    const layoutEdgeKeys = new Set<string>();
+    layout.edges?.forEach(edge => {
+      const key = edge.id ?? `${edge.from}->${edge.to}`;
+      if (key) {
+        layoutEdgeKeys.add(key);
+      }
+    });
+
+    const edgesOnlyInLayout = Array.from(layoutEdgeKeys).filter(id => !rawEdgeKeys.has(id));
+    const edgesOnlyInRaw = Array.from(rawEdgeKeys).filter(id => !layoutEdgeKeys.has(id));
+    if (edgesOnlyInLayout.length || edgesOnlyInRaw.length) {
+      console.debug('[GraphDiff] Edges only in layout', edgesOnlyInLayout);
+      console.debug('[GraphDiff] Edges only in raw', edgesOnlyInRaw);
+    }
+  } catch (error) {
+    console.warn('[GraphDiff] Failed to compare raw graph with saved layout', error);
+  }
+}
+
 
   private createEngineWithData(): void {
     if (!this.canvasRef?.nativeElement) {
