@@ -268,26 +268,13 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
 
 
       if (result.entities.length > 0) {
+        const baseGraph = this.convertToHierarchicalFormat(result);
         if (viewNode.layout) {
-          try {
-            const savedLayoutData = JSON.parse(viewNode.layout);
-            if (savedLayoutData.nodes && savedLayoutData.nodes.length > 0) {
-              this.normaliseCanvasData(savedLayoutData);
-              this.data = savedLayoutData;
-              this.rawViewNodeData = null;
-            } else {
-              this.data = this.convertToHierarchicalFormat(result);
-              this.rawViewNodeData = result;
-            }
-          } catch (error) {
-            console.warn('Failed to parse saved layout; using raw data', error);
-            this.data = this.convertToHierarchicalFormat(result);
-            this.rawViewNodeData = result;
-          }
+          this.data = this.mergeRawGraphWithSaved(baseGraph, viewNode.layout);
         } else {
-          this.data = this.convertToHierarchicalFormat(result);
-          this.rawViewNodeData = result;
+          this.data = baseGraph;
         }
+        this.rawViewNodeData = result;
 
         // After loading layout data, also load Auto Layout settings
         const autoLayoutState = viewNode.autoLayoutSettings
@@ -321,9 +308,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
 
   // FR-030: Apply saved layout from ViewNode
   private convertToHierarchicalFormat(neo4jData: {entities: any[], relationships: any[]}): CanvasData {
-    // Use runtime data processing instead of legacy layout engine
-    const seedData = this.data ?? this.createDefaultData();
-    const tempRuntime = new CanvasLayoutRuntime(`${this.canvasId}-runtime`, seedData, {
+    const tempRuntime = new CanvasLayoutRuntime(`${this.canvasId}-runtime`, this.createEmptyCanvasData(), {
       defaultEngine: 'containment-grid',
       runLayoutOnInit: false
     });
@@ -454,6 +439,133 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     };
 
     return this.normaliseCanvasData(data);
+  }
+
+  private createEmptyCanvasData(): CanvasData {
+    return {
+      nodes: [],
+      edges: [],
+      originalEdges: [],
+      camera: undefined
+    };
+  }
+
+  private mergeRawGraphWithSaved(raw: CanvasData, layoutJson: string): CanvasData {
+    try {
+      const savedLayout = JSON.parse(layoutJson) as CanvasData;
+      this.normaliseCanvasData(savedLayout);
+
+      const savedNodeMap = new Map<string, HierarchicalNode>();
+      const collect = (nodes: HierarchicalNode[]): void => {
+        nodes.forEach(node => {
+          const key = node.GUID ?? node.id;
+          if (key) {
+            savedNodeMap.set(key, node);
+          }
+          if (node.children && node.children.length > 0) {
+            collect(node.children);
+          }
+        });
+      };
+      collect(savedLayout.nodes ?? []);
+
+      const mergeNode = (node: HierarchicalNode): void => {
+        const key = node.GUID ?? node.id;
+        const saved = key ? savedNodeMap.get(key) : undefined;
+        if (saved) {
+          node.x = saved.x;
+          node.y = saved.y;
+          node.width = saved.width;
+          node.height = saved.height;
+          node.text = saved.text ?? node.text;
+          node.collapsed = saved.collapsed ?? node.collapsed;
+          node.visible = saved.visible ?? node.visible;
+          node.style = { ...node.style, ...(saved.style ?? {}) };
+          node.metadata = this.mergeNodeMetadata(saved.metadata, node.metadata);
+        }
+        node.children?.forEach(child => mergeNode(child));
+      };
+      raw.nodes?.forEach(node => mergeNode(node));
+
+      const savedEdgeMap = new Map<string, Edge>();
+      savedLayout.edges?.forEach(edge => savedEdgeMap.set(edge.id, edge));
+
+      const rawEdgeMap = new Map<string, Edge>();
+      raw.edges?.forEach(edge => rawEdgeMap.set(edge.id, edge));
+
+      const mergedEdges: Edge[] = [];
+      savedEdgeMap.forEach(savedEdge => {
+        const rawEdge = rawEdgeMap.get(savedEdge.id);
+        if (rawEdge) {
+          const mergedEdge: Edge = {
+            ...rawEdge,
+            from: savedEdge.from ?? rawEdge.from,
+            to: savedEdge.to ?? rawEdge.to,
+            fromGUID: savedEdge.fromGUID ?? rawEdge.fromGUID,
+            toGUID: savedEdge.toGUID ?? rawEdge.toGUID,
+            label: savedEdge.label ?? rawEdge.label,
+            style: { ...rawEdge.style, ...(savedEdge.style ?? {}) },
+            metadata: { ...(rawEdge.metadata ?? {}), ...(savedEdge.metadata ?? {}) },
+            waypoints: savedEdge.waypoints
+              ? savedEdge.waypoints.map(point => ({ ...point }))
+              : rawEdge.waypoints
+          };
+          mergedEdges.push(mergedEdge);
+        } else {
+          const cloned: Edge = {
+            id: savedEdge.id,
+            from: savedEdge.from,
+            to: savedEdge.to,
+            fromGUID: savedEdge.fromGUID,
+            toGUID: savedEdge.toGUID,
+            label: savedEdge.label,
+            style: { ...savedEdge.style },
+            waypoints: savedEdge.waypoints ? savedEdge.waypoints.map(point => ({ ...point })) : undefined,
+            metadata: savedEdge.metadata ? { ...savedEdge.metadata } : undefined
+          };
+          mergedEdges.push(cloned);
+        }
+      });
+      raw.edges?.forEach(edge => {
+        if (!savedEdgeMap.has(edge.id)) {
+          mergedEdges.push(edge);
+        }
+      });
+      raw.edges = mergedEdges;
+
+      raw.originalEdges = savedLayout.originalEdges && savedLayout.originalEdges.length > 0
+        ? savedLayout.originalEdges.map(edge => ({ ...edge }))
+        : raw.originalEdges;
+
+      raw.camera = savedLayout.camera ?? raw.camera;
+      raw.metadata = {
+        ...(raw.metadata ?? {}),
+        ...(savedLayout.metadata ?? {})
+      };
+
+      return this.normaliseCanvasData(raw);
+    } catch (error) {
+      console.warn('[ModularCanvas] mergeRawGraphWithSaved failed, using saved layout fallback', error);
+      try {
+        const fallback = JSON.parse(layoutJson) as CanvasData;
+        return this.normaliseCanvasData(fallback);
+      } catch {
+        return raw;
+      }
+    }
+  }
+
+  private mergeNodeMetadata(
+    saved?: Record<string, unknown>,
+    current?: Record<string, unknown>
+  ): Record<string, unknown> | undefined {
+    if (!saved && !current) {
+      return undefined;
+    }
+    return {
+      ...(current ?? {}),
+      ...(saved ?? {})
+    };
   }
 
   private createEngineWithData(): void {
