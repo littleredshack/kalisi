@@ -2,7 +2,7 @@ import { Component, ElementRef, ViewChild, AfterViewInit, OnInit, OnDestroy, Cha
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom, Subscription } from 'rxjs';
-import { Neo4jDataService } from '../../core/services/neo4j-data.service';
+import { Neo4jDataService, GraphRawData } from '../../core/services/neo4j-data.service';
 import { ViewNodeStateService } from '../../core/services/view-node-state.service';
 import { DynamicLayoutService } from '../../core/services/dynamic-layout.service';
 import { MessageService } from 'primeng/api';
@@ -78,7 +78,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   // FR-030: Input to receive selected ViewNode from parent
   selectedViewNode: any | null = null;
   private pendingViewNodeLayout: CanvasData | null = null;
-  private rawViewNodeData: {entities: any[], relationships: any[]} | null = null;
+  private rawViewNodeData: GraphRawData | null = null;
   private canvasId = 'modular-canvas';
   private currentLayoutModule?: LayoutModuleDescriptor;
   private currentRendererId?: string;
@@ -343,9 +343,9 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     }
   }
 
-  private convertToHierarchicalFormat(neo4jData: {entities: any[], relationships: any[]}): CanvasData {
+  private convertToHierarchicalFormat(neo4jData: GraphRawData): CanvasData {
     // Use runtime data processing instead of legacy layout engine
-    const tempRuntime = new CanvasLayoutRuntime(`${this.canvasId}-test`, this.data!, {
+    const tempRuntime = new CanvasLayoutRuntime(`${this.canvasId}-temp`, this.data ?? this.createDefaultData(), {
       defaultEngine: 'containment-grid',
       runLayoutOnInit: false
     });
@@ -523,7 +523,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       if (shouldUseRuntime) {
         console.debug('[ModularCanvas] Using runtime data processing for:', this.runtimeEngineId);
 
-        const tempRuntime = new CanvasLayoutRuntime(`${this.canvasId}-temp`, this.data!, {
+        const tempRuntime = new CanvasLayoutRuntime(`${this.canvasId}-temp`, this.data ?? this.createDefaultData(), {
           defaultEngine: this.runtimeEngineId,
           runLayoutOnInit: false
         });
@@ -555,14 +555,14 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     // Always use ComposableHierarchicalCanvasEngine
     if (this.data) {
       this.normaliseCanvasData(this.data);
-      this.canvasViewStateService.initialize(this.canvasId, this.data!, 'engine');
+      this.canvasViewStateService.initialize(this.canvasId, this.data, 'engine');
     }
 
     this.engine = new ComposableHierarchicalCanvasEngine(
       canvas,
       renderer,
       this.runtimeEngineId,
-      this.data!,
+      this.data ?? this.createDefaultData(),
       this.canvasId,
       this.canvasEventHubService
     );
