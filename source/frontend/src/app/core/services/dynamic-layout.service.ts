@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HierarchicalNode } from '../../shared/canvas/types';
+import { LayoutPrimitives } from '../../shared/canvas/layout-primitives';
 import { CanvasViewStateService, CanvasMutation } from '../../shared/canvas/state/canvas-view-state.service';
 import { CollapseBehavior, ViewNodeStateService } from './view-node-state.service';
 
@@ -456,10 +457,7 @@ export class DynamicLayoutService {
   }
 
   private getHeaderOffset(node: HierarchicalNode): number {
-    const maxAllowed = Math.max(20, node.height - 50);
-    const proportional = node.height * 0.2;
-    const base = Math.max(32, Math.min(proportional, 80));
-    return Math.max(20, Math.min(base, maxAllowed));
+    return LayoutPrimitives.computeHeaderOffset(node);
   }
 
   private deriveContainerBounds(

@@ -99,6 +99,10 @@ export class ComponentFactory {
     let rendererType = viewNode.renderer ||
                        (viewNode.properties && viewNode.properties.renderer) ||
                        'shape';
+
+    if (layoutEngineType === 'containment-runtime' && rendererType === 'composable-containment-orthogonal') {
+      rendererType = 'runtime-containment-renderer';
+    }
     if (viewNode.name === 'Code Model') {
       layoutEngineType = 'code-model-tree';
       rendererType = 'composable-tree';

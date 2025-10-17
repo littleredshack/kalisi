@@ -5,6 +5,15 @@ import { HierarchicalNode } from './types';
  * Extracted from GridLayoutEngine to eliminate code duplication
  */
 export class LayoutPrimitives {
+  private static clampNumber(value: number, min: number, max: number): number {
+    if (!Number.isFinite(value)) {
+      return min;
+    }
+    if (min >= max) {
+      return min;
+    }
+    return Math.min(Math.max(value, min), max);
+  }
 
   /**
    * Calculate grid positions for children within a container
@@ -126,6 +135,49 @@ export class LayoutPrimitives {
       node.y = spacing;
       x += node.width + spacing;
     });
+  }
+
+  /**
+   * Estimate header offset for containment-style containers to avoid clamping children into the title bar.
+   */
+  static computeHeaderOffset(node?: HierarchicalNode): number {
+    if (!node) {
+      return 32;
+    }
+    const defaults = this.getMinimumNodeSize(node.type);
+    const height = Number.isFinite(node.height) ? (node.height as number) : defaults.height;
+    const maxAllowed = Math.max(20, height - 50);
+    const proportional = height * 0.2;
+    const base = Math.max(32, Math.min(proportional, 80));
+    return Math.max(20, Math.min(base, maxAllowed));
+  }
+
+  /**
+   * Clamp a child node inside its parent bounds using padding and header offsets.
+   */
+  static clampChildWithinParent(
+    child: HierarchicalNode,
+    parent: HierarchicalNode,
+    padding: number = 20,
+    headerOffset?: number
+  ): void {
+    const parentDefaults = this.getMinimumNodeSize(parent.type);
+    const childDefaults = this.getMinimumNodeSize(child.type);
+
+    const parentWidth = Number.isFinite(parent.width) ? (parent.width as number) : parentDefaults.width;
+    const parentHeight = Number.isFinite(parent.height) ? (parent.height as number) : parentDefaults.height;
+
+    child.width = Number.isFinite(child.width) ? child.width : childDefaults.width;
+    child.height = Number.isFinite(child.height) ? child.height : childDefaults.height;
+
+    const effectiveHeader = headerOffset ?? this.computeHeaderOffset(parent);
+    const minX = padding;
+    const maxX = Math.max(minX, parentWidth - padding - (child.width as number));
+    const minY = padding + effectiveHeader;
+    const maxY = Math.max(minY, parentHeight - padding - (child.height as number));
+
+    child.x = this.clampNumber(child.x ?? minX, minX, maxX);
+    child.y = this.clampNumber(child.y ?? minY, minY, maxY);
   }
 
   /**

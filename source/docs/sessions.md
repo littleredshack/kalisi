@@ -1,3 +1,42 @@
+## Session 2025-10-16 – Runtime Containment Migration
+
+- **Scope**: Stand up the new runtime-only pipeline for the Containment Orthogonal view without falling back to saved layouts.
+- **Key outcomes**:
+  - Captured a canonical runtime payload (`frontend/runtime-samples/containment-runtime.json`) showing the real schema (`guid`, `parent_guid`, `position`, `display`, badges).
+  - Rebuilt `runtime-graph-normalizer.ts` to preserve hierarchy, world coordinates, styles, badges, and edge metadata (no more synthetic `contains-*` nodes).
+  - Implemented `ContainmentRuntimeLayoutEngine` to respect explicit geometry, only falling back to adaptive packing when positions are missing, and to route edges using world coordinates.
+  - Updated the layout registry, engine registry, and component factory so `layout_engine === 'containment-runtime'` selects the new engine/renderer pair.
+  - Converted `Neo4jDataService.convertRuntimeGraph` to treat canonical `LINK` payloads as relationships; the runtime now reports `entityCount: 7`, `relationshipCount: 6` (matching the legacy view), so “Link 11” renders as an edge instead of a node.
+  - Added explicit logging (`[RuntimeContainment]`, `[LayoutRuntime]`, `[ContainmentRuntimeEngine]`) to verify the pipeline end-to-end; these now emit in development builds.
+
+- **Database structure refresher** *(Neo4j)*:
+  - `SetNode` – groups related views (e.g., `codebase-set-001`, `test-set-001`). Each set owns zero or more queries and views.
+  - `QueryNode` – stores the Cypher (`cypherQuery`) to retrieve raw graph data. Menu wiring is via `(:SetNode)-[:HAS_QUERYNODE]->(:QueryNode)`. Duplicates exist (legacy import) so always rely on GUID and not the Neo4j internal id.
+  - `ViewNode` – describes a canvas view (`layout_engine`, `renderer`, optional saved `layout`, `autoLayoutSettings`). They appear in the library via `(:SetNode)-[:HAS_VIEWNODE]->(:ViewNode)`; runtime views (e.g., `containment-orthogonal-runtime`) have no saved layout and now expect the runtime pipeline.
+
+- **Current runtime gaps**:
+  - Containment enforcement, collapse inheritance, and renderer styling are still legacy-driven. Children currently sit at their stored world coordinates, but we still need to clamp drag, resize parents around children, and surface inherited edges when ancestors collapse.
+  - Renderer parity (badges/icons, selection halo, orthogonal waypoint caching) must be ported from the legacy containment renderer to `runtime-containment-renderer.ts`.
+  - Interaction services (history, undo/redo, preset snapshots) are still wired around saved-layout flows. We need to confirm they operate solely on runtime snapshots.
+
+- **Plan (next slices)**:
+  1. **Geometry & containment** – feed parent/child world coordinates directly into the runtime solver, project them into relative positions, and reuse existing clamping utilities so children stay inside their parents after drags/collapses.
+  2. **Collapse inheritance** – hook the runtime graph into the inherited-edge pipeline so collapsed nodes emit translucent edges (matching the orthogonal renderer’s behaviour).
+  3. **Renderer parity** – port badges, selection outlines, and edge label placement into `runtime-containment-renderer.ts`; cache orthogonal waypoints just like the legacy renderer.
+  4. **History & presets** – ensure runtime snapshots drive undo/redo and preset switching without referencing saved layouts.
+
+- **How to validate**:
+  - Reload the new view, run `window.__LAYOUT_DEBUG__ = true`, and confirm console output:
+    ```
+    [RuntimeContainment] Loaded raw runtime data {entityCount: 7, relationshipCount: 6}
+    [LayoutRuntime] Processing raw data … activeEngine: 'containment-runtime'
+    [ContainmentRuntimeEngine] Snapshot {nodes: Array(7), edges: Array(6)}
+    ```
+  - Graph should draw only the containment nodes; link nodes should no longer appear.
+  - When geometry/clamping is implemented, dragging a child must keep it within its parent; collapsing should emit inherited edges.
+
+---
+
 ## Current Execution Context (2024-12-??)
 
 - **North Star**: Deliver a graph-powered, AI-centric observability platform. Visual authoring, view presets, and data-driven canvases are the active focus.

@@ -5,6 +5,7 @@ import { ComposableContainmentOrthogonalRenderer } from '../composable/renderers
 import { ComposableFlatRenderer } from '../composable/renderers/composable-flat-renderer';
 import { ComposableTreeRenderer } from '../composable/renderers/composable-tree-renderer';
 import { ComposableTreeTableRenderer } from '../composable/renderers/composable-tree-table-renderer';
+import { RuntimeContainmentRenderer } from '../composable/renderers/runtime-containment-renderer';
 
 export interface LayoutRendererDescriptor {
   readonly id: string;
@@ -84,6 +85,28 @@ const MODULES: LayoutModuleDescriptor[] = [
       }
     ]
     // Legacy adapter removed - using runtime data processing
+  },
+  {
+    id: 'containment-runtime',
+    label: 'Runtime Containment',
+    aliases: ['containment-runtime', 'containment-live'],
+    runtimeEngine: 'containment-runtime',
+    defaultRenderer: 'runtime-containment-renderer',
+    description: 'Runtime containment layout with orthogonal routing and drillable containers.',
+    tags: ['runtime', 'containment', 'orthogonal'],
+    capabilities: {
+      supportsIncremental: true,
+      deterministic: true,
+      canHandleRealtime: true
+    },
+    renderers: [
+      {
+        id: 'runtime-containment-renderer',
+        label: 'Runtime Containment Renderer',
+        factory: () => new RuntimeContainmentRenderer(),
+        tags: ['runtime', 'containment', 'orthogonal']
+      }
+    ]
   },
   {
     id: 'force-directed',

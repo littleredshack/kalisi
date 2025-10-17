@@ -1,0 +1,110 @@
+{
+  "query_id": "sample-q",
+  "cypher": "MATCH (parent)-[r:CONTAINS]->(child) RETURN parent, r, child",
+  "parameters": {},
+  "nodes": [
+    {
+      "guid": "parent-1",
+      "labels": [
+        "Container"
+      ],
+      "parent_guid": null,
+      "position": {
+        "x": 120,
+        "y": 80
+      },
+      "display": {
+        "width": 420,
+        "height": 320,
+        "color": "#1f2937",
+        "border_color": "#4b5563",
+        "icon": "workspace"
+      },
+      "properties": {
+        "id": "parent-1",
+        "name": "Finance Platform",
+        "type": "container",
+        "badges": [
+          {
+            "text": "core"
+          }
+        ]
+      }
+    },
+    {
+      "guid": "child-1",
+      "labels": [
+        "Service"
+      ],
+      "parent_guid": "parent-1",
+      "position": {
+        "x": 160,
+        "y": 160
+      },
+      "display": {
+        "width": 240,
+        "height": 160,
+        "color": "#22384f",
+        "border_color": "#5b7287"
+      },
+      "properties": {
+        "id": "child-1",
+        "name": "Billing API",
+        "type": "node"
+      }
+    },
+    {
+      "guid": "grandchild-1",
+      "labels": [
+        "Component"
+      ],
+      "parent_guid": "child-1",
+      "position": {
+        "x": 190,
+        "y": 220
+      },
+      "display": {
+        "width": 160,
+        "height": 90,
+        "color": "#2d4f22",
+        "border_color": "#5b8729"
+      },
+      "properties": {
+        "id": "grandchild-1",
+        "name": "Payment Processor",
+        "type": "component"
+      }
+    }
+  ],
+  "relationships": [
+    {
+      "guid": "rel-1",
+      "source_guid": "parent-1",
+      "target_guid": "child-1",
+      "type": "CONTAINS",
+      "properties": {}
+    },
+    {
+      "guid": "rel-2",
+      "source_guid": "child-1",
+      "target_guid": "grandchild-1",
+      "type": "CONTAINS",
+      "properties": {}
+    },
+    {
+      "guid": "edge-1",
+      "source_guid": "grandchild-1",
+      "target_guid": "child-1",
+      "type": "DEPENDS_ON",
+      "display": {
+        "color": "#6ea8fe",
+        "width": 2
+      },
+      "properties": {}
+    }
+  ],
+  "metadata": {
+    "elapsed_ms": 3,
+    "rows_returned": 12
+  }
+}

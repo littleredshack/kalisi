@@ -2429,7 +2429,13 @@ export class ComposableHierarchicalCanvasEngine {
   }
 
   private inferEngineFromData(data: CanvasData): string {
-    return data.nodes.some(node => node.metadata?.['displayMode'] === 'tree') ? 'tree' : 'containment-grid';
+    if (data.nodes.some(node => node.metadata?.['displayMode'] === 'tree')) {
+      return 'tree';
+    }
+    if (data.nodes.some(node => node.metadata?.['displayMode'] === 'containment-runtime')) {
+      return 'containment-runtime';
+    }
+    return 'containment-grid';
   }
 
   private normaliseEngineName(legacyName: string | undefined, data: CanvasData): string {
@@ -2451,6 +2457,9 @@ export class ComposableHierarchicalCanvasEngine {
       case 'force-directed':
       case 'force':
         return 'force-directed';
+      case 'containment-runtime':
+      case 'containment-live':
+        return 'containment-runtime';
       case 'containment-grid':
       case 'hierarchical':
       case 'grid':
@@ -2458,7 +2467,13 @@ export class ComposableHierarchicalCanvasEngine {
       case 'containment':
         return 'containment-grid';
       default:
-        if (normalised === 'tree' || normalised === 'orthogonal' || normalised === 'force-directed' || normalised === 'containment-grid') {
+        if (
+          normalised === 'tree' ||
+          normalised === 'orthogonal' ||
+          normalised === 'force-directed' ||
+          normalised === 'containment-grid' ||
+          normalised === 'containment-runtime'
+        ) {
           return normalised;
         }
         return this.inferEngineFromData(data);
