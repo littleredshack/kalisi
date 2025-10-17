@@ -1,5 +1,6 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
+use chrono::Utc;
 use serde_json::{Map, Value};
 
 use crate::database::neo4j_gateway::GatewayQueryResult;
@@ -10,7 +11,7 @@ use super::dto::{
 };
 
 const GUID_KEYS: &[&str] = &["GUID", "guid", "id", "elementId", "element_id", "identity"];
-const PARENT_KEYS: &[&str] = &["parentGUID", "parent_guid", "parentId", "parent"];
+const PARENT_KEYS: &[&str] = &["parentGUID", "parent_guid", "parentId"];
 const SOURCE_KEYS: &[&str] = &[
     "fromGUID",
     "fromGuid",
@@ -20,29 +21,17 @@ const SOURCE_KEYS: &[&str] = &[
 ];
 const TARGET_KEYS: &[&str] = &["toGUID", "toGuid", "to_guid", "targetGuid", "target_guid"];
 const REL_GUID_KEYS: &[&str] = &["GUID", "guid", "relationshipId", "relationship_id"];
-const FORBIDDEN_FIELDS: &[&str] = &[
-    "id",
-    "identity",
-    "elementId",
-    "element_id",
-    "startNodeId",
-    "startNodeElementId",
-    "startNode",
-    "endNodeId",
-    "endNodeElementId",
-    "endNode",
-    "nodeId",
-    "neo4jId",
-    "relationshipId",
-];
 
 pub fn build_canvas_response(
     query_id: String,
     cypher: String,
     parameters: HashMap<String, Value>,
     result: GatewayQueryResult,
-    include_raw_rows: bool,
+    _include_raw_rows: bool,
 ) -> CanvasGraphDto {
+    // Log 1: Query sent to database
+    eprintln!("[{}] Query sent to Neo4j:\n{}\n", Utc::now().format("%Y-%m-%d %H:%M:%S%.3f"), cypher);
+
     let rows = result
         .raw_response
         .get("results")
@@ -50,33 +39,31 @@ pub fn build_canvas_response(
         .cloned()
         .unwrap_or_default();
 
+    let (nodes, relationships) = harvest_graph_entities(&rows);
+
     let metadata = QueryMetadataDto {
         elapsed_ms: result.metrics.elapsed_ms,
         rows_returned: result.metrics.result_count,
     };
 
-    // Return ALL data as-is from Neo4j, only removing internal IDs
-    // No transformation, no filtering - just sanitize internal Neo4j IDs
-    let raw_rows = if include_raw_rows {
-        Some(
-            rows.into_iter()
-                .map(sanitise_internal_ids)
-                .collect::<Vec<_>>(),
-        )
-    } else {
-        None
-    };
-
-    CanvasGraphDto {
+    let response = CanvasGraphDto {
         query_id,
         cypher,
         parameters,
-        nodes: vec![],  // Empty - frontend will use raw_rows
-        relationships: vec![],  // Empty - frontend will use raw_rows
+        nodes,
+        relationships,
         metadata,
         telemetry_cursor: None,
-        raw_rows,
-    }
+        raw_rows: None,
+    };
+
+    // Log 2: Response to frontend
+    eprintln!("[{}] Response to frontend:\n{}\n",
+        Utc::now().format("%Y-%m-%d %H:%M:%S%.3f"),
+        serde_json::to_string_pretty(&response).unwrap_or_else(|_| "Failed to serialize".to_string())
+    );
+
+    response
 }
 
 fn harvest_graph_entities(rows: &[Value]) -> (Vec<CanvasNodeDto>, Vec<CanvasRelationshipDto>) {
@@ -100,16 +87,20 @@ fn visit_value(
 ) {
     match value {
         Value::Object(object) => {
-            if let Some(node) = build_node(object) {
-                node_map.entry(node.guid.clone()).or_insert(node);
-                return;
+            // Neo4j nodes have "labels", relationships have "type" at top level
+            if object.contains_key("labels") {
+                if let Some(node) = build_node(object) {
+                    node_map.entry(node.guid.clone()).or_insert(node);
+                    return;
+                }
+            } else if object.contains_key("type") {
+                if let Some(rel) = build_relationship(object) {
+                    rel_map.entry(rel.guid.clone()).or_insert(rel);
+                    return;
+                }
             }
 
-            if let Some(rel) = build_relationship(object) {
-                rel_map.entry(rel.guid.clone()).or_insert(rel);
-                return;
-            }
-
+            // Recurse into nested objects
             for nested in object.values() {
                 visit_value(nested, node_map, rel_map);
             }
@@ -258,12 +249,13 @@ fn build_relationship(object: &Map<String, Value>) -> Option<CanvasRelationshipD
         .cloned()
         .unwrap_or_default();
 
-    // Check for source/target GUIDs in BOTH the top-level object AND properties
+    // Check for source/target GUIDs in BOTH top-level object AND properties
     let source_guid = extract_first_string(object, SOURCE_KEYS)
         .or_else(|| extract_first_string(&properties, SOURCE_KEYS))?;
 
     let target_guid = extract_first_string(object, TARGET_KEYS)
         .or_else(|| extract_first_string(&properties, TARGET_KEYS))?;
+
     let rel_type = object
         .get("type")
         .or_else(|| properties.get("type"))
@@ -405,33 +397,4 @@ fn extract_first_string_map(map: &HashMap<String, Value>, keys: &[&str]) -> Opti
         map.get(*key)
             .and_then(|value| value.as_str().map(|s| s.to_string()))
     })
-}
-
-fn sanitise_internal_ids(value: Value) -> Value {
-    match value {
-        Value::Object(mut map) => {
-            let keys_to_remove: HashSet<String> = map
-                .keys()
-                .filter(|key| {
-                    FORBIDDEN_FIELDS
-                        .iter()
-                        .any(|candidate| candidate.eq_ignore_ascii_case(key))
-                })
-                .cloned()
-                .collect();
-
-            for key in keys_to_remove {
-                map.remove(&key);
-            }
-
-            for nested in map.values_mut() {
-                let sanitized = sanitise_internal_ids(nested.clone());
-                *nested = sanitized;
-            }
-
-            Value::Object(map)
-        }
-        Value::Array(array) => Value::Array(array.into_iter().map(sanitise_internal_ids).collect()),
-        _ => value,
-    }
 }
