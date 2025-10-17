@@ -12,6 +12,9 @@ interface ContainmentMetrics {
 const DEFAULT_PADDING = 48;
 const DEFAULT_GAP = 24;
 
+// Containment edge types should NOT be rendered as lines - they define the hierarchy instead
+const CONTAINMENT_EDGE_TYPES = new Set(['CONTAINS', 'HAS_CHILD', 'HAS_COMPONENT', 'PARENT_OF']);
+
 export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
   readonly name = 'containment-runtime';
 
@@ -31,7 +34,13 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     const processedNodes = snapshot.nodes.map(node => this.layoutContainer(node, layoutMetrics));
     processedNodes.forEach(root => this.updateWorldMetadata(root));
 
-    const routedEdges = this.computeEdgeWaypoints(processedNodes, snapshot.edges);
+    // Filter out containment edges - they're represented by visual hierarchy, not lines
+    const nonContainmentEdges = snapshot.edges.filter(edge => {
+      const edgeType = (edge.metadata?.['relationType'] as string)?.toUpperCase() || '';
+      return !CONTAINMENT_EDGE_TYPES.has(edgeType);
+    });
+
+    const routedEdges = this.computeEdgeWaypoints(processedNodes, nonContainmentEdges);
 
     const updatedGraph = hierarchicalToLayoutGraph({
       nodes: processedNodes,
