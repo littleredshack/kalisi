@@ -190,7 +190,8 @@ container_start_gateway() {
     container_generate_certs
 
     local log_file="$CONTAINER_LOG_DIR/kalisi-gateway.log"
-    container_log "Starting Kalisi gateway (logs: $log_file)"
+    container_log "Starting Kalisi gateway"
+    container_log "Debug output: $log_file"
     nohup "$CONTAINER_RUST_BIN" >>"$log_file" 2>&1 &
     local pid=$!
     echo $pid > "$CONTAINER_PID_DIR/kalisi-gateway.pid"
@@ -1132,10 +1133,15 @@ else
     if [ "$IS_CONTAINER" = true ]; then
         # Cleanup trap won't run with exec, but that's OK in containers
         # The container will be destroyed anyway
-        exec "$RUST_BIN"
+        mkdir -p "$SOURCE_ROOT/logs"
+        echo -e "${BLUE}Debug output logging to: $SOURCE_ROOT/logs/gateway-debug.log${NC}"
+        exec "$RUST_BIN" > "$SOURCE_ROOT/logs/gateway-debug.log" 2>&1
     else
         # On host systems, run normally so cleanup happens
-        "$RUST_BIN"
+        # Redirect all output to debug log file
+        mkdir -p "$SOURCE_ROOT/logs"
+        echo -e "${BLUE}Debug output logging to: $SOURCE_ROOT/logs/gateway-debug.log${NC}"
+        "$RUST_BIN" > "$SOURCE_ROOT/logs/gateway-debug.log" 2>&1
         EXIT_CODE=$?
 
         # Check if it was a clean exit

@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, AfterViewInit, ElementRef, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Accordion, AccordionPanel, AccordionHeader, AccordionContent } from 'primeng/accordion';
 import { ButtonModule } from 'primeng/button';
@@ -19,7 +19,7 @@ import { InterfaceComponent } from './components/interface/interface.component';
     InterfaceComponent
   ],
   template: `
-    <div class="settings-container" (wheel)="onWheel($event)" (touchmove)="onTouchMove($event)">
+    <div class="settings-container">
       <div class="settings-header">
         <h2><i class="pi pi-cog"></i> Settings</h2>
         <button
@@ -192,7 +192,7 @@ import { InterfaceComponent } from './components/interface/interface.component';
     }
   `]
 })
-export class SettingsComponent implements OnInit {
+export class SettingsComponent implements OnInit, AfterViewInit, OnDestroy {
   @Input() activeTab: string = '';
   @Output() navigateToHome = new EventEmitter<void>();
   @Output() navigateToSettings = new EventEmitter<'appearance' | 'interface'>();
@@ -201,13 +201,37 @@ export class SettingsComponent implements OnInit {
   // Array of active accordion indexes (multiple can be open)
   activeIndexes: string[] = []; // Start with all accordion sections closed
 
-  constructor() {
+  private wheelHandler = (event: WheelEvent) => {
+    event.stopPropagation();
+  };
+
+  private touchMoveHandler = (event: TouchEvent) => {
+    event.stopPropagation();
+  };
+
+  constructor(private elementRef: ElementRef) {
     // Initialize active indexes based on activeTab
     this.updateActiveIndexes();
   }
 
   ngOnInit(): void {
     this.updateActiveIndexes();
+  }
+
+  ngAfterViewInit(): void {
+    const container = this.elementRef.nativeElement.querySelector('.settings-container');
+    if (container) {
+      container.addEventListener('wheel', this.wheelHandler, { passive: true });
+      container.addEventListener('touchmove', this.touchMoveHandler, { passive: true });
+    }
+  }
+
+  ngOnDestroy(): void {
+    const container = this.elementRef.nativeElement.querySelector('.settings-container');
+    if (container) {
+      container.removeEventListener('wheel', this.wheelHandler);
+      container.removeEventListener('touchmove', this.touchMoveHandler);
+    }
   }
 
   private updateActiveIndexes(): void {
@@ -218,15 +242,5 @@ export class SettingsComponent implements OnInit {
 
   onBackToHome(): void {
     this.navigateToHome.emit();
-  }
-
-  onWheel(event: WheelEvent): void {
-    // Stop propagation to prevent canvas from scrolling
-    event.stopPropagation();
-  }
-
-  onTouchMove(event: TouchEvent): void {
-    // Stop propagation for touch devices
-    event.stopPropagation();
   }
 }

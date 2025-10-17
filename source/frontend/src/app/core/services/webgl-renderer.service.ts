@@ -247,7 +247,7 @@ export class WebGLRenderer {
     this.canvas.addEventListener('mousemove', this.boundHandlers.mouseMove);
     this.canvas.addEventListener('mousedown', this.boundHandlers.mouseDown);
     this.canvas.addEventListener('mouseup', this.boundHandlers.mouseUp);
-    this.canvas.addEventListener('wheel', this.boundHandlers.wheel);
+    this.canvas.addEventListener('wheel', this.boundHandlers.wheel, { passive: false });
     this.canvas.addEventListener('contextmenu', this.boundHandlers.contextMenu);
   }
 

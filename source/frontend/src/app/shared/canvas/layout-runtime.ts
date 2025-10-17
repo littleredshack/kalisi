@@ -143,25 +143,18 @@ export class CanvasLayoutRuntime {
       throw new Error(`Invalid raw data: ${validation.errors.join(', ')}`);
     }
 
-    console.debug('[LayoutRuntime] Processing raw data:', {
-      entities: input.entities.length,
-      relationships: input.relationships.length,
-      canvasId: this.canvasId
-    });
+    const engineName = this.orchestrator.getActiveEngineName(this.canvasId);
 
     // Check if current engine supports raw data processing
-    const engineName = this.orchestrator.getActiveEngineName(this.canvasId);
     const engine = engineName ? this.orchestrator.getEngine(engineName) : null;
 
     let graph: LayoutGraph;
 
     if (engine && engine.processRawData) {
       // Use engine's custom processing
-      console.debug('[LayoutRuntime] Using engine processRawData:', engineName);
       graph = engine.processRawData(input);
     } else {
       // Use default transformation
-      console.debug('[LayoutRuntime] Using default processRawDataToGraph');
       graph = processRawDataToGraph(input);
     }
 
@@ -191,8 +184,6 @@ export class CanvasLayoutRuntime {
       lensId: this.lensId,
       metadata: this.canvasData.metadata ? { ...this.canvasData.metadata } : undefined
     };
-
-    console.debug('[LayoutRuntime] Raw data processed, graph nodes:', Object.keys(this.store.current.graph.nodes).length);
 
     // Run layout to position nodes
     if (runLayout) {
@@ -232,7 +223,13 @@ export class CanvasLayoutRuntime {
   }
 
   private inferEngineFromData(data: CanvasData): string {
-    return data.nodes.some(node => node.metadata?.['displayMode'] === 'tree') ? 'tree' : 'containment-grid';
+    if (data.nodes.some(node => node.metadata?.['displayMode'] === 'tree')) {
+      return 'tree';
+    }
+    if (data.nodes.some(node => node.metadata?.['displayMode'] === 'containment-runtime')) {
+      return 'containment-runtime';
+    }
+    return 'containment-grid';
   }
 
   private normaliseEngineName(engineName: string): string {
@@ -246,6 +243,9 @@ export class CanvasLayoutRuntime {
       case 'force-directed':
       case 'flat-graph':
         return 'force-directed';
+      case 'containment-runtime':
+      case 'containment-live':
+        return 'containment-runtime';
       case 'orthogonal':
       case 'containment-orthogonal':
         return 'orthogonal';

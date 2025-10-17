@@ -622,7 +622,7 @@ class RiskModelsWasmRenderer implements Renderer {
     this.canvas.addEventListener('mousemove', this.handleMouseEvent.bind(this));
     this.canvas.addEventListener('mouseup', this.handleMouseEvent.bind(this));
     this.canvas.addEventListener('dblclick', this.handleMouseEvent.bind(this));
-    this.canvas.addEventListener('wheel', this.handleWheelEvent.bind(this));
+    this.canvas.addEventListener('wheel', this.handleWheelEvent.bind(this), { passive: false });
     this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 

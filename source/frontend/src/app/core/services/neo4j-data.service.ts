@@ -199,8 +199,6 @@ export class Neo4jDataService {
         })
       );
 
-      console.log('[RuntimeGraph] Metadata:', runtimeResponse.metadata);
-
       return this.convertRuntimeGraph(runtimeResponse);
     } catch (error) {
       console.error('Error executing ViewNode query:', error);
@@ -282,19 +280,33 @@ export class Neo4jDataService {
 
   private convertRuntimeGraph(response: RuntimeGraphResponse): { entities: EntityModel[]; relationships: GraphRelationship[] } {
     if (response.nodes && response.nodes.length > 0) {
-      const entities = response.nodes.map((node, index) => this.createEntityFromCanonical(node, index));
-      const relationships = response.relationships.map(rel => ({
-        id: rel.guid,
-        source: rel.source_guid,
-        target: rel.target_guid,
-        type: rel.type,
-        properties: rel.properties,
-        color: rel.display?.color,
-        width: rel.display?.width,
-        dash: rel.display?.dash,
-        label: rel.display?.label ?? rel.properties?.['label'],
-        labelVisible: rel.display?.label_visible
-      }));
+      const entities: EntityModel[] = [];
+      const derivedRelationships: GraphRelationship[] = [];
+
+      response.nodes.forEach(node => {
+        const relationship = this.createRelationshipFromCanonicalNode(node);
+        if (relationship) {
+          derivedRelationships.push(relationship);
+        } else {
+          entities.push(this.createEntityFromCanonical(node, entities.length));
+        }
+      });
+
+      const relationships = [
+        ...derivedRelationships,
+        ...response.relationships.map(rel => ({
+          id: rel.guid,
+          source: rel.source_guid,
+          target: rel.target_guid,
+          type: rel.type,
+          properties: rel.properties,
+          color: rel.display?.color,
+          width: rel.display?.width,
+          dash: rel.display?.dash,
+          label: rel.display?.label ?? rel.properties?.['label'],
+          labelVisible: rel.display?.label_visible
+        }))
+      ];
       return { entities, relationships };
     }
 
@@ -363,11 +375,20 @@ export class Neo4jDataService {
   private createEntityFromCanonical(node: RuntimeGraphResponse['nodes'][number], index: number): EntityModel {
     const display = node.display ?? {};
     const position = node.position;
+    const properties = node.properties ?? {};
     const baseWidth = typeof display.width === 'number' ? display.width : 200;
     const baseHeight = typeof display.height === 'number' ? display.height : 100;
 
     const fallbackX = (index % 4) * (baseWidth + 40);
     const fallbackY = Math.floor(index / 4) * (baseHeight + 60);
+
+    const parentGuid =
+      node.parent_guid ??
+      (node as any).parentGuid ??
+      properties['parent_guid'] ??
+      properties['parentGuid'] ??
+      properties['parent'] ??
+      null;
 
     return {
       id: node.guid,
@@ -382,10 +403,69 @@ export class Neo4jDataService {
       badges: display.badges,
       labelVisible: display.label_visible,
       properties: node.properties || {},
-      parent: node.parent_guid ?? null,
+      parent: parentGuid,
       children: [],
       expanded: false,
       animating: false
+    };
+  }
+
+  private createRelationshipFromCanonicalNode(node: RuntimeGraphResponse['nodes'][number]): GraphRelationship | null {
+    const properties = node.properties ?? {};
+
+    const candidateSource =
+      properties['source_guid'] ??
+      properties['sourceGuid'] ??
+      properties['from_guid'] ??
+      properties['fromGuid'] ??
+      properties['fromGUID'] ??
+      properties['source'] ??
+      (properties['from'] as unknown);
+
+    const candidateTarget =
+      properties['target_guid'] ??
+      properties['targetGuid'] ??
+      properties['to_guid'] ??
+      properties['toGuid'] ??
+      properties['toGUID'] ??
+      properties['target'] ??
+      (properties['to'] as unknown);
+
+    const source = this.extractGuidFromValue(candidateSource);
+    const target = this.extractGuidFromValue(candidateTarget);
+
+    const typeValue = properties['type'] ?? node.labels?.find(label => label && typeof label === 'string');
+    const isLinkType = typeof typeValue === 'string' && typeValue.toLowerCase() === 'link';
+    const hasLinkMetadata = Boolean(source && target);
+
+    if (!hasLinkMetadata && !isLinkType) {
+      return null;
+    }
+
+    if (!source || !target) {
+      return null;
+    }
+
+    const display = node.display ?? {};
+    const relationshipDisplay = display as Record<string, unknown>;
+    const relationshipDash = relationshipDisplay['dash'] as number[] | undefined;
+    const relationshipLabel = relationshipDisplay['label'] as string | undefined;
+    const relationshipId =
+      this.extractGuidFromValue(properties['GUID']) ??
+      node.guid ??
+      `${source}-${target}`;
+
+    return {
+      id: relationshipId,
+      source,
+      target,
+      type: typeof typeValue === 'string' ? typeValue : 'LINK',
+      properties,
+      color: display.color,
+      width: display.width,
+      dash: relationshipDash,
+      label: relationshipLabel ?? properties['label'],
+      labelVisible: display.label_visible ?? properties['labelVisible']
     };
   }
 

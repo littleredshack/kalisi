@@ -10,7 +10,7 @@ use super::dto::{
 };
 
 const GUID_KEYS: &[&str] = &["GUID", "guid", "id", "elementId", "element_id", "identity"];
-const PARENT_KEYS: &[&str] = &["parentGUID", "parent_guid", "parentId"];
+const PARENT_KEYS: &[&str] = &["parentGUID", "parent_guid", "parentId", "parent"];
 const SOURCE_KEYS: &[&str] = &[
     "fromGUID",
     "fromGuid",
@@ -32,6 +32,7 @@ const FORBIDDEN_FIELDS: &[&str] = &[
     "endNodeElementId",
     "endNode",
     "nodeId",
+    "neo4jId",
     "relationshipId",
 ];
 
@@ -49,13 +50,13 @@ pub fn build_canvas_response(
         .cloned()
         .unwrap_or_default();
 
-    let (nodes, relationships) = harvest_graph_entities(&rows);
-
     let metadata = QueryMetadataDto {
         elapsed_ms: result.metrics.elapsed_ms,
         rows_returned: result.metrics.result_count,
     };
 
+    // Return ALL data as-is from Neo4j, only removing internal IDs
+    // No transformation, no filtering - just sanitize internal Neo4j IDs
     let raw_rows = if include_raw_rows {
         Some(
             rows.into_iter()
@@ -70,8 +71,8 @@ pub fn build_canvas_response(
         query_id,
         cypher,
         parameters,
-        nodes,
-        relationships,
+        nodes: vec![],  // Empty - frontend will use raw_rows
+        relationships: vec![],  // Empty - frontend will use raw_rows
         metadata,
         telemetry_cursor: None,
         raw_rows,
@@ -257,15 +258,20 @@ fn build_relationship(object: &Map<String, Value>) -> Option<CanvasRelationshipD
         .cloned()
         .unwrap_or_default();
 
-    let source_guid = extract_first_string(&properties, SOURCE_KEYS)?;
-    let target_guid = extract_first_string(&properties, TARGET_KEYS)?;
+    // Check for source/target GUIDs in BOTH the top-level object AND properties
+    let source_guid = extract_first_string(object, SOURCE_KEYS)
+        .or_else(|| extract_first_string(&properties, SOURCE_KEYS))?;
+
+    let target_guid = extract_first_string(object, TARGET_KEYS)
+        .or_else(|| extract_first_string(&properties, TARGET_KEYS))?;
     let rel_type = object
         .get("type")
         .or_else(|| properties.get("type"))
         .and_then(|value| value.as_str().map(|s| s.to_string()))
         .unwrap_or_else(|| "RELATES_TO".to_string());
 
-    let guid = extract_first_string(&properties, REL_GUID_KEYS)
+    let guid = extract_first_string(object, REL_GUID_KEYS)
+        .or_else(|| extract_first_string(&properties, REL_GUID_KEYS))
         .unwrap_or_else(|| format!("{}__{}__{}", rel_type, source_guid, target_guid));
 
     let display = extract_relationship_display(&properties);

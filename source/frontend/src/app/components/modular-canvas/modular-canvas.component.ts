@@ -28,6 +28,8 @@ import { GraphLensRegistry, GraphLensDescriptor } from '../../shared/graph/lens-
 import { ensureRelativeNodeCoordinates } from '../../shared/canvas/utils/relative-coordinates';
 import { CanvasLayoutRuntime } from '../../shared/canvas/layout-runtime';
 import { layoutGraphToHierarchical } from '../../shared/layouts/core/layout-graph-utils';
+import { ContainmentRuntimeLayoutEngine } from '../../shared/layouts/engines/containment-runtime-layout.engine';
+import { LayoutOptions, RawDataInput } from '../../shared/layouts/core/layout-contract';
 import { ResolvedViewPreset } from '../../shared/canvas/presets/preset-manager';
 import { ViewPresetDescriptor } from '../../shared/graph/view-presets';
 
@@ -40,8 +42,7 @@ import { ViewPresetDescriptor } from '../../shared/graph/view-presets';
       <canvas #canvas class="full-canvas"
               (mousedown)="onMouseDown($event)"
               (mousemove)="onMouseMove($event)"
-              (mouseup)="onMouseUp($event)"
-              (wheel)="onWheel($event)"></canvas>
+              (mouseup)="onMouseUp($event)"></canvas>
     </div>
   `,
   styles: [`
@@ -126,6 +127,9 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     this.resizeCanvas();
     // Register this canvas with the control service
     this.canvasControlService.registerCanvas(this);
+
+    // Add wheel listener with passive: false to allow preventDefault
+    this.canvasRef.nativeElement.addEventListener('wheel', this.onWheel.bind(this), { passive: false });
   }
 
   ngOnDestroy(): void {
@@ -134,6 +138,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     this.canvasControlService.unregisterCanvas();
     this.historySubscription?.unsubscribe();
     this.canvasHistoryService.unregisterCanvas(this.canvasId);
+    this.canvasRef.nativeElement.removeEventListener('wheel', this.onWheel.bind(this));
     this.engine?.destroy();
   }
 
@@ -243,7 +248,6 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
 
 
       if (!viewNode) {
-        console.error('🔍 DEBUG: ViewNode not found for id:', viewNodeId);
         return;
       }
       // Store the viewNode for createEngineWithData to use
@@ -265,18 +269,14 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
 
       // Execute ViewNode query for canvas-based views
       const result = await this.neo4jDataService.executeViewNodeQuery(viewNode);
-      if ((globalThis as any).__LAYOUT_DEBUG__ && viewNode.layout) {
-        try {
-          const savedLayoutSnapshot = JSON.parse(viewNode.layout);
-          this.compareRawGraphWithLayout(result, savedLayoutSnapshot);
-        } catch (layoutError) {
-          console.warn('[GraphDiff] Failed to analyse layout snapshot', layoutError);
-        }
-      }
+      const isRuntimeContainment = viewNode.layout_engine === 'containment-runtime';
 
 
       if (result.entities.length > 0) {
-        if (viewNode.layout) {
+        if (isRuntimeContainment) {
+          this.data = this.createEmptyCanvasData();
+          this.rawViewNodeData = result;
+        } else if (viewNode.layout) {
           try {
             const savedLayoutData = JSON.parse(viewNode.layout);
             if (savedLayoutData.nodes && savedLayoutData.nodes.length > 0) {
@@ -288,7 +288,6 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
               this.rawViewNodeData = result;
             }
           } catch (error) {
-            console.warn('Failed to parse saved layout; using raw data', error);
             this.data = this.convertToHierarchicalFormat(result);
             this.rawViewNodeData = result;
           }
@@ -496,10 +495,6 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
 
     const nodesOnlyInLayout = Array.from(layoutNodeIds).filter(id => !rawNodeIds.has(id));
     const nodesOnlyInRaw = Array.from(rawNodeIds).filter(id => !layoutNodeIds.has(id));
-    if (nodesOnlyInLayout.length || nodesOnlyInRaw.length) {
-      console.debug('[GraphDiff] Nodes only in layout', nodesOnlyInLayout);
-      console.debug('[GraphDiff] Nodes only in raw', nodesOnlyInRaw);
-    }
 
     const rawEdgeKeys = new Set<string>();
     rawData.relationships?.forEach(rel => {
@@ -517,14 +512,8 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       }
     });
 
-    const edgesOnlyInLayout = Array.from(layoutEdgeKeys).filter(id => !rawEdgeKeys.has(id));
-    const edgesOnlyInRaw = Array.from(rawEdgeKeys).filter(id => !layoutEdgeKeys.has(id));
-    if (edgesOnlyInLayout.length || edgesOnlyInRaw.length) {
-      console.debug('[GraphDiff] Edges only in layout', edgesOnlyInLayout);
-      console.debug('[GraphDiff] Edges only in raw', edgesOnlyInRaw);
-    }
   } catch (error) {
-    console.warn('[GraphDiff] Failed to compare raw graph with saved layout', error);
+    // Silent failure
   }
 }
 
@@ -569,24 +558,67 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     if (this.rawViewNodeData && this.selectedViewNode) {
       // Check if we should use runtime data processing (Phase 2 migration)
       const shouldUseRuntime = this.useRuntimeDataProcessing &&
-                               (this.runtimeEngineId === 'containment-grid' || this.runtimeEngineId === 'orthogonal');
+                               (this.runtimeEngineId === 'containment-grid' ||
+                                this.runtimeEngineId === 'orthogonal' ||
+                                this.runtimeEngineId === 'containment-runtime');
 
       if (shouldUseRuntime) {
-        console.debug('[ModularCanvas] Using runtime data processing for:', this.runtimeEngineId);
 
         const tempRuntime = new CanvasLayoutRuntime(`${this.canvasId}-temp`, this.data!, {
           defaultEngine: this.runtimeEngineId,
           runLayoutOnInit: false
         });
 
-        // Process raw data through runtime (don't run layout yet, just build graph)
-        tempRuntime.setRawData({
-          entities: this.rawViewNodeData.entities,
-          relationships: this.rawViewNodeData.relationships
-        }, false, 'system');  // false = don't run layout yet
+        // Convert EntityModel[] to RawDataInput format
+        const rawDataInput: RawDataInput = {
+          entities: this.rawViewNodeData.entities.map((entity: any) => ({
+            id: entity.id,
+            name: entity.name,
+            type: entity.properties?.type ?? 'node',
+            properties: {
+              ...(entity.properties ?? {}),
+              position: { x: entity.x, y: entity.y },
+              size: { width: entity.width, height: entity.height },
+              color: entity.color,
+              stroke: entity.stroke,
+              icon: entity.icon,
+              badges: entity.badges,
+              labelVisible: entity.labelVisible,
+              parent: entity.parent
+            }
+          })),
+          relationships: this.rawViewNodeData.relationships.map((rel: any) => ({
+            id: rel.id,
+            source: rel.source,
+            target: rel.target,
+            type: rel.type,
+            properties: {
+              ...(rel.properties ?? {}),
+              color: rel.color,
+              width: rel.width,
+              dash: rel.dash,
+              label: rel.label,
+              labelVisible: rel.labelVisible
+            }
+          }))
+        };
 
-        // Convert LayoutGraph back to CanvasData format
-        const processedGraph = tempRuntime.getLayoutGraph();
+        tempRuntime.setRawData(rawDataInput, false, 'system');
+
+        let processedGraph = tempRuntime.getLayoutGraph();
+
+        if (this.runtimeEngineId === 'containment-runtime') {
+          const runtimeEngine = new ContainmentRuntimeLayoutEngine();
+          const layoutOptions: LayoutOptions = {
+            reason: 'initial',
+            timestamp: Date.now(),
+            previousGraph: processedGraph,
+            engineOptions: {}
+          };
+          const layoutResult = runtimeEngine.layout(processedGraph, layoutOptions);
+          processedGraph = layoutResult.graph;
+        }
+
         const hierarchicalSnapshot = layoutGraphToHierarchical(processedGraph);
 
         this.data = {
@@ -595,11 +627,6 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
           originalEdges: hierarchicalSnapshot.edges,
           camera: this.data?.camera
         };
-
-        console.debug('[ModularCanvas] Runtime processing complete, nodes:', this.data.nodes.length);
-      } else {
-        // Fallback: no ViewNode or legacy layout - data should be pre-initialized
-        console.debug('[ModularCanvas] Using pre-initialized data');
       }
     }
     
