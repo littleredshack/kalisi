@@ -624,8 +624,7 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     
     // Determine if this is a runtime engine
     const isRuntimeEngine = this.runtimeEngineId === 'containment-runtime' ||
-                            this.runtimeEngineId === 'containment-grid' ||
-                            this.runtimeEngineId === 'orthogonal';
+                            this.runtimeEngineId === 'containment-grid';
 
     if (isRuntimeEngine) {
       // CLEAN ARCHITECTURE: Runtime engine → Renderer (NO transformations!)
