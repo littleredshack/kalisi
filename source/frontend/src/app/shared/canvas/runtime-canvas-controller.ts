@@ -556,7 +556,80 @@ export class RuntimeCanvasController {
       if (node.height > maxHeight) {
         node.height = maxHeight;
       }
+    } else {
+      // Parent resize constraint - cannot be smaller than children
+      this.applyParentResizeConstraint(node);
     }
+
+    // If this is a parent with children, check if any children are now outside bounds
+    if (node.children && node.children.length > 0) {
+      this.adjustChildrenAfterParentResize(node);
+    }
+  }
+
+  /**
+   * Apply parent resize constraint - ensures parent can't shrink smaller than children
+   * PORTED FROM ComposableHierarchicalCanvasEngine
+   */
+  private applyParentResizeConstraint(parentNode: HierarchicalNode): void {
+    if (!parentNode.children || parentNode.children.length === 0) return;
+
+    const padding = 20;
+    let minWidth = 100; // Absolute minimum
+    let minHeight = 100;
+
+    // Calculate minimum size needed to contain all children
+    parentNode.children.forEach(child => {
+      const childRight = child.x + child.width + padding;
+      const childBottom = child.y + child.height + padding;
+
+      minWidth = Math.max(minWidth, childRight);
+      minHeight = Math.max(minHeight, childBottom);
+    });
+
+    // Enforce minimum sizes
+    if (parentNode.width < minWidth) {
+      parentNode.width = minWidth;
+    }
+    if (parentNode.height < minHeight) {
+      parentNode.height = minHeight;
+    }
+  }
+
+  /**
+   * Adjust children that are outside parent bounds after parent resize
+   * PORTED FROM ComposableHierarchicalCanvasEngine
+   */
+  private adjustChildrenAfterParentResize(parentNode: HierarchicalNode): void {
+    const padding = 10;
+
+    // Recursively adjust all children to stay within parent bounds
+    const adjustChild = (child: HierarchicalNode) => {
+      // Check if child is now outside parent bounds
+      const maxX = parentNode.width - child.width - padding;
+      const maxY = parentNode.height - child.height - padding;
+      const minX = padding;
+      const minY = padding;
+
+      // Adjust position if outside bounds
+      child.x = Math.max(minX, Math.min(maxX, child.x));
+      child.y = Math.max(minY, Math.min(maxY, child.y));
+
+      // Adjust size if still too big
+      if (child.x + child.width > parentNode.width - padding) {
+        child.width = parentNode.width - child.x - padding;
+      }
+      if (child.y + child.height > parentNode.height - padding) {
+        child.height = parentNode.height - child.y - padding;
+      }
+
+      // Recursively adjust grandchildren
+      if (child.children && child.children.length > 0) {
+        child.children.forEach(grandchild => adjustChild(grandchild));
+      }
+    };
+
+    parentNode.children.forEach(child => adjustChild(child));
   }
 
   /**
