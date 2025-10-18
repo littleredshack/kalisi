@@ -261,27 +261,12 @@ export class RuntimeCanvasController {
     if (event.type === 'drag-update' && result && (result as any).dragHandled) {
       const selectedNode = this.interactionHandler.getSelectedNode();
       if (selectedNode) {
-        // Get current data and find the actual node (selectedNode might be stale)
+        // Node has been modified directly - just update runtime and callbacks
         const data = this.layoutRuntime.getCanvasData();
-        const nodeGuid = selectedNode.GUID || selectedNode.id;
-        const actualNode = this.findNodeByGuid(data.nodes, nodeGuid);
+        this.layoutRuntime.setCanvasData(data, false);
 
-        if (actualNode) {
-          // Copy position from the modified stale node to the actual node
-          actualNode.x = selectedNode.x;
-          actualNode.y = selectedNode.y;
-
-          // Update world position tracking
-          this.interactionHandler.updateSelectedNodeWorldPos(
-            this.interactionHandler.getAbsolutePosition(actualNode, data.nodes)
-          );
-
-          // Update data
-          this.layoutRuntime.setCanvasData(data, false);
-
-          if (this.onDataChangedCallback) {
-            this.onDataChangedCallback(data);
-          }
+        if (this.onDataChangedCallback) {
+          this.onDataChangedCallback(data);
         }
       }
     }
@@ -289,27 +274,12 @@ export class RuntimeCanvasController {
     if (event.type === 'drag-stop') {
       const selectedNode = this.interactionHandler.getSelectedNode();
       if (selectedNode) {
-        // Get current data and find the actual node (selectedNode might be stale)
+        // Node has been modified directly - just update runtime and callbacks
         const data = this.layoutRuntime.getCanvasData();
-        const nodeGuid = selectedNode.GUID || selectedNode.id;
-        const actualNode = this.findNodeByGuid(data.nodes, nodeGuid);
+        this.layoutRuntime.setCanvasData(data, false);
 
-        if (actualNode) {
-          // Copy position from the modified stale node to the actual node
-          actualNode.x = selectedNode.x;
-          actualNode.y = selectedNode.y;
-
-          // Update world position tracking
-          this.interactionHandler.updateSelectedNodeWorldPos(
-            this.interactionHandler.getAbsolutePosition(actualNode, data.nodes)
-          );
-
-          // Update data
-          this.layoutRuntime.setCanvasData(data, false);
-
-          if (this.onDataChangedCallback) {
-            this.onDataChangedCallback(data);
-          }
+        if (this.onDataChangedCallback) {
+          this.onDataChangedCallback(data);
         }
       }
     }
@@ -356,70 +326,67 @@ export class RuntimeCanvasController {
     const worldMouseX = mouseX / camera.zoom + camera.x;
     const worldMouseY = mouseY / camera.zoom + camera.y;
 
-    // Get current data and find the actual node in it (node ref might be stale)
+    // Get current data
     const data = this.layoutRuntime.getCanvasData();
-    const nodeGuid = node.GUID || node.id;
-    const actualNode = this.findNodeByGuid(data.nodes, nodeGuid);
-    if (!actualNode) return;
 
     // Get current world position
-    const worldPos = this.interactionHandler.getAbsolutePosition(actualNode, data.nodes);
+    const worldPos = this.interactionHandler.getAbsolutePosition(node, data.nodes);
 
     const minSize = 50; // Minimum node size
 
     switch (handle) {
       case 'se': // Bottom-right corner
-        actualNode.width = Math.max(minSize, worldMouseX - worldPos.x);
-        actualNode.height = Math.max(minSize, worldMouseY - worldPos.y);
+        node.width = Math.max(minSize, worldMouseX - worldPos.x);
+        node.height = Math.max(minSize, worldMouseY - worldPos.y);
         break;
       case 'ne': // Top-right corner
-        const newHeight = Math.max(minSize, worldPos.y + actualNode.height - worldMouseY);
-        actualNode.y += actualNode.height - newHeight;
-        actualNode.height = newHeight;
-        actualNode.width = Math.max(minSize, worldMouseX - worldPos.x);
+        const newHeight = Math.max(minSize, worldPos.y + node.height - worldMouseY);
+        node.y += node.height - newHeight;
+        node.height = newHeight;
+        node.width = Math.max(minSize, worldMouseX - worldPos.x);
         break;
       case 'nw': // Top-left corner
-        const newWidth = Math.max(minSize, worldPos.x + actualNode.width - worldMouseX);
-        const newHeight2 = Math.max(minSize, worldPos.y + actualNode.height - worldMouseY);
-        actualNode.x += actualNode.width - newWidth;
-        actualNode.y += actualNode.height - newHeight2;
-        actualNode.width = newWidth;
-        actualNode.height = newHeight2;
+        const newWidth = Math.max(minSize, worldPos.x + node.width - worldMouseX);
+        const newHeight2 = Math.max(minSize, worldPos.y + node.height - worldMouseY);
+        node.x += node.width - newWidth;
+        node.y += node.height - newHeight2;
+        node.width = newWidth;
+        node.height = newHeight2;
         break;
       case 'sw': // Bottom-left corner
-        const newWidth2 = Math.max(minSize, worldPos.x + actualNode.width - worldMouseX);
-        actualNode.x += actualNode.width - newWidth2;
-        actualNode.width = newWidth2;
-        actualNode.height = Math.max(minSize, worldMouseY - worldPos.y);
+        const newWidth2 = Math.max(minSize, worldPos.x + node.width - worldMouseX);
+        node.x += node.width - newWidth2;
+        node.width = newWidth2;
+        node.height = Math.max(minSize, worldMouseY - worldPos.y);
         break;
       case 'e': // Right edge
-        actualNode.width = Math.max(minSize, worldMouseX - worldPos.x);
+        node.width = Math.max(minSize, worldMouseX - worldPos.x);
         break;
       case 'w': // Left edge
-        const newWidth3 = Math.max(minSize, worldPos.x + actualNode.width - worldMouseX);
-        actualNode.x += actualNode.width - newWidth3;
-        actualNode.width = newWidth3;
+        const newWidth3 = Math.max(minSize, worldPos.x + node.width - worldMouseX);
+        node.x += node.width - newWidth3;
+        node.width = newWidth3;
         break;
       case 'n': // Top edge
-        const newHeight3 = Math.max(minSize, worldPos.y + actualNode.height - worldMouseY);
-        actualNode.y += actualNode.height - newHeight3;
-        actualNode.height = newHeight3;
+        const newHeight3 = Math.max(minSize, worldPos.y + node.height - worldMouseY);
+        node.y += node.height - newHeight3;
+        node.height = newHeight3;
         break;
       case 's': // Bottom edge
-        actualNode.height = Math.max(minSize, worldMouseY - worldPos.y);
+        node.height = Math.max(minSize, worldMouseY - worldPos.y);
         break;
     }
 
     // Apply resize constraints
-    this.applyResizeConstraints(actualNode);
+    this.applyResizeConstraints(node);
 
     // Apply movement constraints (in case resize changed position)
-    const constrainedPosition = this.interactionHandler.applyMovementConstraints(actualNode, actualNode.x, actualNode.y, data.nodes);
-    actualNode.x = constrainedPosition.x;
-    actualNode.y = constrainedPosition.y;
+    const constrainedPosition = this.interactionHandler.applyMovementConstraints(node, node.x, node.y, data.nodes);
+    node.x = constrainedPosition.x;
+    node.y = constrainedPosition.y;
 
     // Update selection position tracking
-    this.interactionHandler.updateSelectedNodeWorldPos(this.interactionHandler.getAbsolutePosition(actualNode, data.nodes));
+    this.interactionHandler.updateSelectedNodeWorldPos(this.interactionHandler.getAbsolutePosition(node, data.nodes));
 
     // Update data
     this.layoutRuntime.setCanvasData(data, false);

@@ -44,13 +44,8 @@ export class CanvasLayoutRuntime {
       ensureRelativeNodeCoordinates(initialData.nodes, 0, 0);
     }
 
-    this.canvasData = {
-      ...initialData,
-      nodes: initialData.nodes.map(node => ({ ...node })),
-      edges: initialData.edges.map(edge => ({ ...edge })),
-      originalEdges: initialData.originalEdges ?? initialData.edges.map(edge => ({ ...edge })),
-      metadata: initialData.metadata ? { ...initialData.metadata } : undefined
-    };
+    // Store reference directly - no deep copying to avoid stale reference issues
+    this.canvasData = initialData;
 
     const initialEngine = this.normaliseEngineName(this.defaultEngine);
     this.orchestrator.setActiveEngine(canvasId, initialEngine);
@@ -63,7 +58,7 @@ export class CanvasLayoutRuntime {
       });
       this.store.update(result);
       this.frame = buildPresentationFrame(result, undefined, this.lensId);
-      this.canvasData = this.cloneCanvasData(this.frame.canvasData);
+      this.canvasData = this.frame.canvasData;
     }
   }
 
@@ -80,7 +75,7 @@ export class CanvasLayoutRuntime {
   }
 
   getCanvasData(): CanvasData {
-    return this.cloneCanvasData(this.canvasData);
+    return this.canvasData;
   }
 
   getPresentationFrame(): PresentationFrame | null {
@@ -90,7 +85,7 @@ export class CanvasLayoutRuntime {
     return {
       version: this.frame.version,
       camera: this.frame.camera ? { ...this.frame.camera } : undefined,
-      canvasData: this.cloneCanvasData(this.frame.canvasData),
+      canvasData: this.frame.canvasData,
       lastResult: this.frame.lastResult,
       delta: this.frame.delta,
       lensId: this.frame.lensId,
@@ -107,13 +102,9 @@ export class CanvasLayoutRuntime {
   }
 
   setCanvasData(data: CanvasData, runLayout = false, source: CanvasEventSource = 'system'): void {
-    this.canvasData = {
-      ...data,
-      nodes: data.nodes.map(node => ({ ...node })),
-      edges: data.edges.map(edge => ({ ...edge })),
-      originalEdges: data.originalEdges ?? data.edges.map(edge => ({ ...edge })),
-      metadata: data.metadata ? { ...data.metadata } : undefined
-    };
+    // Store reference directly - no deep copying to avoid stale reference issues
+    this.canvasData = data;
+
     // Skip coordinate normalization for runtime engines that output correctly positioned nodes
     if (!this.isRuntimeEngine(this.defaultEngine)) {
       ensureRelativeNodeCoordinates(this.canvasData.nodes, 0, 0);
@@ -123,7 +114,7 @@ export class CanvasLayoutRuntime {
     this.frame = {
       version: this.store.current.version,
       camera: this.canvasData.camera,
-      canvasData: this.cloneCanvasData(this.canvasData),
+      canvasData: this.canvasData,
       lastResult: {
         graph,
         camera: this.canvasData.camera,
@@ -183,7 +174,7 @@ export class CanvasLayoutRuntime {
     this.frame = {
       version: this.store.current.version,
       camera: undefined,
-      canvasData: this.cloneCanvasData(this.canvasData),
+      canvasData: this.canvasData,
       lastResult: {
         graph: this.store.current.graph,
         camera: undefined,
@@ -229,24 +220,20 @@ export class CanvasLayoutRuntime {
       priority: this.resolvePriority(options)
     });
 
-    console.log('[LayoutRuntime] BEFORE store.update(), result.graph nodes:');
     Object.entries(result.graph.nodes).forEach(([id, node]) => {
       if (node.children.length > 0) {
-        console.log(`[LayoutRuntime]   ${id}: geometry=(${node.geometry.x}, ${node.geometry.y})`);
       }
     });
 
     this.store.update(result);
 
-    console.log('[LayoutRuntime] AFTER store.update(), result.graph nodes:');
     Object.entries(result.graph.nodes).forEach(([id, node]) => {
       if (node.children.length > 0) {
-        console.log(`[LayoutRuntime]   ${id}: geometry=(${node.geometry.x}, ${node.geometry.y})`);
       }
     });
 
     this.frame = buildPresentationFrame(result, this.frame ?? undefined, this.lensId);
-    this.canvasData = this.cloneCanvasData(this.frame.canvasData);
+    this.canvasData = this.frame.canvasData;
     return this.canvasData;
   }
 
@@ -289,14 +276,6 @@ export class CanvasLayoutRuntime {
         }
         return 'containment-grid';
     }
-  }
-
-  private cloneCanvasData(data: CanvasData): CanvasData {
-    const structured = (globalThis as unknown as { structuredClone?: <T>(input: T) => T }).structuredClone;
-    if (typeof structured === 'function') {
-      return structured(data);
-    }
-    return JSON.parse(JSON.stringify(data));
   }
 
   private resolvePriority(options: LayoutRunOptions): LayoutPriority {
