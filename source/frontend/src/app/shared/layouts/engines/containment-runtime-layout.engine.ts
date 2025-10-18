@@ -97,11 +97,21 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     }
 
     const children = clone.children ?? [];
+
+    // Recursively layout children first to get their sizes
     const laidOutChildren = children.map(child => this.layoutContainer(child, metrics));
 
+    // Now apply grid layout which will size and position children
     this.applyAdaptiveGrid(clone, laidOutChildren, metrics);
     clone.children = laidOutChildren;
+
+    // Resize parent to fit all positioned children
+    console.log(`[ContainmentRuntime] BEFORE resizeToFitChildren: ${clone.id} size=${clone.width}x${clone.height}`);
+    laidOutChildren.forEach(child => {
+      console.log(`[ContainmentRuntime]   child ${child.id}: pos=(${child.x}, ${child.y}) size=${child.width}x${child.height}, right edge=${child.x + child.width}, bottom edge=${child.y + child.height}`);
+    });
     LayoutPrimitives.resizeToFitChildren(clone, metrics.padding, metrics.padding);
+    console.log(`[ContainmentRuntime] AFTER resizeToFitChildren: ${clone.id} size=${clone.width}x${clone.height}`);
 
     return clone;
   }

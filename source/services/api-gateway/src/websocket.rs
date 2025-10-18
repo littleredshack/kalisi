@@ -183,10 +183,14 @@ async fn handle_console_log(msg_data: serde_json::Value, _state: &AppState) {
             || message.starts_with("[ContainmentRuntime]")
             || message.starts_with("[HierarchicalPrimitive]")
             || message.starts_with("[RuntimeRenderer]")
+            || message.starts_with("[RuntimeContainmentRenderer]")
+            || message.starts_with("[ComposableHierarchicalRenderer]")
+            || message.starts_with("[ComponentFactory]")
             || message.starts_with("[LayoutGraphUtils]")
             || message.starts_with("[PresentationFrame]")
             || message.starts_with("[LayoutRuntime]")
-            || message.starts_with("[LayoutOrchestrator]") {
+            || message.starts_with("[LayoutOrchestrator]")
+            || message.starts_with("[FINAL DATA]") {
             // Write to stderr which goes to gateway-debug.log
             eprintln!("[BROWSER] {}", message);
         }
