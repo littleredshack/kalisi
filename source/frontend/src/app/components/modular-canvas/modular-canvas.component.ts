@@ -7,6 +7,7 @@ import { ViewNodeStateService } from '../../core/services/view-node-state.servic
 import { DynamicLayoutService } from '../../core/services/dynamic-layout.service';
 import { MessageService } from 'primeng/api';
 import { ComposableHierarchicalCanvasEngine } from '../../shared/canvas/composable-hierarchical-canvas-engine';
+import { RuntimeCanvasController } from '../../shared/canvas/runtime-canvas-controller';
 import {
   HierarchicalNode,
   Edge,
@@ -116,7 +117,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     this.currentLensId = this.availableLenses[0]?.id ?? 'full-graph';
   }
   
-  public engine: ComposableHierarchicalCanvasEngine | null = null;
+  public engine: ComposableHierarchicalCanvasEngine | RuntimeCanvasController | null = null;
   data: CanvasData | null = null;
   cameraInfo = { x: 0, y: 0, zoom: 1.0 };
   
@@ -147,7 +148,7 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       return;
     }
 
-    if (this.engine) {
+    if (this.engine instanceof ComposableHierarchicalCanvasEngine) {
       this.engine.setActivePreset(presetId, overrides);
     } else {
       this.pendingPresetId = presetId;
@@ -159,7 +160,10 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   }
 
   getActivePreset(): ResolvedViewPreset | null {
-    return this.engine?.getCurrentViewPreset() ?? null;
+    if (this.engine instanceof ComposableHierarchicalCanvasEngine) {
+      return this.engine.getCurrentViewPreset();
+    }
+    return null;
   }
 
   applyNodeStyleOverride(
@@ -167,14 +171,16 @@ export class ModularCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     overrides: Partial<NodeStyleOverrides>,
     scope: StyleApplicationScope
   ): void {
-    if (!this.engine) {
-      return;
+    if (this.engine instanceof ComposableHierarchicalCanvasEngine) {
+      this.engine.applyNodeStyleOverride(nodeId, overrides, scope);
     }
-    this.engine.applyNodeStyleOverride(nodeId, overrides, scope);
   }
 
   getSelectedNodeSnapshot(): NodeSelectionSnapshot | null {
-    return this.engine?.getSelectedNodeSnapshot() ?? null;
+    if (this.engine instanceof ComposableHierarchicalCanvasEngine) {
+      return this.engine.getSelectedNodeSnapshot();
+    }
+    return null;
   }
 
   async ngOnInit(): Promise<void> {
@@ -616,63 +622,85 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       }
     }
     
-    // Always use ComposableHierarchicalCanvasEngine
-    if (this.data) {
-      // Skip coordinate normalization for runtime engines since they already output correct positions
-      const isRuntimeEngine = this.runtimeEngineId === 'containment-runtime' ||
-                              this.runtimeEngineId === 'containment-grid' ||
-                              this.runtimeEngineId === 'orthogonal';
-      this.normaliseCanvasData(this.data, isRuntimeEngine);
-      this.canvasViewStateService.initialize(this.canvasId, this.data!, 'engine');
-    }
+    // Determine if this is a runtime engine
+    const isRuntimeEngine = this.runtimeEngineId === 'containment-runtime' ||
+                            this.runtimeEngineId === 'containment-grid' ||
+                            this.runtimeEngineId === 'orthogonal';
 
-    this.engine = new ComposableHierarchicalCanvasEngine(
-      canvas,
-      renderer,
-      this.runtimeEngineId,
-      this.data!,
-      this.canvasId,
-      this.canvasEventHubService
-    );
+    if (isRuntimeEngine) {
+      // CLEAN ARCHITECTURE: Runtime engine → Renderer (NO transformations!)
+      console.log(`[ModularCanvas] Using RuntimeCanvasController for ${this.runtimeEngineId}`);
+      this.engine = new RuntimeCanvasController(
+        canvas,
+        renderer,
+        this.data!,
+        this.canvasId,
+        this.runtimeEngineId
+      );
+    } else {
+      // LEGACY ARCHITECTURE: Use ComposableHierarchicalCanvasEngine for legacy views
+      console.log(`[ModularCanvas] Using ComposableHierarchicalCanvasEngine for ${this.runtimeEngineId}`);
+      if (this.data) {
+        this.normaliseCanvasData(this.data, false);
+        this.canvasViewStateService.initialize(this.canvasId, this.data!, 'engine');
+      }
+      this.engine = new ComposableHierarchicalCanvasEngine(
+        canvas,
+        renderer,
+        this.runtimeEngineId,
+        this.data!,
+        this.canvasId,
+        this.canvasEventHubService
+      );
+    }
 
     // Expose engine to window for debugging/testing
     (window as any).__canvasEngine = this.engine;
 
-    // Log actual rendered node positions after engine creation
-    const finalData = this.engine.getData();
-    console.log('[FINAL DATA] Actual node positions after engine creation:');
-    finalData.nodes.forEach(node => {
-      console.log(`[FINAL DATA]   ${node.id}: (${node.x}, ${node.y}), size: (${node.width}, ${node.height})`);
-      if (node.children && node.children.length > 0) {
-        node.children.forEach(child => {
-          console.log(`[FINAL DATA]     Child ${child.id}: (${child.x}, ${child.y}), size: (${child.width}, ${child.height})`);
-          if (child.children && child.children.length > 0) {
-            child.children.forEach(grandchild => {
-              console.log(`[FINAL DATA]       Grandchild ${grandchild.id}: (${grandchild.x}, ${grandchild.y})`);
-            });
-          }
-        });
+    // Legacy-specific setup
+    if (this.engine instanceof ComposableHierarchicalCanvasEngine) {
+      this.engine.setPresetChangeHandler(preset => {
+        this.presetChanged.emit(preset);
+        this.canvasControlService.setActivePresetSnapshot(preset);
+      });
+
+      if (this.pendingPresetId) {
+        this.engine.setActivePreset(this.pendingPresetId);
+        this.pendingPresetId = null;
+      } else {
+        const preset = this.engine.getCurrentViewPreset();
+        this.presetChanged.emit(preset);
+        this.canvasControlService.setActivePresetSnapshot(preset);
       }
-    });
 
-    this.engine.setPresetChangeHandler(preset => {
-      this.presetChanged.emit(preset);
-      this.canvasControlService.setActivePresetSnapshot(preset);
-    });
+      // Inject services for dynamic layout behavior
+      this.engine.setServices(this.viewNodeState, this.dynamicLayoutService);
+      this.engine.setCanvasViewStateService(this.canvasViewStateService);
+      this.engine.setGraphLens(this.currentLensId);
 
-    if (this.pendingPresetId) {
-      this.engine.setActivePreset(this.pendingPresetId);
-      this.pendingPresetId = null;
-    } else {
-      const preset = this.engine.getCurrentViewPreset();
-      this.presetChanged.emit(preset);
-      this.canvasControlService.setActivePresetSnapshot(preset);
+      const defaultCollapseLevel = this.selectedViewNode?.defaultCollapseLevel;
+      const hasSavedLayout = !!this.selectedViewNode?.layout;
+      if (typeof defaultCollapseLevel === 'number' && !hasSavedLayout) {
+        this.engine.collapseToLevel(defaultCollapseLevel);
+      }
+
+      // Apply pending ViewNode layout if available
+      if (this.pendingViewNodeLayout) {
+        this.canvasViewStateService.initialize(this.canvasId, this.pendingViewNodeLayout, 'external');
+        this.engine.setData(this.pendingViewNodeLayout);
+        this.pendingViewNodeLayout = null;
+      }
+
+      this.engine.setOnSelectionChanged(node => {
+        let snapshot: NodeSelectionSnapshot | null = null;
+        if (node && this.engine instanceof ComposableHierarchicalCanvasEngine) {
+          snapshot = this.engine.getSelectedNodeSnapshot();
+        }
+        this.canvasControlService.setSelectionSnapshot(snapshot);
+      });
     }
 
-    // Inject services for dynamic layout behavior
-    this.engine.setServices(this.viewNodeState, this.dynamicLayoutService);
-    this.engine.setCanvasViewStateService(this.canvasViewStateService);
-    this.engine.setGraphLens(this.currentLensId);
+    // Common setup for both controller types
     this.canvasHistoryService.registerCanvas(this.canvasId, this.engine.getData());
     this.historySubscription = this.canvasHistoryService
       .state$(this.canvasId)
@@ -683,29 +711,13 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       });
     this.refreshHistoryState();
 
-    const defaultCollapseLevel = this.selectedViewNode?.defaultCollapseLevel;
-    const hasSavedLayout = !!this.selectedViewNode?.layout;
-    if (this.engine && typeof defaultCollapseLevel === 'number' && !hasSavedLayout) {
-      this.engine.collapseToLevel(defaultCollapseLevel);
-    }
-
     this.centerOnInitialNode();
-
-    // Update available levels for the dropdown
     this.updateAvailableLevels();
 
-    // Apply pending ViewNode layout if available - NO localStorage usage
-    if (this.pendingViewNodeLayout) {
-      this.canvasViewStateService.initialize(this.canvasId, this.pendingViewNodeLayout, 'external');
-      this.engine.setData(this.pendingViewNodeLayout);
-      this.pendingViewNodeLayout = null;
-    }
-    
-    // Setup callbacks for camera updates and notify parent
+    // Setup data change callback
     this.engine.setOnDataChanged((data) => {
       this.updateCameraInfo();
       this.updateAvailableLevels();
-      // Notify parent component that engine data changed
       this.notifyDataChanged();
       if (!this.restoringHistory) {
         this.canvasHistoryService.record(this.canvasId, data);
@@ -713,17 +725,7 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       this.canvasControlService.notifyStateChange();
     });
 
-    this.engine.setOnSelectionChanged(node => {
-      const snapshot = node ? (this.engine?.getSelectedNodeSnapshot() ?? null) : null;
-      this.canvasControlService.setSelectionSnapshot(snapshot);
-    });
-
     this.canvasControlService.notifyStateChange();
-
-    if (this.pendingPresetId) {
-      this.engine.setActivePreset(this.pendingPresetId);
-      this.pendingPresetId = null;
-    }
     
     // Watch for canvas container size changes
     const resizeObserver = new ResizeObserver(() => {
@@ -858,8 +860,8 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       this.viewNodeState.setReflowBehavior('static');
     }
 
-    // Force re-render if engine exists
-    if (this.engine) {
+    // Force re-render if engine exists (legacy only)
+    if (this.engine instanceof ComposableHierarchicalCanvasEngine) {
       this.engine.render();
     }
 
@@ -884,7 +886,7 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
   }
 
   updateAvailableLevels(): void {
-    if (this.engine) {
+    if (this.engine instanceof ComposableHierarchicalCanvasEngine) {
       this.availableLevels = this.engine.getAvailableDepthLevels();
       // Notify the control service of available levels
       this.canvasControlService.updateAvailableLevels(this.availableLevels);
@@ -895,7 +897,7 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     const target = event.target as HTMLSelectElement;
     const selectedLevel = parseInt(target.value);
 
-    if (!isNaN(selectedLevel) && this.engine) {
+    if (!isNaN(selectedLevel) && this.engine instanceof ComposableHierarchicalCanvasEngine) {
       this.engine.collapseToLevel(selectedLevel);
 
       this.messageService.add({
@@ -927,19 +929,22 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
 
   onMouseDown(event: MouseEvent): void {
     if (!this.engine) return;
-    
+
+    // Runtime controllers don't support mouse interaction (yet)
+    if (!(this.engine instanceof ComposableHierarchicalCanvasEngine)) return;
+
     const canvas = this.canvasRef.nativeElement;
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
     const screenX = (event.clientX - rect.left) * scaleX;
     const screenY = (event.clientY - rect.top) * scaleY;
-    
+
     // Convert to world coordinates
     const camera = this.engine.getCamera();
     const worldX = screenX / camera.zoom + camera.x;
     const worldY = screenY / camera.zoom + camera.y;
-    
+
     // COPIED EXACT RESIZE HANDLE DETECTION FROM MONOLITHIC SYSTEM
     const selectedNode = this.engine.getSelectedNode();
     if (selectedNode) {
@@ -1010,7 +1015,7 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     };
     const dragResult = this.engine.processInteractionEvent(dragStartEvent);
     const draggedNode = dragResult?.draggedNode;
-    
+
     if (draggedNode) {
       // Reset drag flag when starting new drag
       this.hasDragged = false;
@@ -1019,29 +1024,32 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       // If no node hit, start panning the canvas
       this.isPanning = true;
       this.panStart = { x: screenX, y: screenY };
-      
+
       // Clear selection when clicking empty canvas
       this.engine.clearSelection();
     }
-    
+
     this.updateCameraInfo();
   }
 
   onMouseMove(event: MouseEvent): void {
     if (!this.engine) return;
-    
+
+    // Runtime controllers don't support mouse interaction (yet)
+    if (!(this.engine instanceof ComposableHierarchicalCanvasEngine)) return;
+
     const canvas = this.canvasRef.nativeElement;
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
     const screenX = (event.clientX - rect.left) * scaleX;
     const screenY = (event.clientY - rect.top) * scaleY;
-    
+
     // Convert to world coordinates
     const camera = this.engine.getCamera();
     const worldX = screenX / camera.zoom + camera.x;
     const worldY = screenY / camera.zoom + camera.y;
-    
+
     // COPIED EXACT RESIZE HANDLING FROM MONOLITHIC SYSTEM
     if (this.isResizing && this.engine) {
       const selectedNode = this.engine.getSelectedNode();
@@ -1058,21 +1066,21 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     };
     const dragUpdateResult = this.engine.processInteractionEvent(dragUpdateEvent);
     const dragHandled = dragUpdateResult?.dragHandled;
-    
+
     if (dragHandled) {
       // Mark that dragging has occurred
       this.hasDragged = true;
     }
-    
+
     if (!dragHandled && this.isPanning) {
       // Handle panning
       const deltaX = screenX - this.panStart.x;
       const deltaY = screenY - this.panStart.y;
-      
+
       this.engine.pan(-deltaX, -deltaY);
       this.panStart = { x: screenX, y: screenY };
     }
-    
+
     this.updateCameraInfo();
   }
 
@@ -1080,14 +1088,14 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     // COPIED EXACT MOUSE UP LOGIC FROM MONOLITHIC SYSTEM
     this.isPanning = false;
     this.isResizing = false;
-    
-    if (this.engine) {
+
+    if (this.engine instanceof ComposableHierarchicalCanvasEngine) {
       const dragStopEvent: DragStopEvent = {
         type: 'drag-stop',
         worldPos: { x: 0, y: 0 } // Position not needed for stop event
       };
       this.engine.processInteractionEvent(dragStopEvent);
-      
+
       // Auto-deselect after drag completion
       if (this.hasDragged) {
         this.engine.clearSelection();
@@ -1098,7 +1106,10 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
 
   onWheel(event: WheelEvent): void {
     if (!this.engine) return;
-    
+
+    // Runtime controllers don't support zoom (yet)
+    if (!(this.engine instanceof ComposableHierarchicalCanvasEngine)) return;
+
     event.preventDefault();
     const canvas = this.canvasRef.nativeElement;
     const rect = canvas.getBoundingClientRect();
@@ -1106,7 +1117,7 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     const scaleY = canvas.height / rect.height;
     const screenX = (event.clientX - rect.left) * scaleX;
     const screenY = (event.clientY - rect.top) * scaleY;
-    
+
     this.engine.zoom(screenX, screenY, event.deltaY);
     this.updateCameraInfo();
   }
@@ -1127,9 +1138,11 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       return;
     }
 
-    const rootNode = this.findWorkspaceRoot(this.data.nodes) ?? this.data.nodes[0];
-    this.engine.centerOnNode(rootNode);
-    this.updateCameraInfo();
+    if (this.engine instanceof ComposableHierarchicalCanvasEngine) {
+      const rootNode = this.findWorkspaceRoot(this.data.nodes) ?? this.data.nodes[0];
+      this.engine.centerOnNode(rootNode);
+      this.updateCameraInfo();
+    }
   }
 
   // Process raw ViewNode data with dynamically selected layout strategy
@@ -1250,11 +1263,21 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
   }
 
   getAvailableLayoutEngines(): string[] {
-    return this.engine?.getAvailableLayoutEngines() ?? [];
+    if (this.engine instanceof ComposableHierarchicalCanvasEngine) {
+      return this.engine.getAvailableLayoutEngines();
+    } else if (this.engine) {
+      return this.engine.getAvailableEngines();
+    }
+    return [];
   }
 
   getActiveLayoutEngine(): string | null {
-    return this.engine?.getActiveLayoutEngine() ?? null;
+    if (this.engine instanceof ComposableHierarchicalCanvasEngine) {
+      return this.engine.getActiveLayoutEngine();
+    } else if (this.engine) {
+      return this.engine.getActiveEngineName();
+    }
+    return null;
   }
 
   async switchLayoutEngine(engineName: string): Promise<CanvasData | null> {
@@ -1266,9 +1289,15 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       this.currentLayoutModule = module;
       this.runtimeEngineId = module.runtimeEngine;
     }
-    const result = await this.engine.switchLayoutEngine(engineName, 'user');
-    this.canvasControlService.notifyStateChange();
-    return result;
+    if (this.engine instanceof ComposableHierarchicalCanvasEngine) {
+      const result = await this.engine.switchLayoutEngine(engineName, 'user');
+      this.canvasControlService.notifyStateChange();
+      return result;
+    } else {
+      await this.engine.switchEngine(engineName);
+      this.canvasControlService.notifyStateChange();
+      return this.engine.getData();
+    }
   }
 
   undo(): void {
@@ -1279,7 +1308,11 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     if (snapshot) {
       this.restoringHistory = true;
       try {
-        this.engine.setData(snapshot, 'history');
+        if (this.engine instanceof ComposableHierarchicalCanvasEngine) {
+          this.engine.setData(snapshot, 'history');
+        } else {
+          this.engine.setData(snapshot, false);
+        }
       } finally {
         this.restoringHistory = false;
       }
@@ -1295,7 +1328,11 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     if (snapshot) {
       this.restoringHistory = true;
       try {
-        this.engine.setData(snapshot, 'history');
+        if (this.engine instanceof ComposableHierarchicalCanvasEngine) {
+          this.engine.setData(snapshot, 'history');
+        } else {
+          this.engine.setData(snapshot, false);
+        }
       } finally {
         this.restoringHistory = false;
       }
@@ -1328,7 +1365,9 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       return;
     }
     this.currentLensId = lensId;
-    this.engine?.setGraphLens(lensId);
+    if (this.engine instanceof ComposableHierarchicalCanvasEngine) {
+      this.engine.setGraphLens(lensId);
+    }
   }
 
   private refreshHistoryState(): void {
