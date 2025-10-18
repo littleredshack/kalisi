@@ -22,6 +22,7 @@ import { ViewNodeStateService, LibraryItem as ViewLibraryItem } from './core/ser
 import { ThemeService } from './core/services/theme.service';
 import { ActivityBarComponent } from './components/activity-bar/activity-bar.component';
 import { ModularCanvasComponent } from './components/modular-canvas/modular-canvas.component';
+import { RuntimeCanvasComponent } from './components/modular-canvas/runtime-canvas.component';
 import { ChatRhsPanelComponent } from './components/chat-rhs-panel/chat-rhs-panel.component';
 import { PropertiesRhsPanelComponent } from './components/properties-rhs-panel/properties-rhs-panel.component';
 import { DebugPanelComponent } from './components/debug-panel/debug-panel.component';
@@ -74,6 +75,7 @@ const LIBRARY_ITEMS: LibraryItem[] = [
     GraphViewComponent,
     ActivityBarComponent,
     ModularCanvasComponent,
+    RuntimeCanvasComponent,
     ChatRhsPanelComponent,
     PropertiesRhsPanelComponent,
     DebugPanelComponent,
@@ -187,13 +189,18 @@ const LIBRARY_ITEMS: LibraryItem[] = [
             </div>
           </div>
           <div *ngIf="selectedView === 'modular-canvas'" class="view-container">
-            <div class="preset-toolbar" *ngIf="presets.length > 0">
+            <div class="preset-toolbar" *ngIf="presets.length > 0 && !useRuntimeCanvas">
               <label class="preset-label" for="presetSelect">View preset</label>
               <select id="presetSelect" [ngModel]="activePresetId" (ngModelChange)="onPresetChange($event)">
                 <option *ngFor="let preset of presets" [value]="preset.id">{{ preset.label }}</option>
               </select>
             </div>
+            <app-runtime-canvas
+              *ngIf="useRuntimeCanvas"
+              #runtimeCanvas
+              (engineDataChanged)="updateDebugPanelData()"></app-runtime-canvas>
             <app-modular-canvas
+              *ngIf="!useRuntimeCanvas"
               #modularCanvas
               (engineDataChanged)="updateDebugPanelData()"
               (presetChanged)="onPresetResolved($event)"></app-modular-canvas>
@@ -960,6 +967,7 @@ export class LandingShellComponent implements OnInit, OnDestroy {
   selectedLibraryItem: string | null = null;
   selectedViewNodeDetails: any = null;
   expandedSetNodes: Set<string> = new Set();
+  useRuntimeCanvas: boolean = false;
   
   
   // State before hiding to restore on hover
@@ -1353,6 +1361,7 @@ export class LandingShellComponent implements OnInit, OnDestroy {
     this.selectedEntityData = null;
     this.selectedLibraryItem = null;
     this.selectedViewNodeDetails = null;
+    this.useRuntimeCanvas = false;
 
     // Clear any selected view to show the animated background
     this.selectedView = 'data'; // Reset to default but entity is null so workspace won't show
@@ -1474,6 +1483,9 @@ export class LandingShellComponent implements OnInit, OnDestroy {
       if (itemDetails.renderer || itemDetails.layout_engine) {
         // It's a ViewNode - tell service to select it
         this.viewNodeState.selectViewNodeById(itemId);
+
+        // Determine if we should use runtime canvas
+        this.useRuntimeCanvas = itemDetails.layout_engine === 'containment-runtime';
 
         // Set view to modular canvas
         this.selectedView = 'modular-canvas';
