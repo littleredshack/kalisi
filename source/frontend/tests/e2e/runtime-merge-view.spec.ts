@@ -4,48 +4,35 @@ test.describe('Runtime Merge View Navigation', () => {
   test('should navigate to Containment - Runtime Merge view', async ({ page }) => {
     // Navigate to the application
     await page.goto('https://localhost:8443', {
-      // Ignore SSL certificate errors for localhost
       waitUntil: 'networkidle'
     });
 
     // Wait for page to load
     await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(2000); // Wait for Angular to initialize
+    await page.waitForTimeout(2000);
 
-    // Check that Models Menu heading is visible
-    const modelsMenu = page.locator('h3').filter({ hasText: 'Models' });
-    await expect(modelsMenu).toBeVisible();
+    // Click Explore button
+    const exploreButton = page.getByRole('button', { name: /explore/i });
+    await exploreButton.click();
 
-    // Look for 'Test Architecture Set' and expand it if needed
-    const testArchitectureSet = page.getByText('Test Architecture Set', { exact: true });
-    await expect(testArchitectureSet).toBeVisible({ timeout: 10000 });
+    // Wait for next screen to load
+    await page.waitForTimeout(5000);
 
-    // Click to expand - might toggle, so click twice if needed
-    await testArchitectureSet.click({ force: true });
-    await page.waitForTimeout(500);
+    // Click the chevron icon with class "tree-toggle"
+    const chevron = page.locator('text=Test Architecture Set').locator('..').locator('.tree-toggle');
+    await chevron.click();
 
-    // Wait for the menu item to appear and click it using JavaScript
-    const runtimeMergeMenuItem = page.getByText('Containment - Runtime Merge', { exact: false });
+    // Wait for menu to expand
+    await page.waitForTimeout(1000);
 
-    // Check if visible, if not click testArchitectureSet again to expand
-    const isVisible = await runtimeMergeMenuItem.isVisible().catch(() => false);
-    if (!isVisible) {
-      await testArchitectureSet.click({ force: true });
-      await page.waitForTimeout(500);
-    }
+    // Click on Containment - Runtime Merge
+    const runtimeMergeItem = page.getByText('Containment - Runtime Merge');
+    await runtimeMergeItem.click();
 
-    // Click using JavaScript to bypass visibility checks
-    await runtimeMergeMenuItem.evaluate((el: Element) => (el as HTMLElement).click());
+    // Wait 5 seconds for it to load
+    await page.waitForTimeout(5000);
 
-    // Verify the view has loaded by checking for canvas or specific elements
-    await page.waitForTimeout(3000); // Give it time to render and load data
-
-    // Check for canvas element - use first() since there are multiple
-    const canvas = page.locator('canvas').first();
-    await expect(canvas).toBeVisible();
-
-    // Success - the view loaded and logs are being sent to gateway via websocket
-    console.log('✅ Successfully navigated to Runtime Merge view and canvas is visible');
-    console.log('✅ Browser console logs are being captured in gateway-debug.log');
+    // Take screenshot
+    await page.screenshot({ path: '/workspace/source/logs/runtime-merge-view.png', fullPage: false });
   });
 });

@@ -603,30 +603,22 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
           }))
         };
 
-        tempRuntime.setRawData(rawDataInput, false, 'system');
-
-        let processedGraph = tempRuntime.getLayoutGraph();
-
+        // For containment-runtime, don't pre-process the data - let the engine handle it
         if (this.runtimeEngineId === 'containment-runtime') {
-          const runtimeEngine = new ContainmentRuntimeLayoutEngine();
-          const layoutOptions: LayoutOptions = {
-            reason: 'initial',
-            timestamp: Date.now(),
-            previousGraph: processedGraph,
-            engineOptions: {}
+          // Store raw data for engine to process
+          (this.data as any).__rawDataInput = rawDataInput;
+        } else {
+          tempRuntime.setRawData(rawDataInput, false, 'system');
+          const processedGraph = tempRuntime.getLayoutGraph();
+          const hierarchicalSnapshot = layoutGraphToHierarchical(processedGraph);
+
+          this.data = {
+            nodes: hierarchicalSnapshot.nodes,
+            edges: hierarchicalSnapshot.edges,
+            originalEdges: hierarchicalSnapshot.edges,
+            camera: this.data?.camera
           };
-          const layoutResult = runtimeEngine.layout(processedGraph, layoutOptions);
-          processedGraph = layoutResult.graph;
         }
-
-        const hierarchicalSnapshot = layoutGraphToHierarchical(processedGraph);
-
-        this.data = {
-          nodes: hierarchicalSnapshot.nodes,
-          edges: hierarchicalSnapshot.edges,
-          originalEdges: hierarchicalSnapshot.edges,
-          camera: this.data?.camera
-        };
       }
     }
     
@@ -648,6 +640,26 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       this.canvasId,
       this.canvasEventHubService
     );
+
+    // Expose engine to window for debugging/testing
+    (window as any).__canvasEngine = this.engine;
+
+    // Log actual rendered node positions after engine creation
+    const finalData = this.engine.getData();
+    console.log('[FINAL DATA] Actual node positions after engine creation:');
+    finalData.nodes.forEach(node => {
+      console.log(`[FINAL DATA]   ${node.id}: (${node.x}, ${node.y}), size: (${node.width}, ${node.height})`);
+      if (node.children && node.children.length > 0) {
+        node.children.forEach(child => {
+          console.log(`[FINAL DATA]     Child ${child.id}: (${child.x}, ${child.y}), size: (${child.width}, ${child.height})`);
+          if (child.children && child.children.length > 0) {
+            child.children.forEach(grandchild => {
+              console.log(`[FINAL DATA]       Grandchild ${grandchild.id}: (${grandchild.x}, ${grandchild.y})`);
+            });
+          }
+        });
+      }
+    });
 
     this.engine.setPresetChangeHandler(preset => {
       this.presetChanged.emit(preset);
