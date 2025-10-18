@@ -125,47 +125,13 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     const children = clone.children ?? [];
     const laidOutChildren = children.map(child => this.layoutContainer(child, metrics));
 
-    this.applyWorldRelativePositions(clone, laidOutChildren);
-
-    // Check if children have explicit positions
-    // If all children are at the same position, they need auto-layout
-    const allSamePosition = laidOutChildren.length > 1 && laidOutChildren.every((child, _, arr) =>
-      child.x === arr[0].x && child.y === arr[0].y
-    );
-
-    const childrenHaveExplicitPositions = !allSamePosition && laidOutChildren.every(child =>
-      Number.isFinite(child.x) && Number.isFinite(child.y)
-    );
-
-    console.log(`[ContainmentRuntime] layoutContainer for ${clone.GUID}: childrenHaveExplicitPositions=${childrenHaveExplicitPositions}`);
-    if (childrenHaveExplicitPositions) {
-      console.log(`[ContainmentRuntime]   Using world-relative positions for ${laidOutChildren.length} children`);
-      laidOutChildren.forEach(child => {
-        console.log(`[ContainmentRuntime]     ${child.GUID}: (${child.x}, ${child.y})`);
-      });
-    }
-
-    if (!childrenHaveExplicitPositions) {
-      console.log(`[ContainmentRuntime]   Applying adaptive grid for ${laidOutChildren.length} children`);
-      this.applyAdaptiveGrid(clone, laidOutChildren, metrics);
-      laidOutChildren.forEach(child => {
-        console.log(`[ContainmentRuntime]     ${child.GUID}: (${child.x}, ${child.y}) after grid`);
-      });
-      // Adaptive grid already positioned children and resized parent - no clamping needed
-    } else {
-      // Only clamp when using explicit positions (manually placed by user)
-      console.log(`[ContainmentRuntime]   Before clampChildrenToParent:`);
-      laidOutChildren.forEach(child => {
-        console.log(`[ContainmentRuntime]     ${child.GUID}: (${child.x}, ${child.y})`);
-      });
-
-      this.clampChildrenToParent(clone, laidOutChildren, metrics);
-
-      console.log(`[ContainmentRuntime]   After clampChildrenToParent:`);
-      laidOutChildren.forEach(child => {
-        console.log(`[ContainmentRuntime]     ${child.GUID}: (${child.x}, ${child.y})`);
-      });
-    }
+    // Runtime containment layout always uses adaptive grid - it computes positions automatically
+    // and doesn't preserve user-dragged positions
+    console.log(`[ContainmentRuntime] layoutContainer for ${clone.GUID}: Applying adaptive grid for ${laidOutChildren.length} children`);
+    this.applyAdaptiveGrid(clone, laidOutChildren, metrics);
+    laidOutChildren.forEach(child => {
+      console.log(`[ContainmentRuntime]     ${child.GUID}: (${child.x}, ${child.y}) after grid`);
+    });
 
     clone.children = laidOutChildren;
     LayoutPrimitives.resizeToFitChildren(clone, metrics.padding, metrics.padding);

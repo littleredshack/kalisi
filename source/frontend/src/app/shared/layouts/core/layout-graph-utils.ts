@@ -147,6 +147,13 @@ export function hierarchicalToLayoutGraph(snapshot: HierarchicalGraphSnapshot): 
 
   snapshot.nodes.forEach(node => visit(node));
 
+  console.log('[LayoutGraphUtils] After visiting all nodes, nodesRecord contains:');
+  Object.entries(nodesRecord).forEach(([id, node]) => {
+    if (node.children.length > 0) {
+      console.log(`[LayoutGraphUtils]   ${id}: geometry=(${node.geometry.x}, ${node.geometry.y}), children=${node.children.join(', ')}`);
+    }
+  });
+
   Object.values(edgesRecord).forEach(edge => {
     const fromNode = nodesRecord[edge.from];
     const toNode = nodesRecord[edge.to];
@@ -162,16 +169,60 @@ export function hierarchicalToLayoutGraph(snapshot: HierarchicalGraphSnapshot): 
   Object.entries(nodesRecord).forEach(([nodeId, node]) => {
     readonlyNodes[nodeId] = {
       ...node,
+      geometry: {
+        x: node.geometry.x,
+        y: node.geometry.y,
+        width: node.geometry.width,
+        height: node.geometry.height
+      },
+      state: {
+        collapsed: node.state.collapsed,
+        visible: node.state.visible,
+        selected: node.state.selected
+      },
+      metadata: { ...node.metadata },
       children: [...node.children],
       edges: [...node.edges]
     };
   });
 
-  return {
-    nodes: readonlyNodes,
-    edges: edgesRecord,
-    metadata: snapshot.metadata
+  console.log('[LayoutGraphUtils] hierarchicalToLayoutGraph RETURNING LayoutGraph:');
+  Object.entries(readonlyNodes).forEach(([id, node]) => {
+    if (node.children.length > 0) {
+      console.log(`[LayoutGraphUtils]   ${id}: geometry=(${node.geometry.x}, ${node.geometry.y}), children=${node.children.join(', ')}`);
+    }
+  });
+
+  // Deep copy edges to prevent mutations
+  const readonlyEdges: Record<string, LayoutEdge> = {};
+  Object.entries(edgesRecord).forEach(([edgeId, edge]) => {
+    readonlyEdges[edgeId] = {
+      ...edge,
+      metadata: { ...(edge.metadata ?? {}) }
+    };
+  });
+
+  // Freeze geometry objects to prevent mutations
+  Object.values(readonlyNodes).forEach(node => {
+    Object.freeze(node.geometry);
+    Object.freeze(node.state);
+    Object.freeze(node);
+  });
+  Object.values(readonlyEdges).forEach(edge => {
+    Object.freeze(edge);
+  });
+
+  const frozenGraph = {
+    nodes: readonlyNodes as Readonly<Record<string, LayoutNode>>,
+    edges: readonlyEdges as Readonly<Record<string, LayoutEdge>>,
+    metadata: { ...snapshot.metadata }
   };
+  Object.freeze(frozenGraph.nodes);
+  Object.freeze(frozenGraph.edges);
+  Object.freeze(frozenGraph.metadata);
+  Object.freeze(frozenGraph);
+
+  return frozenGraph;
 }
 
 function computeRootNodes(

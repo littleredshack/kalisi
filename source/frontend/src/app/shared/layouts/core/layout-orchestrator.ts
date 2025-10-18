@@ -107,6 +107,7 @@ export class LayoutOrchestrator {
   }
 
   scheduleLayout(canvasId: string, graph: LayoutGraph, options: LayoutRunOptions = {}): Promise<LayoutResult> {
+    console.error('[LayoutOrchestrator] scheduleLayout() CALLED');
     const priority = options.priority ?? 'normal';
     return new Promise<LayoutResult>((resolve, reject) => {
       const command: PendingLayoutCommand = {
@@ -131,6 +132,7 @@ export class LayoutOrchestrator {
   }
 
   runLayout(canvasId: string, graph: LayoutGraph, options: LayoutRunOptions = {}): LayoutResult {
+    console.error('[LayoutOrchestrator] runLayout() CALLED');
     const context = this.ensureContext(canvasId);
     const engineName = options.engineName ?? context.activeEngineName;
     if (!engineName) {
@@ -170,6 +172,13 @@ export class LayoutOrchestrator {
     const result = engine.layout(graph, layoutOptions);
     const durationMs = now() - start;
 
+    console.error('[LayoutOrchestrator] Engine returned, result.graph nodes:');
+    Object.entries(result.graph.nodes).forEach(([id, node]) => {
+      if (node.children.length > 0) {
+        console.error(`[LayoutOrchestrator]   ${id}: geometry=(${node.geometry.x}, ${node.geometry.y})`);
+      }
+    });
+
     const metrics: Record<string, number> = {
       ...(result.diagnostics?.metrics ?? {})
     };
@@ -181,7 +190,8 @@ export class LayoutOrchestrator {
     }
 
     const resultWithDiagnostics: LayoutResult = {
-      ...result,
+      graph: result.graph,  // Use the same reference - don't create a new wrapper yet
+      camera: result.camera,
       diagnostics: {
         ...(result.diagnostics ?? {}),
         durationMs,
@@ -189,8 +199,22 @@ export class LayoutOrchestrator {
       }
     };
 
+    console.log('[LayoutOrchestrator] About to store in context, resultWithDiagnostics.graph nodes:');
+    Object.entries(resultWithDiagnostics.graph.nodes).forEach(([id, node]) => {
+      if (node.children.length > 0) {
+        console.log(`[LayoutOrchestrator]   ${id}: geometry=(${node.geometry.x}, ${node.geometry.y})`);
+      }
+    });
+
     context.lastGraph = resultWithDiagnostics.graph;
     context.lastResult = resultWithDiagnostics;
+
+    console.log('[LayoutOrchestrator] Stored in context, about to return');
+    Object.entries(resultWithDiagnostics.graph.nodes).forEach(([id, node]) => {
+      if (node.children.length > 0) {
+        console.log(`[LayoutOrchestrator]   ${id}: geometry=(${node.geometry.x}, ${node.geometry.y})`);
+      }
+    });
 
     context.eventBus.emit({
       type: 'LayoutApplied',
