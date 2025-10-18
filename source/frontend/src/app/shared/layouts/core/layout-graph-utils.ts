@@ -95,15 +95,20 @@ type MutableLayoutNode = Omit<LayoutNode, 'children' | 'edges'> & {
 };
 
 export function hierarchicalToLayoutGraph(snapshot: HierarchicalGraphSnapshot): LayoutGraph {
+  console.log(`[LayoutGraphUtils] hierarchicalToLayoutGraph START`);
+
   const nodesRecord: Record<string, MutableLayoutNode> = {};
   const edgesRecord = snapshot.edges.reduce<Record<string, LayoutEdge>>((acc, edge) => {
     acc[edge.id] = createEdgeRecord(edge);
     return acc;
   }, {});
 
-  const visit = (node: HierarchicalNode): void => {
+  const visit = (node: HierarchicalNode, depth: number = 0): void => {
     const nodeId = node.GUID ?? node.id;
     if (!nodeId) return;
+
+    const indent = '  '.repeat(depth);
+    console.log(`[LayoutGraphUtils] ${indent}Node ${nodeId}: (${node.x}, ${node.y}), ${node.children.length} children`);
 
     const childrenIds = node.children
       .map(child => child.GUID ?? child.id)
@@ -132,7 +137,7 @@ export function hierarchicalToLayoutGraph(snapshot: HierarchicalGraphSnapshot): 
       edges: []
     };
 
-    node.children.forEach(child => visit(child));
+    node.children.forEach(child => visit(child, depth + 1));
   };
 
   snapshot.nodes.forEach(node => visit(node));

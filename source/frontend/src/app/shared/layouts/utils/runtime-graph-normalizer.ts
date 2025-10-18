@@ -350,6 +350,26 @@ export function runtimeSnapshotToLayoutGraph(snapshot: RuntimeGraphSnapshot): La
     displayMode: 'containment-runtime'
   };
 
+  // Log the hierarchy structure
+  console.log('[RuntimeNormalizer] LayoutGraph built:');
+  console.log('  Root IDs:', snapshot.rootIds);
+  snapshot.rootIds.forEach(rootId => {
+    const root = layoutNodes[rootId];
+    if (root) {
+      console.log(`  Root: ${rootId} (${root.label})`);
+      console.log(`    Children:`, root.children);
+      root.children.forEach(childId => {
+        const child = layoutNodes[childId];
+        if (child) {
+          console.log(`      Child: ${childId} (${child.label})`);
+          console.log(`        Children:`, child.children);
+        }
+      });
+    }
+  });
+  console.log('  Total nodes:', Object.keys(layoutNodes).length);
+  console.log('  Total edges:', Object.keys(layoutEdges).length);
+
   return {
     nodes: layoutNodes,
     edges: layoutEdges,

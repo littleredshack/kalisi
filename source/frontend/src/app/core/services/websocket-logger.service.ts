@@ -23,38 +23,64 @@ export class WebSocketLoggerService {
   private isInitialized = false;
 
   constructor() {
+    // Use native console BEFORE any interception
+    (window as any)._nativeConsole = (window as any)._nativeConsole || {
+      log: console.log.bind(console),
+      error: console.error.bind(console)
+    };
+
+    (window as any)._nativeConsole.log('>>> WebSocketLoggerService constructor called <<<');
+
     this.sessionId = 'session_' + Math.random().toString(36).substr(2, 9);
     this.initializeService();
+
+    (window as any)._nativeConsole.log('>>> WebSocketLoggerService initialization complete <<<');
   }
 
   private initializeService(): void {
     if (this.isInitialized) return;
-    
+
+    // Store original console methods FIRST
+    this.originalConsole.log = console.log.bind(console);
+    this.originalConsole.error = console.error.bind(console);
+    this.originalConsole.warn = console.warn.bind(console);
+    this.originalConsole.info = console.info.bind(console);
+    this.originalConsole.debug = console.debug.bind(console);
+
     this.setupWebSocket();
     this.interceptConsole();
     this.setupErrorHandlers();
     this.isInitialized = true;
-    
+
     this.originalConsole.log('[Kalisi] WebSocket Console Logger initialized');
   }
 
   private setupWebSocket(): void {
     try {
-      // Use the correct port from environment configuration
+      // Use same protocol and port as the current page
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.hostname;
-      const port = window.location.port || (protocol === 'wss:' ? '443' : '80');
-      
-      // For local development, use port 3000 as configured in .env
-      const wsPort = host === 'localhost' || host === '127.0.0.1' ? '3000' : port;
-      const wsUrl = `${protocol}//${host}:${wsPort}/ws`;
-      
+      const port = window.location.port;
+      const wsUrl = `${protocol}//${host}:${port}/ws`;
+
+      this.originalConsole.log(`[Kalisi] Connecting WebSocket to: ${wsUrl}`);
       this.websocket = new WebSocket(wsUrl);
       
       this.websocket.onopen = () => {
         // Use original console to avoid intercepting our own logs
         this.originalConsole.log('[Kalisi] WebSocket connected for console logging');
-        this.sendLog('info', 'Angular WebSocket console logger initialized');
+
+        // Send session start marker
+        const sessionStart = {
+          type: 'session_start',
+          sessionId: this.sessionId,
+          timestamp: new Date().toISOString(),
+          url: window.location.href,
+          userAgent: navigator.userAgent
+        };
+        this.websocket!.send(JSON.stringify(sessionStart));
+
+        this.sendLog('info', '=== NEW BROWSER SESSION STARTED ===');
       };
       
       this.websocket.onmessage = (event) => {
@@ -81,14 +107,7 @@ export class WebSocketLoggerService {
   }
 
   private interceptConsole(): void {
-    // Store original console methods
-    this.originalConsole.log = console.log;
-    this.originalConsole.error = console.error;
-    this.originalConsole.warn = console.warn;
-    this.originalConsole.info = console.info;
-    this.originalConsole.debug = console.debug;
-    
-    // Override console methods
+    // Override console methods (originals already stored in initializeService)
     console.log = (...args: any[]) => {
       this.originalConsole.log.apply(console, args);
       this.sendLog('info', this.formatArgs(args));

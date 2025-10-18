@@ -26,6 +26,24 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
 
   layout(graph: LayoutGraph, options: LayoutOptions): LayoutResult {
     const snapshot = layoutGraphToHierarchical(graph);
+
+    // Log the hierarchical snapshot structure
+    console.log('[ContainmentRuntime] Hierarchical snapshot:');
+    console.log('  Root nodes:', snapshot.nodes.length);
+    snapshot.nodes.forEach(root => {
+      console.log(`  Root: ${root.GUID} (${root.text})`);
+      console.log(`    Position: (${root.x}, ${root.y})`);
+      console.log(`    Children:`, root.children.length);
+      root.children.forEach(child => {
+        console.log(`      Child: ${child.GUID} (${child.text})`);
+        console.log(`        Position: (${child.x}, ${child.y})`);
+        console.log(`        Children:`, child.children.length);
+        child.children.forEach(grandchild => {
+          console.log(`          Grandchild: ${grandchild.GUID} (${grandchild.text})`);
+        });
+      });
+    });
+
     const layoutMetrics: ContainmentMetrics = {
       padding: DEFAULT_PADDING,
       gap: DEFAULT_GAP
@@ -60,6 +78,18 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
       diagnosticMetrics['runtimeMs'] = Math.max(0, Date.now() - options.timestamp);
     }
 
+    // Log final output structure
+    console.log('[ContainmentRuntime] Final LayoutGraph returned:');
+    console.log('  Root IDs:', updatedGraph.metadata.rootIds);
+    console.log('  Total nodes in graph:', Object.keys(updatedGraph.nodes).length);
+    console.log('  Total edges in graph:', Object.keys(updatedGraph.edges).length);
+    console.log('  Nodes with children:');
+    Object.entries(updatedGraph.nodes).forEach(([id, node]) => {
+      if (node.children.length > 0) {
+        console.log(`    ${id} has children:`, node.children);
+      }
+    });
+
     return {
       graph: updatedGraph,
       diagnostics: {
@@ -84,15 +114,45 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
 
     this.applyWorldRelativePositions(clone, laidOutChildren);
 
-    const childrenHaveExplicitPositions = laidOutChildren.every(child =>
+    // Check if children have explicit positions
+    // If all children are at the same position, they need auto-layout
+    const allSamePosition = laidOutChildren.length > 1 && laidOutChildren.every((child, _, arr) =>
+      child.x === arr[0].x && child.y === arr[0].y
+    );
+
+    const childrenHaveExplicitPositions = !allSamePosition && laidOutChildren.every(child =>
       Number.isFinite(child.x) && Number.isFinite(child.y)
     );
 
-    if (!childrenHaveExplicitPositions) {
-      this.applyAdaptiveGrid(clone, laidOutChildren, metrics);
+    console.log(`[ContainmentRuntime] layoutContainer for ${clone.GUID}: childrenHaveExplicitPositions=${childrenHaveExplicitPositions}`);
+    if (childrenHaveExplicitPositions) {
+      console.log(`[ContainmentRuntime]   Using world-relative positions for ${laidOutChildren.length} children`);
+      laidOutChildren.forEach(child => {
+        console.log(`[ContainmentRuntime]     ${child.GUID}: (${child.x}, ${child.y})`);
+      });
     }
 
-    this.clampChildrenToParent(clone, laidOutChildren, metrics);
+    if (!childrenHaveExplicitPositions) {
+      console.log(`[ContainmentRuntime]   Applying adaptive grid for ${laidOutChildren.length} children`);
+      this.applyAdaptiveGrid(clone, laidOutChildren, metrics);
+      laidOutChildren.forEach(child => {
+        console.log(`[ContainmentRuntime]     ${child.GUID}: (${child.x}, ${child.y}) after grid`);
+      });
+      // Adaptive grid already positioned children and resized parent - no clamping needed
+    } else {
+      // Only clamp when using explicit positions (manually placed by user)
+      console.log(`[ContainmentRuntime]   Before clampChildrenToParent:`);
+      laidOutChildren.forEach(child => {
+        console.log(`[ContainmentRuntime]     ${child.GUID}: (${child.x}, ${child.y})`);
+      });
+
+      this.clampChildrenToParent(clone, laidOutChildren, metrics);
+
+      console.log(`[ContainmentRuntime]   After clampChildrenToParent:`);
+      laidOutChildren.forEach(child => {
+        console.log(`[ContainmentRuntime]     ${child.GUID}: (${child.x}, ${child.y})`);
+      });
+    }
 
     clone.children = laidOutChildren;
     LayoutPrimitives.resizeToFitChildren(clone, metrics.padding, metrics.padding);
@@ -114,6 +174,9 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
   }
 
   private applyAdaptiveGrid(parent: HierarchicalNode, children: HierarchicalNode[], metrics: ContainmentMetrics): void {
+    console.log(`[ContainmentRuntime] applyAdaptiveGrid START for parent ${parent.GUID}`);
+    console.log(`[ContainmentRuntime]   Parent width: ${parent.width}, children count: ${children.length}`);
+
     if (children.length === 0) {
       return;
     }
@@ -122,9 +185,13 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     const padding = metrics.padding;
     const gap = metrics.gap;
 
+    console.log(`[ContainmentRuntime]   Interior width: ${interiorWidth}, padding: ${padding}, gap: ${gap}`);
+
     const rankedChildren = [...children];
 
     const availableWidth = Math.max(interiorWidth - padding * 2, 120);
+    console.log(`[ContainmentRuntime]   Available width for children: ${availableWidth}`);
+
     let currentRow: HierarchicalNode[] = [];
     const rows: HierarchicalNode[][] = [];
     let rowWidth = 0;
@@ -132,13 +199,17 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     rankedChildren.forEach(child => {
       const childWidth = Math.min(child.width ?? 200, availableWidth);
       const requiredWidth = currentRow.length === 0 ? childWidth : rowWidth + gap + childWidth;
+      console.log(`[ContainmentRuntime]   Child ${child.GUID}: width=${childWidth}, requiredWidth=${requiredWidth}, availableWidth=${availableWidth}`);
+
       if (requiredWidth > availableWidth) {
         if (currentRow.length > 0) {
+          console.log(`[ContainmentRuntime]     Starting new row (required ${requiredWidth} > available ${availableWidth})`);
           rows.push(currentRow);
         }
         currentRow = [child];
         rowWidth = childWidth;
       } else {
+        console.log(`[ContainmentRuntime]     Adding to current row (required ${requiredWidth} <= available ${availableWidth})`);
         currentRow.push(child);
         rowWidth = requiredWidth;
       }
@@ -148,9 +219,14 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
       rows.push(currentRow);
     }
 
+    console.log(`[ContainmentRuntime]   Total rows created: ${rows.length}`);
+    rows.forEach((row, i) => {
+      console.log(`[ContainmentRuntime]     Row ${i}: ${row.length} children (${row.map(c => c.GUID).join(', ')})`);
+    });
+
     let y = padding;
     let rowHeight = 0;
-    rows.forEach(row => {
+    rows.forEach((row, rowIndex) => {
       const totalWidth = row.reduce((acc, child, index) => {
         const childWidth = Math.min(child.width ?? 200, availableWidth);
         return acc + childWidth + (index === row.length - 1 ? 0 : gap);
@@ -159,17 +235,22 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
       let x = padding + Math.max(0, (availableWidth - totalWidth) / 2);
       rowHeight = 0;
 
+      console.log(`[ContainmentRuntime]   Row ${rowIndex}: totalWidth=${totalWidth}, starting x=${x}, starting y=${y}`);
+
       row.forEach(child => {
         child.width = Math.min(child.width ?? 200, availableWidth);
         child.x = Math.round(x);
         child.y = Math.round(y);
+        console.log(`[ContainmentRuntime]     Assigning ${child.GUID}: x=${child.x}, y=${child.y}, width=${child.width}, height=${child.height}`);
         rowHeight = Math.max(rowHeight, child.height ?? 0);
         x += child.width + gap;
       });
 
+      console.log(`[ContainmentRuntime]   Row ${rowIndex} complete: rowHeight=${rowHeight}, next y will be ${y + rowHeight + gap}`);
       y += rowHeight + gap;
     });
 
+    console.log(`[ContainmentRuntime] applyAdaptiveGrid END`);
     LayoutPrimitives.resizeToFitChildren(parent, padding, padding);
   }
 

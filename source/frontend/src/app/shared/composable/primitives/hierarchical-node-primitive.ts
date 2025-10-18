@@ -34,6 +34,8 @@ export class HierarchicalNodePrimitive {
     // Skip invisible nodes - exact same check
     if (node.visible === false) return;
 
+    console.log(`[HierarchicalPrimitive] Drawing ${node.GUID} - parent offset (${parentX}, ${parentY}), local pos (${node.x}, ${node.y})`);
+
     // Determine if we should shrink this node
     const shouldShrink = !collapseBehavior || collapseBehavior === 'shrink';
 
@@ -154,9 +156,15 @@ export class HierarchicalNodePrimitive {
 
     // Recursively render children if not collapsed - EXACT same recursion
     if (!node.collapsed && node.children && node.children.length > 0) {
+      console.log(`[HierarchicalPrimitive] Rendering ${node.children.length} children of ${node.GUID} at world pos (${worldX}, ${worldY})`);
       node.children.forEach(child => {
+        console.log(`  Child ${child.GUID}: local pos (${child.x}, ${child.y}), world will be (${worldX + child.x}, ${worldY + child.y})`);
         this.draw(ctx, child, worldX, worldY, camera, collapseBehavior);
       });
+    } else {
+      if (node.children && node.children.length > 0) {
+        console.log(`[HierarchicalPrimitive] NOT rendering ${node.children.length} children of ${node.GUID} - collapsed: ${node.collapsed}`);
+      }
     }
   }
 

@@ -42,8 +42,9 @@ export class AppComponent implements OnInit {
     private snackBar: MatSnackBar,
     private webSocketLogger: WebSocketLoggerService
   ) {
-    // WebSocket logger service will initialize automatically in constructor
-    console.log('[Kalisi Angular] Application starting with WebSocket logging enabled');
+    // Force websocket logger initialization
+    const wsConnected = this.webSocketLogger.isConnected();
+    console.log('[Kalisi Angular] Application starting, WS connected:', wsConnected);
   }
   
   ngOnInit() {

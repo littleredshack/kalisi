@@ -175,11 +175,19 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
         .await;
 }
 
-/// Handle console log messages from browser - COMPLETELY DISABLED
-async fn handle_console_log(_msg_data: serde_json::Value, _state: &AppState) {
-    // DISABLED: Browser console logging was creating infinite feedback loops
-    // Browser logs UI state → WebSocket processes → Creates more logs → Infinite loop
-    // This function is now a no-op to prevent system crashes
+/// Handle console log messages from browser - FILTERED FOR LAYOUT DEBUGGING
+async fn handle_console_log(msg_data: serde_json::Value, _state: &AppState) {
+    // Only process messages from RuntimeNormalizer, ContainmentRuntime, HierarchicalPrimitive, RuntimeRenderer, and LayoutGraphUtils
+    if let Some(message) = msg_data.get("message").and_then(|m| m.as_str()) {
+        if message.starts_with("[RuntimeNormalizer]")
+            || message.starts_with("[ContainmentRuntime]")
+            || message.starts_with("[HierarchicalPrimitive]")
+            || message.starts_with("[RuntimeRenderer]")
+            || message.starts_with("[LayoutGraphUtils]") {
+            // Write to stderr which goes to gateway-debug.log
+            eprintln!("[BROWSER] {}", message);
+        }
+    }
 }
 
 /// Broadcast channel for instant updates
