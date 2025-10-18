@@ -101,7 +101,7 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     // Recursively layout children first to get their sizes
     const laidOutChildren = children.map(child => this.layoutContainer(child, metrics));
 
-    // Now apply grid layout which will size and position children
+    // Now apply grid layout which will position children (but NOT resize them - they're already sized for their own children)
     this.applyAdaptiveGrid(clone, laidOutChildren, metrics);
     clone.children = laidOutChildren;
 
@@ -134,61 +134,17 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
       return;
     }
 
-    const interiorWidth = Math.max(parent.width ?? 0, 256);
     const padding = metrics.padding;
     const gap = metrics.gap;
 
-    const rankedChildren = [...children];
-
-    const availableWidth = Math.max(interiorWidth - padding * 2, 120);
-
-    let currentRow: HierarchicalNode[] = [];
-    const rows: HierarchicalNode[][] = [];
-    let rowWidth = 0;
-
-    rankedChildren.forEach(child => {
-      const childWidth = Math.min(child.width ?? 200, availableWidth);
-      const requiredWidth = currentRow.length === 0 ? childWidth : rowWidth + gap + childWidth;
-
-      if (requiredWidth > availableWidth) {
-        if (currentRow.length > 0) {
-          rows.push(currentRow);
-        }
-        currentRow = [child];
-        rowWidth = childWidth;
-      } else {
-        currentRow.push(child);
-        rowWidth = requiredWidth;
-      }
-    });
-
-    if (currentRow.length > 0) {
-      rows.push(currentRow);
-    }
-
+    // Simple vertical stack layout - don't resize children, just position them
     let y = padding;
-    let rowHeight = 0;
-    rows.forEach((row, rowIndex) => {
-      const totalWidth = row.reduce((acc, child, index) => {
-        const childWidth = Math.min(child.width ?? 200, availableWidth);
-        return acc + childWidth + (index === row.length - 1 ? 0 : gap);
-      }, 0);
 
-      let x = padding + Math.max(0, (availableWidth - totalWidth) / 2);
-      rowHeight = 0;
-
-      row.forEach(child => {
-        child.width = Math.min(child.width ?? 200, availableWidth);
-        child.x = Math.round(x);
-        child.y = Math.round(y);
-        rowHeight = Math.max(rowHeight, child.height ?? 0);
-        x += child.width + gap;
-      });
-
-      y += rowHeight + gap;
+    children.forEach((child, index) => {
+      child.x = padding;
+      child.y = y;
+      y += (child.height ?? 0) + (index < children.length - 1 ? gap : 0);
     });
-
-    LayoutPrimitives.resizeToFitChildren(parent, padding, padding);
   }
 
   private clampChildrenToParent(parent: HierarchicalNode, children: HierarchicalNode[], metrics: ContainmentMetrics): void {

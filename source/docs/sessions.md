@@ -1,3 +1,24 @@
+  The math says it SHOULD fit. But the image shows children extending outside parents.
+
+  The algorithm should be:
+
+  1. Start at leaf nodes (no children) - they get base size (220×132)
+  2. For each parent, bottom-up:
+    - Recursively layout all children first (so we know their final sizes)
+    - Position children: Start at y=padding(48), stack vertically, x=padding(48), gap=24 between
+    - After positioning, find the maximum right edge and bottom edge of all children
+    - Set parent width = max_right_edge + padding(48)
+    - Set parent height = max_bottom_edge + padding(48)
+  3. Critical: When positioning a child at (x, y), that child's bounding box is:
+    - Right edge: x + child.width
+    - Bottom edge: y + child.height
+
+  The parent must be sized to contain that bounding box plus padding.
+
+  Is resizeToFitChildren doing this correctly? Or is it just looking at child positions without accounting for their full
+  width/height?
+  
+
 ## Session 2025-10-16 – Runtime Containment Migration
 
 - **Scope**: Stand up the new runtime-only pipeline for the Containment Orthogonal view without falling back to saved layouts.
@@ -60,70 +81,9 @@
   4. Clean the legacy Neo4j entries (dedupe `QueryNode`s/relationships, reattach or retire `compliance-001`) using GUID-based operations only.
 - **Working Agreements**: Compile/test frequently, commit in small increments, and never touch Neo4j internal ids.
 
-• To push Visual Authoring + View Presets forward, here’s the high-level plan:
 
-  1. Preset Schema & Registry
-      - Expand the preset descriptor in shared/graph/view-presets.ts to include richer visuals: icon, badge, color ramps,
-        default display mode, edge styles, label visibility, layout hints, etc.
-      - Capture per-preset node/edge style tokens so renderers and the canvas engine can read them without bespoke logic.
-  2. Node/Edge Styling Pipeline
-      - Add metadata mapping utilities (e.g., map properties.status → badge color) in the GraphStore/runtime layer so
-        presets can transform raw metadata into presentation attributes.
-      - Extend CanvasNode/CanvasEdge types (and conversion in Neo4jDataService) with optional fields for icon, badge,
-        color, size, etc.
-  3. Renderer Integration
-      - Update composable renderers to respect the new style metadata (icon drawing in drawing-primitives.ts, badges,
-        color palettes).
-      - Ensure ComposableHierarchicalCanvasEngine feeds preset hints into the renderer when switching layouts.
-  4. Preset Manager Enhancements
-      - Enhance ViewPresetManager to resolve presets by metadata and expose a mutation API (set preset id, apply
-        overrides).
-      - Store active preset per canvas and issue a layout/run when presets change.
-  5. UI Controls & Chats
-      - Add preset picker buttons (or mat-select) in landing shell controls.
-      - Wire chat command (e.g., preset force-explore) via CanvasEventHubService to switch presets.
-  6. Iteration & Tests
-      - Implement in small slices, run npm run build + cargo check per slice.
-      - Update docs with preset definitions and usage.
 
-  Let me know if you’d like me to start implementing from the schema updates downward.
-  
----------------
 
-postpone full CRUD. With sample data coming straight from Cypher shell, we can stay read-only for
-  now and focus on making the runtime/rendering layer feel premium. Here’s how I’d reorder the roadmap:
-
-  1. Robust Read-Only Ingestion
-
-  - Harden the GraphSource → CanvasLayoutRuntime.setRawData() path so a single Neo4j query can hydrate any canvas.
-  - Ensure metadata (node types, tags, hierarchy hints) flows through without manual massaging.
-
-  2. Visual Authoring + View Presets (Top Priority)
-
-  - Add richer node/edge primitives (icons, badges, color themes, shape templates).
-  - Define “view presets” (containment grid, force, swimlane, timeline, hybrid) that map metadata → renderer/layout combos
-    and can be switched instantly.
-  - Expose UI controls (and chat commands) to swap presets, tweak palettes, toggle labels, etc.
-
-  3. Layout Engine Parity & polish
-
-  - Move remaining reflow logic into the runtime so force/containment/tree all run through the same contract.
-  - Add capability flags (constraints, clustering, incremental updates) so each engine can opt into advanced behaviors.
-  - Improve force-directed stability (e.g., warm-starting from previous positions) for smoother transitions.
-
-  4. Subgraph & Lens API
-
-  - Formalize “lens” descriptors (filters, aggregations) that the runtime can materialize and the UI can attach to
-    canvases/minimaps.
-  - Offer an AI endpoint to request a filtered view (“nodes impacting latency > 200 ms”) without rehydrating the full
-    dataset.
-
-  5. Interaction polish & telemetry
-
-  - Keep undo/redo + event bus in place; surface layout metrics in a subtle status area/console rather than chat or
-    properties panes.
-
-  Later (optional): add the CRUD command layer when you want in-app editing.
   
 --------------
 

@@ -155,10 +155,10 @@ export class RuntimeContainmentRenderer extends BaseRenderer {
   }
 
   /**
-   * Render node hierarchy with containment - from hierarchical renderer
+   * Render node hierarchy with containment
    */
   private renderNodeHierarchy(ctx: CanvasRenderingContext2D, node: HierarchicalNode, parentX: number, parentY: number, camera: Camera): void {
-    // Use HierarchicalNodePrimitive for containment support with collapse behavior
+    // Use HierarchicalNodePrimitive for containment support
     HierarchicalNodePrimitive.draw(ctx, node, parentX, parentY, camera, this.collapseBehavior);
   }
 

@@ -182,6 +182,7 @@ async fn handle_console_log(msg_data: serde_json::Value, _state: &AppState) {
         if message.starts_with("[RuntimeNormalizer]")
             || message.starts_with("[ContainmentRuntime]")
             || message.starts_with("[HierarchicalPrimitive]")
+            || message.starts_with("[ClippedHierarchicalPrimitive]")
             || message.starts_with("[RuntimeRenderer]")
             || message.starts_with("[RuntimeContainmentRenderer]")
             || message.starts_with("[ComposableHierarchicalRenderer]")
