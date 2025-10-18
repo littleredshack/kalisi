@@ -1,3 +1,30 @@
+This is how you code:
+> The start.sh runs and restarts everythng. jsut fucking run it - put it in the background. 
+Cehck the logs until you see it has started. Run your playworght test. Show me the logs. Jesus. We have been doing this in a repeated
+ loop for 24 hours - and I still have to explain it to you endlessly.  Learn for christs sake 
+
+● Bash(cd /workspace/source && truncate -s 0 logs/gateway-debug.log && ./start.sh)
+  ⎿  Running in the background (down arrow to manage)
+
+● Bash(sleep 30 && tail -5 /workspace/source/logs/gateway-debug.log)
+  ⎿  🔧 About to initialize tracing...      
+     ✅ Tracing initialized
+     🔧 DEBUG: MFA_REQUIRED env var = 'true'
+     … +2 lines (ctrl+o to expand)
+
+  Bash(cd /workspace/source/frontend && npx playwright test tests/e2e/runtime-merge-view.spec.ts)
+
+--------------
+
+● The complete rendering pipeline is:
+
+  1. ContainmentRuntimeLayoutEngine.layout() produces LayoutGraph with relative coordinates (x:48, y:48 for children)
+  2. buildPresentationFrame() calls layoutGraphToHierarchical() which converts flat LayoutGraph to hierarchical tree
+  3. HierarchicalNodePrimitive.draw() recursively draws nodes, adding parent coordinates: worldX = parentX + node.x
+  _____________
+
+  
+ 
   The math says it SHOULD fit. But the image shows children extending outside parents.
 
   The algorithm should be:
@@ -17,7 +44,7 @@
 
   Is resizeToFitChildren doing this correctly? Or is it just looking at child positions without accounting for their full
   width/height?
-  
+
 
 ## Session 2025-10-16 – Runtime Containment Migration
 

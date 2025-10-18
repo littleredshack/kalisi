@@ -556,8 +556,11 @@ export class RuntimeCanvasController {
       if (node.height > maxHeight) {
         node.height = maxHeight;
       }
-    } else {
-      // Parent resize constraint - cannot be smaller than children
+    }
+
+    // Parent resize constraint - cannot be smaller than children
+    // This applies to ANY node with children, regardless of whether it has a parent
+    if (node.children && node.children.length > 0) {
       this.applyParentResizeConstraint(node);
     }
 

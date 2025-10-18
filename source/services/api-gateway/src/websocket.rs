@@ -175,26 +175,11 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
         .await;
 }
 
-/// Handle console log messages from browser - FILTERED FOR LAYOUT DEBUGGING
+/// Handle console log messages from browser
 async fn handle_console_log(msg_data: serde_json::Value, _state: &AppState) {
-    // Only process messages from RuntimeNormalizer, ContainmentRuntime, HierarchicalPrimitive, RuntimeRenderer, LayoutGraphUtils, PresentationFrame, LayoutRuntime, and LayoutOrchestrator
     if let Some(message) = msg_data.get("message").and_then(|m| m.as_str()) {
-        if message.starts_with("[RuntimeNormalizer]")
-            || message.starts_with("[ContainmentRuntime]")
-            || message.starts_with("[HierarchicalPrimitive]")
-            || message.starts_with("[ClippedHierarchicalPrimitive]")
-            || message.starts_with("[RuntimeRenderer]")
-            || message.starts_with("[RuntimeContainmentRenderer]")
-            || message.starts_with("[ComposableHierarchicalRenderer]")
-            || message.starts_with("[ComponentFactory]")
-            || message.starts_with("[LayoutGraphUtils]")
-            || message.starts_with("[PresentationFrame]")
-            || message.starts_with("[LayoutRuntime]")
-            || message.starts_with("[LayoutOrchestrator]")
-            || message.starts_with("[FINAL DATA]") {
-            // Write to stderr which goes to gateway-debug.log
-            eprintln!("[BROWSER] {}", message);
-        }
+        // Write to stderr which goes to gateway-debug.log
+        eprintln!("[BROWSER] {}", message);
     }
 }
 

@@ -80,9 +80,7 @@ export class ComponentFactory {
     const resolvedModule = rendererLookup?.module ?? module ?? LayoutModuleRegistry.getModule('containment-grid')!;
     const resolvedRenderer = rendererLookup?.renderer ?? resolvedModule.renderers[0];
 
-    console.log(`[ComponentFactory] Creating renderer: ${resolvedRenderer.id} for module: ${resolvedModule.id}`);
     const rendererInstance = resolvedRenderer.factory();
-    console.log(`[ComponentFactory] Created renderer instance:`, rendererInstance.getName?.() ?? 'unknown');
 
     return {
       renderer: rendererInstance,

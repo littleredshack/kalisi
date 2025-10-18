@@ -1,3 +1,79 @@
+let me explain the architecture and why edge inheritance is in the controller, not the layout.
+
+  Architecture Layers
+
+  Legacy System:
+  ModularCanvasComponent
+      ↓
+  ComposableHierarchicalCanvasEngine  ← Edge inheritance here
+      ↓
+  LayoutRuntime → Layout Engine (containment-orthogonal, etc.)
+      ↓
+  Renderer
+
+  Runtime System:
+  RuntimeCanvasComponent
+      ↓
+  RuntimeCanvasController  ← Edge inheritance here
+      ↓
+  LayoutRuntime → Layout Engine (containment-runtime, etc.)
+      ↓
+  Renderer
+
+  Why Edge Inheritance is in the Controller (Not Layout)
+
+  1. It's Presentation Logic, Not Layout Logic
+  - Layout engines compute positions and sizes: "Where should nodes be placed?"
+  - Edge inheritance computes visibility: "Which edges should be shown?"
+  - Layout shouldn't care about collapsed state - it positions whatever nodes exist
+
+  2. Separation of Concerns
+  - Layout Engine: { nodes, edges } → { nodes with x/y/width/height }
+  - Controller: Manages visibility state, computes what to show, orchestrates layout
+  - Renderer: Draws what it receives
+
+  3. Preserved Original Graph Structure
+  - originalEdges stores the true graph relationships
+  - When nodes collapse/expand, we recompute visible edges from originalEdges
+  - Layout engine never sees the full original graph - only what should be visible
+  - If layout did this, it would need to track visibility state across layout runs
+
+  4. Runtime vs Layout Time
+  - Layout runs when: initial load, engine switch, manual layout trigger
+  - Edge inheritance runs when: collapse/expand, setData, any visibility change
+  - These are different lifecycles - edge inheritance is more frequent and interactive
+
+  The Flow
+
+  When you collapse a node:
+  1. Controller updates node.collapsed = true, hides children
+  2. Controller recomputes edges: computeEdgesWithInheritance(originalEdges)
+  3. Controller passes filtered data to LayoutRuntime
+  4. Layout engine sees only visible nodes and inherited edges
+  5. Renderer draws the result
+
+  Why not in Layout?
+  If edge inheritance was in the layout engine:
+  - Layout would need to manage originalEdges vs displayEdges
+  - Layout would need to know about collapse/expand state
+  - Layout couldn't be pure: "given nodes, position them"
+  - Switching layout engines would break edge inheritance
+  - Layout engines are swappable - this logic shouldn't move with them
+
+  The setData Call
+
+  When I said "Updated setData - Now computes edge inheritance when data is loaded", this happens in
+  RuntimeCanvasController.setData(), which is the orchestration layer, not the layout layer. It's the same pattern as
+  ComposableHierarchicalCanvasEngine.setData().
+
+  The controller is the right place because it:
+  - Receives raw data from component
+  - Applies presentation transformations (edge inheritance)
+  - Passes transformed data to layout
+  - Layout remains pure and swappable
+
+  Does this architecture make sense?
+  
 # Frontend Architecture Analysis
 
 ## Framework & Technology Stack

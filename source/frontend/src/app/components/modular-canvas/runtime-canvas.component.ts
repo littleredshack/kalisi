@@ -764,9 +764,6 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
   onMouseDown(event: MouseEvent): void {
     if (!this.engine) return;
 
-    // TODO: Implement mouse interaction delegation to RuntimeCanvasController
-    // Mouse interactions not yet implemented for RuntimeCanvasController
-
     const canvas = this.canvasRef.nativeElement;
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
@@ -774,17 +771,101 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     const screenX = (event.clientX - rect.left) * scaleX;
     const screenY = (event.clientY - rect.top) * scaleY;
 
-    // Start panning for now (basic interaction)
-    this.isPanning = true;
-    this.panStart = { x: screenX, y: screenY };
+    // Convert to world coordinates
+    const camera = this.engine.getCamera();
+    const worldX = screenX / camera.zoom + camera.x;
+    const worldY = screenY / camera.zoom + camera.y;
+
+    // COPIED EXACT RESIZE HANDLE DETECTION FROM MONOLITHIC SYSTEM
+    const selectedNode = this.engine.getSelectedNode();
+    if (selectedNode) {
+      const hitTestEvent: HitTestResizeEvent = {
+        type: 'hit-test-resize',
+        worldPos: { x: worldX, y: worldY },
+        screenPos: { x: screenX, y: screenY },
+        node: selectedNode
+      };
+      const hitTestResult = this.engine.processInteractionEvent(hitTestEvent);
+      const handle = hitTestResult?.handle;
+      if (handle) {
+        this.isResizing = true;
+        this.resizeHandle = handle;
+        this.panStart = { x: screenX, y: screenY };
+        return;
+      }
+    }
+
+    // Check for double-click BEFORE selecting node
+    const currentTime = Date.now();
+
+    // First, do a hit test without selecting to get the GUID
+    const hitResult = this.engine.getRenderer().hitTest(worldX, worldY, this.engine.getData().nodes);
+    const clickedGuid = hitResult?.node.GUID;
+
+    // Check if this is a double-click on the same node
+    const timeSinceLastClick = currentTime - this.lastClickTime;
+    const isDoubleClick = clickedGuid &&
+                          this.lastClickNodeGuid === clickedGuid &&
+                          timeSinceLastClick < 400; // Increased from 300ms to 400ms
+
+    if (isDoubleClick) {
+
+      // Double-click detected - process through interaction handler
+      const doubleClickEvent: DoubleClickEvent = {
+        type: 'double-click',
+        worldPos: { x: worldX, y: worldY },
+        nodeGuid: clickedGuid,
+        timeSinceLastClick
+      };
+      this.engine.processInteractionEvent(doubleClickEvent);
+      this.updateCameraInfo();
+
+      // Reset tracking to prevent triple-click
+      this.lastClickTime = 0;
+      this.lastClickNodeGuid = null;
+      return;
+    }
+
+    // Not a double-click - proceed with normal selection
+    const selectEvent: SelectEvent = {
+      type: 'select',
+      worldPos: { x: worldX, y: worldY }
+    };
+    const selectResult = this.engine.processInteractionEvent(selectEvent);
+    const clickedNode = selectResult?.selectedNode;
+
+    // Update click tracking for next potential double-click
+    this.lastClickTime = currentTime;
+    this.lastClickNodeGuid = clickedGuid || null;
+
+    // Try to start dragging a node (pass both world and screen coordinates)
+    const dragStartEvent: DragStartEvent = {
+      type: 'drag-start',
+      worldPos: { x: worldX, y: worldY },
+      screenPos: { x: screenX, y: screenY }
+    };
+    const dragResult = this.engine.processInteractionEvent(dragStartEvent);
+    const draggedNode = dragResult?.draggedNode;
+
+    if (draggedNode) {
+      // Reset drag flag when starting new drag
+      this.hasDragged = false;
+    } else {
+      // COPIED EXACT DESELECTION LOGIC FROM MONOLITHIC SYSTEM
+      // If no node hit, start panning the canvas
+      this.isPanning = true;
+      this.panStart = { x: screenX, y: screenY };
+
+      // Clear selection when clicking empty canvas
+      this.engine.clearSelection();
+    }
+
+    this.updateCameraInfo();
   }
 
   onMouseMove(event: MouseEvent): void {
     if (!this.engine) return;
 
-    // TODO: Implement mouse interaction delegation to RuntimeCanvasController
-    // Mouse interactions not yet implemented for RuntimeCanvasController
-
     const canvas = this.canvasRef.nativeElement;
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
@@ -792,35 +873,68 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     const screenX = (event.clientX - rect.left) * scaleX;
     const screenY = (event.clientY - rect.top) * scaleY;
 
-    if (this.isPanning) {
-      // Basic panning - will be replaced with proper delegation
+    // Convert to world coordinates
+    const camera = this.engine.getCamera();
+    const worldX = screenX / camera.zoom + camera.x;
+    const worldY = screenY / camera.zoom + camera.y;
+
+    // COPIED EXACT RESIZE HANDLING FROM MONOLITHIC SYSTEM
+    if (this.isResizing && this.engine) {
+      const selectedNode = this.engine.getSelectedNode();
+      if (selectedNode) {
+        this.engine.handleResize(selectedNode, this.resizeHandle, screenX, screenY);
+        return;
+      }
+    }
+
+    // Handle dragging
+    const dragUpdateEvent: DragUpdateEvent = {
+      type: 'drag-update',
+      worldPos: { x: worldX, y: worldY }
+    };
+    const dragUpdateResult = this.engine.processInteractionEvent(dragUpdateEvent);
+    const dragHandled = dragUpdateResult?.dragHandled;
+
+    if (dragHandled) {
+      // Mark that dragging has occurred
+      this.hasDragged = true;
+    }
+
+    if (!dragHandled && this.isPanning) {
+      // Handle panning
       const deltaX = screenX - this.panStart.x;
       const deltaY = screenY - this.panStart.y;
 
-      const camera = this.engine.getCamera();
-      this.engine.setCamera({
-        x: camera.x - deltaX / camera.zoom,
-        y: camera.y - deltaY / camera.zoom,
-        zoom: camera.zoom
-      });
-
+      this.engine.pan(-deltaX, -deltaY);
       this.panStart = { x: screenX, y: screenY };
-      this.updateCameraInfo();
     }
+
+    this.updateCameraInfo();
   }
 
   onMouseUp(event: MouseEvent): void {
-    // TODO: Implement mouse interaction delegation to RuntimeCanvasController
+    // COPIED EXACT MOUSE UP LOGIC FROM MONOLITHIC SYSTEM
     this.isPanning = false;
     this.isResizing = false;
-    this.hasDragged = false;
+
+    if (this.engine) {
+      const dragStopEvent: DragStopEvent = {
+        type: 'drag-stop',
+        worldPos: { x: 0, y: 0 } // Position not needed for stop event
+      };
+      this.engine.processInteractionEvent(dragStopEvent);
+
+      // Auto-deselect after drag completion
+      if (this.hasDragged) {
+        this.engine.clearSelection();
+        this.hasDragged = false;
+      }
+    }
   }
 
   onWheel(event: WheelEvent): void {
     if (!this.engine) return;
 
-    // TODO: Implement zoom delegation to RuntimeCanvasController
-    // Basic zoom implementation for now
     event.preventDefault();
     const canvas = this.canvasRef.nativeElement;
     const rect = canvas.getBoundingClientRect();
@@ -829,20 +943,7 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     const screenX = (event.clientX - rect.left) * scaleX;
     const screenY = (event.clientY - rect.top) * scaleY;
 
-    const camera = this.engine.getCamera();
-    const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
-    const newZoom = Math.max(0.1, Math.min(5, camera.zoom * zoomFactor));
-
-    // Zoom towards mouse position
-    const worldX = screenX / camera.zoom + camera.x;
-    const worldY = screenY / camera.zoom + camera.y;
-
-    this.engine.setCamera({
-      x: worldX - screenX / newZoom,
-      y: worldY - screenY / newZoom,
-      zoom: newZoom
-    });
-
+    this.engine.zoom(screenX, screenY, event.deltaY);
     this.updateCameraInfo();
   }
 
