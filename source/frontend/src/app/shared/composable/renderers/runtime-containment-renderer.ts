@@ -64,14 +64,6 @@ export class RuntimeContainmentRenderer extends BaseRenderer {
    * Main render method - combines hierarchical nodes with orthogonal edges
    */
   render(ctx: CanvasRenderingContext2D, nodes: HierarchicalNode[], edges: Edge[], camera: Camera, frame?: PresentationFrame): void {
-    console.log('[RuntimeContainmentRenderer] render() called with nodes:');
-    nodes.forEach(node => {
-      console.log(`  ${node.GUID}: (${node.x}, ${node.y}) size: ${node.width}x${node.height}, children: ${node.children.length}`);
-      node.children.forEach(child => {
-        console.log(`    ${child.GUID}: (${child.x}, ${child.y}) size: ${child.width}x${child.height}, children: ${child.children.length}`);
-      });
-    });
-
     const frameVersion = frame?.version ?? -1;
     const lensId = frame?.lensId ?? null;
     const delta = frame?.delta;
@@ -136,7 +128,9 @@ export class RuntimeContainmentRenderer extends BaseRenderer {
 
     // 2-pass rendering for proper z-order:
     // 1. Draw all nodes (hierarchical with containment)
-    nodes.forEach(node => this.renderNodeHierarchy(ctx, node, 0, 0, camera));
+    nodes.forEach(node => {
+      this.renderNodeHierarchy(ctx, node, 0, 0, camera);
+    });
 
     // 2. Draw all edges with orthogonal routing (includes inherited edges from collapsed nodes)
     edges.forEach(edge => {

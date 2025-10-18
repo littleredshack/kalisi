@@ -52,11 +52,6 @@ export class ForceLayoutEngine implements LayoutEngine {
    * Implements the optional processRawData interface for direct data loading
    */
   processRawData(input: RawDataInput, _options?: LayoutOptions): LayoutGraph {
-    console.debug('[ForceLayoutEngine] Processing raw data:', {
-      entities: input.entities.length,
-      relationships: input.relationships.length
-    });
-
     // Use default transformation utility
     const graph = processRawDataToGraph(input);
 

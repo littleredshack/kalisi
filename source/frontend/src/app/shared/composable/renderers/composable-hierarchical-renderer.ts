@@ -36,7 +36,6 @@ export class ComposableHierarchicalRenderer extends BaseRenderer {
    * Main render method - orchestrates 3-pass rendering EXACT same as HierarchicalRenderingStrategy
    */
   render(ctx: CanvasRenderingContext2D, nodes: HierarchicalNode[], edges: Edge[], camera: Camera, frame?: PresentationFrame): void {
-    console.log('[ComposableHierarchicalRenderer] render() called - THIS IS THE WRONG RENDERER FOR containment-runtime!');
     const nodeDeltas = new Set(frame?.delta?.nodes.filter(delta => delta.hasGeometryChange || delta.hasMetadataChange).map(delta => delta.nodeId));
     const edgeDeltas = new Set(frame?.delta?.edges.filter(delta => delta.hasChange).map(delta => delta.edgeId));
 

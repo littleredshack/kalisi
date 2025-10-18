@@ -22,13 +22,7 @@ export class TreeTableRenderer {
    */
   render(): void {
     if (this.nodes.length === 0) {
-      console.warn('[TreeTableRenderer] No nodes to render yet.');
       return;
     }
-
-    console.debug('[TreeTableRenderer] Ready to render tree-table', {
-      columns: this.columns.map(col => col.key),
-      nodeCount: this.nodes.length,
-    });
   }
 }

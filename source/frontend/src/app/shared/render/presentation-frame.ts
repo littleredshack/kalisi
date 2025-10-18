@@ -31,10 +31,8 @@ export interface PresentationDelta {
 }
 
 export function buildPresentationFrame(result: LayoutResult, previous?: PresentationFrame, lensId?: string): PresentationFrame {
-  console.log('[PresentationFrame] buildPresentationFrame CALLED with LayoutGraph:');
   Object.entries(result.graph.nodes).forEach(([id, node]) => {
     if (node.children.length > 0) {
-      console.log(`[PresentationFrame]   ${id}: geometry=(${node.geometry.x}, ${node.geometry.y}), SIZE=(${node.geometry.width}x${node.geometry.height}), children=${node.children.join(', ')}`);
     }
   });
 
@@ -47,12 +45,8 @@ export function buildPresentationFrame(result: LayoutResult, previous?: Presenta
                           displayMode === 'containment-grid' ||
                           displayMode === 'orthogonal';
 
-  console.log(`[PresentationFrame] buildPresentationFrame: displayMode=${displayMode}, isRuntimeEngine=${isRuntimeEngine}`);
-  console.log(`[PresentationFrame] snapshot node count: ${snapshot.nodes.length}`);
   snapshot.nodes.forEach(root => {
-    console.log(`[PresentationFrame]   Root ${root.GUID}: (${root.x}, ${root.y}), SIZE=(${root.width}x${root.height}), children=${root.children.length}`);
     root.children.forEach(child => {
-      console.log(`[PresentationFrame]     Child ${child.GUID}: (${child.x}, ${child.y}), SIZE=(${child.width}x${child.height})`);
     });
   });
 
@@ -60,11 +54,8 @@ export function buildPresentationFrame(result: LayoutResult, previous?: Presenta
     ensureRelativeNodeCoordinates(snapshot.nodes, 0, 0);
   }
 
-  console.log(`[PresentationFrame] After normalization (skip=${isRuntimeEngine}):`);
   snapshot.nodes.forEach(root => {
-    console.log(`[PresentationFrame]   Root ${root.GUID}: (${root.x}, ${root.y}), SIZE=(${root.width}x${root.height}), children=${root.children.length}`);
     root.children.forEach(child => {
-      console.log(`[PresentationFrame]     Child ${child.GUID}: (${child.x}, ${child.y}), SIZE=(${child.width}x${child.height})`);
     });
   });
 

@@ -96,10 +96,10 @@ export class ComposableHierarchicalCanvasEngine {
     };
     this.normaliseCanvasData(this.data);
     this.refreshViewPreset();
-    this.lensBaseData = this.cloneCanvasData(this.data);
+    this.lensBaseData = this.data;
 
     // Store original data for layout engine isolation
-    this.originalData = this.cloneCanvasData(this.data);
+    this.originalData = this.data;
 
     const initialEngineName = this.normaliseEngineName(initialEngineId, initialData);
 
@@ -135,7 +135,7 @@ export class ComposableHierarchicalCanvasEngine {
     if (hasSavedLayout) {
       // Use saved layout directly without running layout engine
       this.initialRenderPending = false;
-      this.lensBaseData = this.cloneCanvasData(this.data);
+      this.lensBaseData = this.data;
       this.refreshViewPreset();
       this.pendingRendererInvalidation = true;
       this.render();
@@ -148,7 +148,7 @@ export class ComposableHierarchicalCanvasEngine {
 
           this.initialRenderPending = false;
           this.setData(result, 'system');
-          this.lensBaseData = this.cloneCanvasData(this.data);
+          this.lensBaseData = this.data;
           this.refreshViewPreset();
 
           // Only adjust camera if layout didn't provide one
@@ -167,7 +167,7 @@ export class ComposableHierarchicalCanvasEngine {
           const fallback = this.layoutRuntime.getCanvasData();
           this.initialRenderPending = false;
           this.setData(fallback, 'system');
-          this.lensBaseData = this.cloneCanvasData(this.data);
+          this.lensBaseData = this.data;
           this.refreshViewPreset();
           this.ensureCameraWithinBounds('initialize');
         });
@@ -182,12 +182,15 @@ export class ComposableHierarchicalCanvasEngine {
       ...data,
       originalEdges: data.originalEdges || data.edges.filter(e => !e.id.startsWith('inherited-'))
     };
+
     this.normaliseCanvasData(this.data);
+
     this.data.edges = this.computeEdgesWithInheritance(this.data.originalEdges);
     this.refreshViewPreset();
+
     this.invalidateRendererCache();
     if (updateLensBase) {
-      this.lensBaseData = this.cloneCanvasData(this.data);
+      this.lensBaseData = this.data;
     }
 
     if (data.camera) {
@@ -275,10 +278,6 @@ export class ComposableHierarchicalCanvasEngine {
       return;
     }
     this.currentLensId = lensId;
-    console.debug('[CanvasEngine] Graph lens set', {
-      canvasId: this.canvasId,
-      lensId
-    });
     this.layoutRuntime.setLens(lensId);
     const filtered = this.applyLensToData(lensId);
     this.setData(filtered, 'system', false);
@@ -481,13 +480,20 @@ export class ComposableHierarchicalCanvasEngine {
   }
 
   private applyCollapsedNodeDimensions(nodes: HierarchicalNode[], clampSize = false): void {
+    // Skip dimension clamping for runtime engines that calculate their own dimensions
+    const isRuntimeEngine = this.layoutRuntime !== null;
+    const shouldSkipDimensionClamping = isRuntimeEngine && clampSize;
+
     nodes.forEach(node => {
       if (!node.children || node.children.length === 0) {
         return;
       }
 
+      const originalWidth = node.width;
+      const originalHeight = node.height;
+
       if (node.collapsed) {
-        if (clampSize) {
+        if (clampSize && !shouldSkipDimensionClamping) {
           const isTreeNode = node.metadata?.['displayMode'] === 'tree';
           if (isTreeNode) {
             const defaultWidth = typeof node.metadata?.['defaultWidth'] === 'number'
@@ -694,7 +700,6 @@ export class ComposableHierarchicalCanvasEngine {
 
     if (!targetCollapsed) {
       // EXPANDING
-      console.debug('[Expand] Node:', nodeGuid, 'Attempting to restore state');
       node.collapsed = false;
       const lockedPosition = (node as any)._lockedPosition;
       if (lockedPosition) {
@@ -706,10 +711,8 @@ export class ComposableHierarchicalCanvasEngine {
       if (this.viewNodeStateService) {
         const savedState = this.viewNodeStateService.restoreNodeVisibilityState(nodeGuid);
         if (savedState) {
-          console.debug('[Expand] Restoring saved state with', savedState.childrenStates?.size || 0, 'children');
           this.restoreNodeStateRecursively(node, savedState);
         } else {
-          console.debug('[Expand] No saved state - showing immediate children in collapsed state');
           // No saved state - show immediate children but keep them collapsed
           // This preserves any existing grandchild states
           this.showImmediateChildren(node);
@@ -728,11 +731,9 @@ export class ComposableHierarchicalCanvasEngine {
       }
     } else {
       // COLLAPSING
-      console.debug('[Collapse] Node:', nodeGuid, 'Saving state with', node.children?.length || 0, 'children');
       (node as any)._lockedPosition = { x: node.x, y: node.y };
       if (this.viewNodeStateService) {
         this.viewNodeStateService.saveNodeVisibilityState(nodeGuid, node);
-        console.debug('[Collapse] State saved for node:', nodeGuid);
       }
 
       node.collapsed = true;
@@ -1020,7 +1021,6 @@ export class ComposableHierarchicalCanvasEngine {
     if (event.type === 'double-click') {
       // Double-click handling is now centralized in interaction handler
       // No additional side effects needed here
-      console.debug('[DoubleClick] Processed through interaction handler');
     }
 
     return result;
@@ -1338,11 +1338,11 @@ export class ComposableHierarchicalCanvasEngine {
           // Save current layout state to the outgoing engine's snapshot
           const previousEngine = this.currentEngineName;
           if (previousEngine && event.engineName !== previousEngine) {
-            this.layoutSnapshots.set(previousEngine, this.cloneCanvasData(this.data));
+            this.layoutSnapshots.set(previousEngine, (this.data));
           }
 
           // Load clean data for the incoming engine
-          const targetEngineData = this.layoutSnapshots.get(event.engineName) || this.cloneCanvasData(this.originalData);
+          const targetEngineData = this.layoutSnapshots.get(event.engineName) || (this.originalData);
 
           // Set clean data before running layout
           this.setData(targetEngineData, event.source, false);
@@ -2092,7 +2092,7 @@ export class ComposableHierarchicalCanvasEngine {
 
   private applyLensToData(lensId: string): CanvasData {
     const source = this.lensBaseData ?? this.data;
-    const clone = this.cloneCanvasData(source);
+    const clone = (source);
 
     switch (lensId) {
       case 'selected-root-neighborhood':
@@ -2349,9 +2349,9 @@ export class ComposableHierarchicalCanvasEngine {
       }
 
       if (!layoutHandled) {
-        this.lensBaseData = this.cloneCanvasData(this.data);
+        this.lensBaseData = this.data;
       } else {
-        this.lensBaseData = this.cloneCanvasData(this.data);
+        this.lensBaseData = this.data;
       }
     };
 
@@ -2420,13 +2420,6 @@ export class ComposableHierarchicalCanvasEngine {
     });
   }
 
-  private cloneCanvasData(data: CanvasData): CanvasData {
-    const structured = (globalThis as unknown as { structuredClone?: <T>(input: T) => T }).structuredClone;
-    if (typeof structured === 'function') {
-      return structured(data);
-    }
-    return JSON.parse(JSON.stringify(data));
-  }
 
   private inferEngineFromData(data: CanvasData): string {
     if (data.nodes.some(node => node.metadata?.['displayMode'] === 'tree')) {
