@@ -49,10 +49,14 @@ function createNodeFromLayout(layoutNode: LayoutNode): HierarchicalNode {
 }
 
 export function layoutGraphToHierarchical(graph: LayoutGraph): HierarchicalGraphSnapshot {
+  console.log(`[LayoutGraphUtils] layoutGraphToHierarchical START (converting LayoutGraph to HierarchicalNodes)`);
+
   const nodeMap = new Map<string, HierarchicalNode>();
 
   Object.values(graph.nodes).forEach(node => {
-    nodeMap.set(node.id, createNodeFromLayout(node));
+    const hierarchical = createNodeFromLayout(node);
+    console.log(`[LayoutGraphUtils]   Creating node ${node.id}: geometry=(${node.geometry.x}, ${node.geometry.y}) → hierarchical x=${hierarchical.x}, y=${hierarchical.y}`);
+    nodeMap.set(node.id, hierarchical);
   });
 
   Object.values(graph.nodes).forEach(node => {
@@ -61,6 +65,7 @@ export function layoutGraphToHierarchical(graph: LayoutGraph): HierarchicalGraph
     node.children.forEach(childId => {
       const child = nodeMap.get(childId);
       if (child) {
+        console.log(`[LayoutGraphUtils]   Adding child ${childId} (${child.x}, ${child.y}) to parent ${parent.GUID}`);
         parent.children.push(child);
       }
     });

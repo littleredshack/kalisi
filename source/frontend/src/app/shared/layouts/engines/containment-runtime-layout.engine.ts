@@ -60,6 +60,14 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
 
     const routedEdges = this.computeEdgeWaypoints(processedNodes, nonContainmentEdges);
 
+    console.log('[ContainmentRuntime] BEFORE hierarchicalToLayoutGraph:');
+    processedNodes.forEach(root => {
+      console.log(`[ContainmentRuntime]   Root ${root.GUID}: (${root.x}, ${root.y}), ${root.children.length} children`);
+      root.children.forEach(child => {
+        console.log(`[ContainmentRuntime]     Child ${child.GUID}: (${child.x}, ${child.y})`);
+      });
+    });
+
     const updatedGraph = hierarchicalToLayoutGraph({
       nodes: processedNodes,
       edges: routedEdges,
@@ -68,6 +76,11 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
         layoutVersion: (graph.metadata.layoutVersion ?? 0) + 1,
         displayMode: 'containment-runtime'
       }
+    });
+
+    console.log('[ContainmentRuntime] AFTER hierarchicalToLayoutGraph:');
+    Object.values(updatedGraph.nodes).forEach(node => {
+      console.log(`[ContainmentRuntime]   Node ${node.id}: geometry=(${node.geometry.x}, ${node.geometry.y}), children=${node.children.length}`);
     });
 
     const diagnosticMetrics: Record<string, number> = {
@@ -156,6 +169,11 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
 
     clone.children = laidOutChildren;
     LayoutPrimitives.resizeToFitChildren(clone, metrics.padding, metrics.padding);
+
+    console.log(`[ContainmentRuntime]   FINAL ${clone.GUID} children positions before return:`);
+    clone.children.forEach(child => {
+      console.log(`[ContainmentRuntime]     ${child.GUID}: (${child.x}, ${child.y})`);
+    });
 
     return clone;
   }
