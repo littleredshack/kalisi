@@ -26,6 +26,7 @@ export class CanvasLayoutRuntime {
   private frame: PresentationFrame | null = null;
   private readonly workerBridge: LayoutWorkerBridge;
   private lensId: string | undefined;
+  private readonly defaultEngine: string;
 
   constructor(canvasId: string, initialData: CanvasData, config: CanvasLayoutRuntimeConfig = {}) {
     this.canvasId = canvasId;
@@ -33,7 +34,15 @@ export class CanvasLayoutRuntime {
     this.workerBridge = new LayoutWorkerBridge(this.orchestrator, { useWorker: config.useWorker });
     const initialGraph = canvasDataToLayoutGraph(initialData);
     this.store = new GraphStore(initialGraph);
-    ensureRelativeNodeCoordinates(initialData.nodes, 0, 0);
+
+    // Store default engine to check if coordinate normalization should be skipped
+    this.defaultEngine = config.defaultEngine ?? this.inferEngineFromData(initialData);
+
+    // Skip coordinate normalization for runtime engines that output correctly positioned nodes
+    const isRuntimeEngine = this.isRuntimeEngine(this.defaultEngine);
+    if (!isRuntimeEngine) {
+      ensureRelativeNodeCoordinates(initialData.nodes, 0, 0);
+    }
 
     this.canvasData = {
       ...initialData,
@@ -43,7 +52,7 @@ export class CanvasLayoutRuntime {
       metadata: initialData.metadata ? { ...initialData.metadata } : undefined
     };
 
-    const initialEngine = this.normaliseEngineName(config.defaultEngine ?? this.inferEngineFromData(initialData));
+    const initialEngine = this.normaliseEngineName(this.defaultEngine);
     this.orchestrator.setActiveEngine(canvasId, initialEngine);
     this.eventBus = this.orchestrator.getEventBus(canvasId);
 
@@ -105,7 +114,10 @@ export class CanvasLayoutRuntime {
       originalEdges: data.originalEdges ?? data.edges.map(edge => ({ ...edge })),
       metadata: data.metadata ? { ...data.metadata } : undefined
     };
-    ensureRelativeNodeCoordinates(this.canvasData.nodes, 0, 0);
+    // Skip coordinate normalization for runtime engines that output correctly positioned nodes
+    if (!this.isRuntimeEngine(this.defaultEngine)) {
+      ensureRelativeNodeCoordinates(this.canvasData.nodes, 0, 0);
+    }
     const graph = canvasDataToLayoutGraph(this.canvasData, this.store.current.version + 1);
     this.store.replace(graph);
     this.frame = {
@@ -216,7 +228,23 @@ export class CanvasLayoutRuntime {
       engineName: normalisedEngine,
       priority: this.resolvePriority(options)
     });
+
+    console.log('[LayoutRuntime] BEFORE store.update(), result.graph nodes:');
+    Object.entries(result.graph.nodes).forEach(([id, node]) => {
+      if (node.children.length > 0) {
+        console.log(`[LayoutRuntime]   ${id}: geometry=(${node.geometry.x}, ${node.geometry.y})`);
+      }
+    });
+
     this.store.update(result);
+
+    console.log('[LayoutRuntime] AFTER store.update(), result.graph nodes:');
+    Object.entries(result.graph.nodes).forEach(([id, node]) => {
+      if (node.children.length > 0) {
+        console.log(`[LayoutRuntime]   ${id}: geometry=(${node.geometry.x}, ${node.geometry.y})`);
+      }
+    });
+
     this.frame = buildPresentationFrame(result, this.frame ?? undefined, this.lensId);
     this.canvasData = this.cloneCanvasData(this.frame.canvasData);
     return this.canvasData;
@@ -289,5 +317,16 @@ export class CanvasLayoutRuntime {
     }
 
     return 'normal';
+  }
+
+  private isRuntimeEngine(engineName: string): boolean {
+    // Runtime engines that calculate positions correctly and should not have
+    // their positions overwritten by ensureRelativeNodeCoordinates
+    const runtimeEngines = new Set([
+      'containment-runtime',
+      'containment-grid',
+      'orthogonal'
+    ]);
+    return runtimeEngines.has(engineName);
   }
 }

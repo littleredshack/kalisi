@@ -1,4 +1,4 @@
-import { LayoutGraph, LayoutResult } from '../layouts/core/layout-contract';
+import { LayoutGraph, LayoutResult, LayoutNode, LayoutEdge } from '../layouts/core/layout-contract';
 import {
   EdgePresentation,
   NodePresentation,
@@ -33,10 +33,43 @@ export class GraphStore {
 
   update(result: LayoutResult): void {
     const nextVersion = (result.graph.metadata.layoutVersion ?? this.snapshot.version) + 1;
+
+    // Deep copy nodes to prevent mutations
+    const nodesCopy: Record<string, LayoutNode> = {};
+    Object.entries(result.graph.nodes).forEach(([id, node]) => {
+      nodesCopy[id] = {
+        ...node,
+        geometry: {
+          x: node.geometry.x,
+          y: node.geometry.y,
+          width: node.geometry.width,
+          height: node.geometry.height
+        },
+        state: {
+          collapsed: node.state.collapsed,
+          visible: node.state.visible,
+          selected: node.state.selected
+        },
+        metadata: { ...node.metadata },
+        children: [...node.children],
+        edges: [...node.edges]
+      };
+    });
+
+    // Deep copy edges
+    const edgesCopy: Record<string, LayoutEdge> = {};
+    Object.entries(result.graph.edges).forEach(([id, edge]) => {
+      edgesCopy[id] = {
+        ...edge,
+        metadata: { ...edge.metadata }
+      };
+    });
+
     this.snapshot = {
       version: nextVersion,
       graph: {
-        ...result.graph,
+        nodes: nodesCopy as Readonly<Record<string, LayoutNode>>,
+        edges: edgesCopy as Readonly<Record<string, LayoutEdge>>,
         metadata: {
           ...result.graph.metadata,
           layoutVersion: nextVersion

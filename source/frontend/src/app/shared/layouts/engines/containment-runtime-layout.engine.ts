@@ -27,23 +27,6 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
   layout(graph: LayoutGraph, options: LayoutOptions): LayoutResult {
     const snapshot = layoutGraphToHierarchical(graph);
 
-    // Log the hierarchical snapshot structure
-    console.log('[ContainmentRuntime] Hierarchical snapshot:');
-    console.log('  Root nodes:', snapshot.nodes.length);
-    snapshot.nodes.forEach(root => {
-      console.log(`  Root: ${root.GUID} (${root.text})`);
-      console.log(`    Position: (${root.x}, ${root.y})`);
-      console.log(`    Children:`, root.children.length);
-      root.children.forEach(child => {
-        console.log(`      Child: ${child.GUID} (${child.text})`);
-        console.log(`        Position: (${child.x}, ${child.y})`);
-        console.log(`        Children:`, child.children.length);
-        child.children.forEach(grandchild => {
-          console.log(`          Grandchild: ${grandchild.GUID} (${grandchild.text})`);
-        });
-      });
-    });
-
     const layoutMetrics: ContainmentMetrics = {
       padding: DEFAULT_PADDING,
       gap: DEFAULT_GAP
@@ -60,14 +43,6 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
 
     const routedEdges = this.computeEdgeWaypoints(processedNodes, nonContainmentEdges);
 
-    console.log('[ContainmentRuntime] BEFORE hierarchicalToLayoutGraph:');
-    processedNodes.forEach(root => {
-      console.log(`[ContainmentRuntime]   Root ${root.GUID}: (${root.x}, ${root.y}), ${root.children.length} children`);
-      root.children.forEach(child => {
-        console.log(`[ContainmentRuntime]     Child ${child.GUID}: (${child.x}, ${child.y})`);
-      });
-    });
-
     const updatedGraph = hierarchicalToLayoutGraph({
       nodes: processedNodes,
       edges: routedEdges,
@@ -78,11 +53,6 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
       }
     });
 
-    console.log('[ContainmentRuntime] AFTER hierarchicalToLayoutGraph:');
-    Object.values(updatedGraph.nodes).forEach(node => {
-      console.log(`[ContainmentRuntime]   Node ${node.id}: geometry=(${node.geometry.x}, ${node.geometry.y}), children=${node.children.length}`);
-    });
-
     const diagnosticMetrics: Record<string, number> = {
       nodeCount: processedNodes.length,
       edgeCount: routedEdges.length
@@ -90,18 +60,6 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     if (typeof options.timestamp === 'number') {
       diagnosticMetrics['runtimeMs'] = Math.max(0, Date.now() - options.timestamp);
     }
-
-    // Log final output structure
-    console.log('[ContainmentRuntime] Final LayoutGraph returned:');
-    console.log('  Root IDs:', updatedGraph.metadata.rootIds);
-    console.log('  Total nodes in graph:', Object.keys(updatedGraph.nodes).length);
-    console.log('  Total edges in graph:', Object.keys(updatedGraph.edges).length);
-    console.log('  Nodes with children:');
-    Object.entries(updatedGraph.nodes).forEach(([id, node]) => {
-      if (node.children.length > 0) {
-        console.log(`    ${id} has children:`, node.children);
-      }
-    });
 
     return {
       graph: updatedGraph,
@@ -125,21 +83,9 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     const children = clone.children ?? [];
     const laidOutChildren = children.map(child => this.layoutContainer(child, metrics));
 
-    // Runtime containment layout always uses adaptive grid - it computes positions automatically
-    // and doesn't preserve user-dragged positions
-    console.log(`[ContainmentRuntime] layoutContainer for ${clone.GUID}: Applying adaptive grid for ${laidOutChildren.length} children`);
     this.applyAdaptiveGrid(clone, laidOutChildren, metrics);
-    laidOutChildren.forEach(child => {
-      console.log(`[ContainmentRuntime]     ${child.GUID}: (${child.x}, ${child.y}) after grid`);
-    });
-
     clone.children = laidOutChildren;
     LayoutPrimitives.resizeToFitChildren(clone, metrics.padding, metrics.padding);
-
-    console.log(`[ContainmentRuntime]   FINAL ${clone.GUID} children positions before return:`);
-    clone.children.forEach(child => {
-      console.log(`[ContainmentRuntime]     ${child.GUID}: (${child.x}, ${child.y})`);
-    });
 
     return clone;
   }
@@ -158,9 +104,6 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
   }
 
   private applyAdaptiveGrid(parent: HierarchicalNode, children: HierarchicalNode[], metrics: ContainmentMetrics): void {
-    console.log(`[ContainmentRuntime] applyAdaptiveGrid START for parent ${parent.GUID}`);
-    console.log(`[ContainmentRuntime]   Parent width: ${parent.width}, children count: ${children.length}`);
-
     if (children.length === 0) {
       return;
     }
@@ -169,12 +112,9 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     const padding = metrics.padding;
     const gap = metrics.gap;
 
-    console.log(`[ContainmentRuntime]   Interior width: ${interiorWidth}, padding: ${padding}, gap: ${gap}`);
-
     const rankedChildren = [...children];
 
     const availableWidth = Math.max(interiorWidth - padding * 2, 120);
-    console.log(`[ContainmentRuntime]   Available width for children: ${availableWidth}`);
 
     let currentRow: HierarchicalNode[] = [];
     const rows: HierarchicalNode[][] = [];
@@ -183,17 +123,14 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     rankedChildren.forEach(child => {
       const childWidth = Math.min(child.width ?? 200, availableWidth);
       const requiredWidth = currentRow.length === 0 ? childWidth : rowWidth + gap + childWidth;
-      console.log(`[ContainmentRuntime]   Child ${child.GUID}: width=${childWidth}, requiredWidth=${requiredWidth}, availableWidth=${availableWidth}`);
 
       if (requiredWidth > availableWidth) {
         if (currentRow.length > 0) {
-          console.log(`[ContainmentRuntime]     Starting new row (required ${requiredWidth} > available ${availableWidth})`);
           rows.push(currentRow);
         }
         currentRow = [child];
         rowWidth = childWidth;
       } else {
-        console.log(`[ContainmentRuntime]     Adding to current row (required ${requiredWidth} <= available ${availableWidth})`);
         currentRow.push(child);
         rowWidth = requiredWidth;
       }
@@ -202,11 +139,6 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     if (currentRow.length > 0) {
       rows.push(currentRow);
     }
-
-    console.log(`[ContainmentRuntime]   Total rows created: ${rows.length}`);
-    rows.forEach((row, i) => {
-      console.log(`[ContainmentRuntime]     Row ${i}: ${row.length} children (${row.map(c => c.GUID).join(', ')})`);
-    });
 
     let y = padding;
     let rowHeight = 0;
@@ -219,22 +151,17 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
       let x = padding + Math.max(0, (availableWidth - totalWidth) / 2);
       rowHeight = 0;
 
-      console.log(`[ContainmentRuntime]   Row ${rowIndex}: totalWidth=${totalWidth}, starting x=${x}, starting y=${y}`);
-
       row.forEach(child => {
         child.width = Math.min(child.width ?? 200, availableWidth);
         child.x = Math.round(x);
         child.y = Math.round(y);
-        console.log(`[ContainmentRuntime]     Assigning ${child.GUID}: x=${child.x}, y=${child.y}, width=${child.width}, height=${child.height}`);
         rowHeight = Math.max(rowHeight, child.height ?? 0);
         x += child.width + gap;
       });
 
-      console.log(`[ContainmentRuntime]   Row ${rowIndex} complete: rowHeight=${rowHeight}, next y will be ${y + rowHeight + gap}`);
       y += rowHeight + gap;
     });
 
-    console.log(`[ContainmentRuntime] applyAdaptiveGrid END`);
     LayoutPrimitives.resizeToFitChildren(parent, padding, padding);
   }
 

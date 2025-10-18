@@ -632,7 +632,11 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     
     // Always use ComposableHierarchicalCanvasEngine
     if (this.data) {
-      this.normaliseCanvasData(this.data);
+      // Skip coordinate normalization for runtime engines since they already output correct positions
+      const isRuntimeEngine = this.runtimeEngineId === 'containment-runtime' ||
+                              this.runtimeEngineId === 'containment-grid' ||
+                              this.runtimeEngineId === 'orthogonal';
+      this.normaliseCanvasData(this.data, isRuntimeEngine);
       this.canvasViewStateService.initialize(this.canvasId, this.data!, 'engine');
     }
 
@@ -1123,7 +1127,7 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
   }
 
   // Process raw ViewNode data with dynamically selected layout strategy
-  private normaliseCanvasData(data: CanvasData): CanvasData {
+  private normaliseCanvasData(data: CanvasData, skipCoordinateNormalization: boolean = false): CanvasData {
     if (!data) {
       return data;
     }
@@ -1153,7 +1157,13 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     data.nodes = data.nodes || [];
     data.nodes.forEach(ensureNode);
 
-    ensureRelativeNodeCoordinates(data.nodes, 0, 0);
+    // IMPORTANT: Skip coordinate normalization for runtime views
+    // Runtime engines (like containment-runtime) already output correctly positioned nodes
+    // and calling ensureRelativeNodeCoordinates would overwrite those positions with stale
+    // metadata['worldPosition'] values from before grid layout
+    if (!skipCoordinateNormalization) {
+      ensureRelativeNodeCoordinates(data.nodes, 0, 0);
+    }
 
     const ensureEdge = (edge: Edge) => {
       const edgeAny = edge as any;

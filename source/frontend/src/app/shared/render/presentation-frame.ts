@@ -31,8 +31,44 @@ export interface PresentationDelta {
 }
 
 export function buildPresentationFrame(result: LayoutResult, previous?: PresentationFrame, lensId?: string): PresentationFrame {
+  console.log('[PresentationFrame] buildPresentationFrame CALLED with LayoutGraph:');
+  Object.entries(result.graph.nodes).forEach(([id, node]) => {
+    if (node.children.length > 0) {
+      console.log(`[PresentationFrame]   ${id}: geometry=(${node.geometry.x}, ${node.geometry.y}), children=${node.children.join(', ')}`);
+    }
+  });
+
   const snapshot = layoutGraphToHierarchical(result.graph);
-  ensureRelativeNodeCoordinates(snapshot.nodes, 0, 0);
+
+  // Skip coordinate normalization for runtime engines that output correctly positioned nodes
+  // Runtime engines set displayMode in metadata to indicate they handle positions internally
+  const displayMode = result.graph.metadata['displayMode'] as string | undefined;
+  const isRuntimeEngine = displayMode === 'containment-runtime' ||
+                          displayMode === 'containment-grid' ||
+                          displayMode === 'orthogonal';
+
+  console.log(`[PresentationFrame] buildPresentationFrame: displayMode=${displayMode}, isRuntimeEngine=${isRuntimeEngine}`);
+  console.log(`[PresentationFrame] snapshot node count: ${snapshot.nodes.length}`);
+  snapshot.nodes.forEach(root => {
+    console.log(`[PresentationFrame]   Root ${root.GUID}: (${root.x}, ${root.y}), children=${root.children.length}`);
+    root.children.forEach(child => {
+      console.log(`[PresentationFrame]     Child ${child.GUID}: (${child.x}, ${child.y})`);
+    });
+  });
+
+  if (!isRuntimeEngine) {
+    ensureRelativeNodeCoordinates(snapshot.nodes, 0, 0);
+  }
+
+  console.log(`[PresentationFrame] After normalization (skip=${isRuntimeEngine}):`);
+  snapshot.nodes.forEach(root => {
+    console.log(`[PresentationFrame]   Root ${root.GUID}: (${root.x}, ${root.y}), children=${root.children.length}`);
+    root.children.forEach(child => {
+      console.log(`[PresentationFrame]     Child ${child.GUID}: (${child.x}, ${child.y})`);
+    });
+  });
+
+
   const camera = result.camera ?? previous?.camera;
 
   const canvasData: CanvasData = {

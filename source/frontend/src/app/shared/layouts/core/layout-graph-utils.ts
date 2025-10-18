@@ -49,13 +49,10 @@ function createNodeFromLayout(layoutNode: LayoutNode): HierarchicalNode {
 }
 
 export function layoutGraphToHierarchical(graph: LayoutGraph): HierarchicalGraphSnapshot {
-  console.log(`[LayoutGraphUtils] layoutGraphToHierarchical START (converting LayoutGraph to HierarchicalNodes)`);
-
   const nodeMap = new Map<string, HierarchicalNode>();
 
   Object.values(graph.nodes).forEach(node => {
     const hierarchical = createNodeFromLayout(node);
-    console.log(`[LayoutGraphUtils]   Creating node ${node.id}: geometry=(${node.geometry.x}, ${node.geometry.y}) → hierarchical x=${hierarchical.x}, y=${hierarchical.y}`);
     nodeMap.set(node.id, hierarchical);
   });
 
@@ -65,7 +62,6 @@ export function layoutGraphToHierarchical(graph: LayoutGraph): HierarchicalGraph
     node.children.forEach(childId => {
       const child = nodeMap.get(childId);
       if (child) {
-        console.log(`[LayoutGraphUtils]   Adding child ${childId} (${child.x}, ${child.y}) to parent ${parent.GUID}`);
         parent.children.push(child);
       }
     });
@@ -100,8 +96,6 @@ type MutableLayoutNode = Omit<LayoutNode, 'children' | 'edges'> & {
 };
 
 export function hierarchicalToLayoutGraph(snapshot: HierarchicalGraphSnapshot): LayoutGraph {
-  console.log(`[LayoutGraphUtils] hierarchicalToLayoutGraph START`);
-
   const nodesRecord: Record<string, MutableLayoutNode> = {};
   const edgesRecord = snapshot.edges.reduce<Record<string, LayoutEdge>>((acc, edge) => {
     acc[edge.id] = createEdgeRecord(edge);
@@ -111,9 +105,6 @@ export function hierarchicalToLayoutGraph(snapshot: HierarchicalGraphSnapshot): 
   const visit = (node: HierarchicalNode, depth: number = 0): void => {
     const nodeId = node.GUID ?? node.id;
     if (!nodeId) return;
-
-    const indent = '  '.repeat(depth);
-    console.log(`[LayoutGraphUtils] ${indent}Node ${nodeId}: (${node.x}, ${node.y}), ${node.children.length} children`);
 
     const childrenIds = node.children
       .map(child => child.GUID ?? child.id)
@@ -147,13 +138,6 @@ export function hierarchicalToLayoutGraph(snapshot: HierarchicalGraphSnapshot): 
 
   snapshot.nodes.forEach(node => visit(node));
 
-  console.log('[LayoutGraphUtils] After visiting all nodes, nodesRecord contains:');
-  Object.entries(nodesRecord).forEach(([id, node]) => {
-    if (node.children.length > 0) {
-      console.log(`[LayoutGraphUtils]   ${id}: geometry=(${node.geometry.x}, ${node.geometry.y}), children=${node.children.join(', ')}`);
-    }
-  });
-
   Object.values(edgesRecord).forEach(edge => {
     const fromNode = nodesRecord[edge.from];
     const toNode = nodesRecord[edge.to];
@@ -184,13 +168,6 @@ export function hierarchicalToLayoutGraph(snapshot: HierarchicalGraphSnapshot): 
       children: [...node.children],
       edges: [...node.edges]
     };
-  });
-
-  console.log('[LayoutGraphUtils] hierarchicalToLayoutGraph RETURNING LayoutGraph:');
-  Object.entries(readonlyNodes).forEach(([id, node]) => {
-    if (node.children.length > 0) {
-      console.log(`[LayoutGraphUtils]   ${id}: geometry=(${node.geometry.x}, ${node.geometry.y}), children=${node.children.join(', ')}`);
-    }
   });
 
   // Deep copy edges to prevent mutations

@@ -64,20 +64,6 @@ export class RuntimeContainmentRenderer extends BaseRenderer {
    * Main render method - combines hierarchical nodes with orthogonal edges
    */
   render(ctx: CanvasRenderingContext2D, nodes: HierarchicalNode[], edges: Edge[], camera: Camera, frame?: PresentationFrame): void {
-    // Log what the renderer receives
-    console.log('[RuntimeRenderer] Received for rendering:');
-    console.log('  Root nodes:', nodes.length);
-    nodes.forEach(root => {
-      console.log(`  Root: ${root.GUID} (${root.text})`);
-      console.log(`    Children in node.children:`, root.children?.length || 0);
-      if (root.children && root.children.length > 0) {
-        root.children.forEach(child => {
-          console.log(`      Child: ${child.GUID} (${child.text})`);
-          console.log(`        Grandchildren:`, child.children?.length || 0);
-        });
-      }
-    });
-
     const frameVersion = frame?.version ?? -1;
     const lensId = frame?.lensId ?? null;
     const delta = frame?.delta;
