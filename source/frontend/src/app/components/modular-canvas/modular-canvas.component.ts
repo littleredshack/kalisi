@@ -603,22 +603,16 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
           }))
         };
 
-        // For containment-runtime, don't pre-process the data - let the engine handle it
-        if (this.runtimeEngineId === 'containment-runtime') {
-          // Store raw data for engine to process
-          (this.data as any).__rawDataInput = rawDataInput;
-        } else {
-          tempRuntime.setRawData(rawDataInput, false, 'system');
-          const processedGraph = tempRuntime.getLayoutGraph();
-          const hierarchicalSnapshot = layoutGraphToHierarchical(processedGraph);
+        tempRuntime.setRawData(rawDataInput, false, 'system');
+        const processedGraph = tempRuntime.getLayoutGraph();
+        const hierarchicalSnapshot = layoutGraphToHierarchical(processedGraph);
 
-          this.data = {
-            nodes: hierarchicalSnapshot.nodes,
-            edges: hierarchicalSnapshot.edges,
-            originalEdges: hierarchicalSnapshot.edges,
-            camera: this.data?.camera
-          };
-        }
+        this.data = {
+          nodes: hierarchicalSnapshot.nodes,
+          edges: hierarchicalSnapshot.edges,
+          originalEdges: hierarchicalSnapshot.edges,
+          camera: this.data?.camera
+        };
       }
     }
     

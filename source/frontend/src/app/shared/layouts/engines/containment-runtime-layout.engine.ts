@@ -35,6 +35,22 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     const processedNodes = snapshot.nodes.map(node => this.layoutContainer(node, layoutMetrics));
     processedNodes.forEach(root => this.updateWorldMetadata(root));
 
+    // Log final sizes after layout
+    console.log('[ContainmentRuntime] Final node sizes after layout:');
+    processedNodes.forEach(root => {
+      console.log(`  ${root.id}: (${root.x}, ${root.y}) size: ${root.width}x${root.height}`);
+      if (root.children) {
+        root.children.forEach(child => {
+          console.log(`    ${child.id}: (${child.x}, ${child.y}) size: ${child.width}x${child.height}`);
+          if (child.children) {
+            child.children.forEach(grandchild => {
+              console.log(`      ${grandchild.id}: (${grandchild.x}, ${grandchild.y}) size: ${grandchild.width}x${grandchild.height}`);
+            });
+          }
+        });
+      }
+    });
+
     // Filter out containment edges - they're represented by visual hierarchy, not lines
     const nonContainmentEdges = snapshot.edges.filter(edge => {
       const edgeType = (edge.metadata?.['relationType'] as string)?.toUpperCase() || '';
