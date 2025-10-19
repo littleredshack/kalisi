@@ -538,6 +538,7 @@ export class RuntimeCanvasController {
 
   /**
    * Apply resize constraints
+   * RECURSIVE: Handles deep hierarchies and propagates changes upward
    * PORTED FROM ComposableHierarchicalCanvasEngine
    */
   private applyResizeConstraints(node: HierarchicalNode): void {
@@ -560,6 +561,7 @@ export class RuntimeCanvasController {
 
     // Parent resize constraint - cannot be smaller than children
     // This applies to ANY node with children, regardless of whether it has a parent
+    // NOW RECURSIVE: Calculates minimum size based on entire descendant tree
     if (node.children && node.children.length > 0) {
       this.applyParentResizeConstraint(node);
     }
@@ -568,10 +570,50 @@ export class RuntimeCanvasController {
     if (node.children && node.children.length > 0) {
       this.adjustChildrenAfterParentResize(node);
     }
+
+    // UPWARD PROPAGATION: If this node grew, ensure all ancestors can contain it
+    if (parent) {
+      this.propagateResizeUpward(node, parent, data.nodes);
+    }
+  }
+
+  /**
+   * Propagate resize changes upward through ancestor hierarchy
+   * Ensures all ancestors can contain their children after a resize
+   */
+  private propagateResizeUpward(
+    resizedNode: HierarchicalNode,
+    parent: HierarchicalNode,
+    allNodes: HierarchicalNode[]
+  ): void {
+    // Check if parent needs to grow to contain this child
+    const padding = 20;
+    const requiredWidth = resizedNode.x + resizedNode.width + padding;
+    const requiredHeight = resizedNode.y + resizedNode.height + padding;
+
+    let parentResized = false;
+
+    if (parent.width < requiredWidth) {
+      parent.width = requiredWidth;
+      parentResized = true;
+    }
+    if (parent.height < requiredHeight) {
+      parent.height = requiredHeight;
+      parentResized = true;
+    }
+
+    // If parent was resized, propagate upward to grandparent
+    if (parentResized) {
+      const grandparent = this.findParentNode(parent, allNodes);
+      if (grandparent) {
+        this.propagateResizeUpward(parent, grandparent, allNodes);
+      }
+    }
   }
 
   /**
    * Apply parent resize constraint - ensures parent can't shrink smaller than children
+   * RECURSIVE: Calculates minimum size based on entire descendant hierarchy
    * PORTED FROM ComposableHierarchicalCanvasEngine
    */
   private applyParentResizeConstraint(parentNode: HierarchicalNode): void {
@@ -582,7 +624,14 @@ export class RuntimeCanvasController {
     let minHeight = 100;
 
     // Calculate minimum size needed to contain all children
+    // RECURSIVE: First ensure each child respects ITS children's constraints
     parentNode.children.forEach(child => {
+      // Recursively apply constraints to child first (bottom-up)
+      if (child.children && child.children.length > 0) {
+        this.applyParentResizeConstraint(child);
+      }
+
+      // Now calculate minimum bounds based on child's final size
       const childRight = child.x + child.width + padding;
       const childBottom = child.y + child.height + padding;
 
