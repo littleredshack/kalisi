@@ -218,7 +218,8 @@ export class RuntimeCanvasController {
     currentData.edges = this.computeEdgesWithInheritance(currentData.originalEdges);
 
     // Update layout runtime with system source to suppress history
-    this.layoutRuntime.setCanvasData(currentData, needsLayout, 'system');
+    // Force cache invalidation by passing true to trigger renderer rebuild
+    this.layoutRuntime.setCanvasData(currentData, true, 'system');
 
     // Emit callback if recording history
     if (options.recordHistory && this.onDataChangedCallback) {
