@@ -2,13 +2,14 @@ use crate::config::Config;
 use crate::crypto::CryptoService;
 use crate::database::neo4j_gateway::Neo4jGateway;
 use crate::email::EmailService;
+use crate::graph_events::GraphDeltaPublisher;
 use crate::logging::CentralLogger;
 use crate::security_metrics::SecurityMonitor;
 use crate::websocket::UpdateChannel;
 use kalisi_core::auth::JwtAuth;
 use redis::aio::MultiplexedConnection;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -22,6 +23,7 @@ pub struct AppState {
     pub security_monitor: Arc<RwLock<SecurityMonitor>>,
     pub update_channel: UpdateChannel,
     pub logger: CentralLogger,
+    pub graph_delta_publisher: Arc<Mutex<GraphDeltaPublisher>>,
 }
 
 impl AppState {
@@ -59,6 +61,11 @@ impl AppState {
         let redis_manager = redis::aio::ConnectionManager::new(redis_client.clone()).await?;
         let logger = CentralLogger::new(redis_manager, "api-gateway".to_string());
 
+        // Initialize graph delta publisher (feature-flagged via ENABLE_GRAPH_DELTA)
+        let graph_delta_publisher = Arc::new(Mutex::new(
+            GraphDeltaPublisher::new(&config.redis_url).await?,
+        ));
+
         Ok(Self {
             config: config.clone(),
             redis,
@@ -69,6 +76,7 @@ impl AppState {
             security_monitor,
             update_channel,
             logger,
+            graph_delta_publisher,
         })
     }
 

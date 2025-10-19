@@ -6,6 +6,7 @@ import { Neo4jDataService } from '../../core/services/neo4j-data.service';
 import { ViewNodeStateService } from '../../core/services/view-node-state.service';
 import { DynamicLayoutService } from '../../core/services/dynamic-layout.service';
 import { MessageService } from 'primeng/api';
+import { Neo4jRealtimeService } from '../../core/services/neo4j-realtime.service';
 import { RuntimeCanvasController } from '../../shared/canvas/runtime-canvas-controller';
 import {
   HierarchicalNode,
@@ -86,10 +87,11 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   private useRuntimeDataProcessing = true;
 
   private historySubscription?: Subscription;
+  private realtimeDeltaSubscription?: Subscription;
   private restoringHistory = false;
   private canUndoState = false;
   private canRedoState = false;
-  
+
   constructor(
     private cdr: ChangeDetectorRef,
     private neo4jDataService: Neo4jDataService,
@@ -100,7 +102,8 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     private canvasControlService: CanvasControlService,
     private canvasViewStateService: CanvasViewStateService,
     private canvasHistoryService: CanvasHistoryService,
-    private canvasEventHubService: CanvasEventHubService
+    private canvasEventHubService: CanvasEventHubService,
+    private neo4jRealtimeService: Neo4jRealtimeService
   ) {
     // Engine-only mode - no reactive effects
     this.availableLenses = GraphLensRegistry.list();
@@ -125,6 +128,10 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
 
   ngOnDestroy(): void {
     // No automatic saving - layout persistence handled by explicit Save button
+    // Disconnect from realtime service
+    this.realtimeDeltaSubscription?.unsubscribe();
+    this.neo4jRealtimeService.disconnect();
+
     // Unregister from control service
     this.canvasControlService.unregisterCanvas();
     this.historySubscription?.unsubscribe();
@@ -611,12 +618,51 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     });
 
     this.canvasControlService.notifyStateChange();
-    
+
+    // Setup realtime graph delta subscription if we have a ViewNode
+    this.setupRealtimeSubscription();
+
     // Watch for canvas container size changes
     const resizeObserver = new ResizeObserver(() => {
       this.resizeCanvas();
     });
     resizeObserver.observe(canvas.parentElement!);
+  }
+
+  /**
+   * Setup real-time WebSocket subscription for graph deltas
+   */
+  private setupRealtimeSubscription(): void {
+    // Unsubscribe from any previous subscription
+    this.realtimeDeltaSubscription?.unsubscribe();
+
+    // Only subscribe if we have a ViewNode with an ID
+    if (!this.selectedViewNode?.id || !this.engine) {
+      return;
+    }
+
+    console.log(`[RuntimeCanvas] Setting up realtime subscription for ViewNode: ${this.selectedViewNode.id}`);
+
+    // Connect to the WebSocket and subscribe to graph changes
+    this.neo4jRealtimeService.connect(this.selectedViewNode.id);
+
+    // Subscribe to delta updates
+    this.realtimeDeltaSubscription = this.neo4jRealtimeService.getDelta$().subscribe(delta => {
+      console.log('[RuntimeCanvas] Received graph delta:', delta);
+
+      if (!this.engine) {
+        console.warn('[RuntimeCanvas] Engine not available, cannot apply delta');
+        return;
+      }
+
+      try {
+        // Apply the delta to the engine without recording in history (system change)
+        this.engine.applyDelta(delta, { recordHistory: false });
+        console.log('[RuntimeCanvas] Successfully applied graph delta');
+      } catch (error) {
+        console.error('[RuntimeCanvas] Error applying graph delta:', error);
+      }
+    });
   }
 
   private resizeCanvas(): void {

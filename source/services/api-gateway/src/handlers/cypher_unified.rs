@@ -2,8 +2,9 @@ use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde::{Deserialize, Serialize};
 
 use crate::database::neo4j_gateway::GatewayError;
+use crate::graph_events::try_emit_delta;
 use crate::state::AppState;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 /// Unified request structure for all Cypher queries
@@ -12,6 +13,9 @@ pub struct UnifiedCypherRequest {
     pub query: String,
     #[serde(default)]
     pub parameters: std::collections::HashMap<String, serde_json::Value>,
+    /// Optional ViewNode ID for graph delta emission (feature-flagged)
+    #[serde(default)]
+    pub view_node_id: Option<String>,
 }
 
 /// Unified response structure for all Cypher results
@@ -45,6 +49,20 @@ pub async fn execute_unified_cypher(
 
     let query_id = Uuid::new_v4().to_string();
 
+    // Extract trace_id from parameters if present for latency tracking
+    let trace_id = request.parameters.get("trace_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    // [TIMING T1] Request received at gateway
+    if !trace_id.is_empty() {
+        let t1 = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+        warn!("[TIMING:{}:T1:{}] Request received at gateway", trace_id, t1);
+    }
+
     info!(
         target: "kalisi_gateway::handlers::cypher_unified",
         query_id = %query_id,
@@ -59,6 +77,40 @@ pub async fn execute_unified_cypher(
         .await
     {
         Ok(result) => {
+            // [TIMING T2] Neo4j response received
+            if !trace_id.is_empty() {
+                let t2 = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis();
+                warn!("[TIMING:{}:T2:{}] Neo4j response received", trace_id, t2);
+            }
+            // Attempt to emit graph delta if this was a write operation
+            // Production implementation: pass actual Neo4j result data
+            {
+                let mut publisher = state.graph_delta_publisher.lock().await;
+                if let Some(_delta) = try_emit_delta(
+                    &mut *publisher,
+                    request.view_node_id.clone(),
+                    &request.query,
+                    &result.raw_response
+                ).await {
+                    // [TIMING T3] Delta published to Redis stream
+                    if !trace_id.is_empty() {
+                        let t3 = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap()
+                            .as_millis();
+                        warn!("[TIMING:{}:T3:{}] Delta published to Redis stream", trace_id, t3);
+                    }
+                    info!(
+                        target: "kalisi_gateway::handlers::cypher_unified",
+                        query_id = %query_id,
+                        "Graph delta published to Redis stream"
+                    );
+                }
+            }
+
             let response = UnifiedCypherResponse {
                 success: true,
                 message: format!(

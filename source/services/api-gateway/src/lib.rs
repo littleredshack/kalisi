@@ -6,6 +6,7 @@ pub mod csp_nonce_styles_simple;
 pub mod csp_styles;
 pub mod database;
 pub mod email;
+pub mod graph_events;
 pub mod handlers;
 pub mod middleware;
 pub mod routes;

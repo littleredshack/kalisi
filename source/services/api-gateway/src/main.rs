@@ -15,6 +15,7 @@ mod csp_angular_fix;
 mod csp_nonce_styles_simple;
 mod csp_styles;
 mod database;
+mod graph_events;
 mod handlers;
 mod logging;
 mod mfa_simple;

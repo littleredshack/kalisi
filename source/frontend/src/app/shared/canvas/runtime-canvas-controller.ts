@@ -3,6 +3,7 @@ import { CanvasLayoutRuntime } from './layout-runtime';
 import { IRenderer } from './renderer';
 import { CameraSystem } from './camera';
 import { CanvasInteractionHandler } from './canvas-interaction-handler';
+import { GraphDelta } from '../../core/services/neo4j-realtime.service';
 
 /**
  * Clean controller for runtime-based layouts.
@@ -15,6 +16,7 @@ import { CanvasInteractionHandler } from './canvas-interaction-handler';
  * NO dimension transformations, NO preset overwriting, NO legacy baggage.
  */
 export class RuntimeCanvasController {
+  private readonly canvasId: string;
   private readonly layoutRuntime: CanvasLayoutRuntime;
   private readonly renderer: IRenderer;
   private readonly cameraSystem: CameraSystem;
@@ -31,6 +33,7 @@ export class RuntimeCanvasController {
     canvasId: string,
     engineId?: string
   ) {
+    this.canvasId = canvasId;
     this.canvas = canvas;
     this.renderer = renderer;
     this.cameraSystem = new CameraSystem(canvas.width, canvas.height);
@@ -102,6 +105,187 @@ export class RuntimeCanvasController {
     }
 
     return result;
+  }
+
+  /**
+   * Apply a graph delta from real-time updates
+   * Merges incremental changes into the current graph while preserving visibility and selection state
+   */
+  applyDelta(delta: GraphDelta, options: { recordHistory?: boolean } = {}): void {
+    console.log('[RuntimeCanvasController] Applying delta:', delta);
+
+    // Extract trace_id for timing if present
+    let traceId = '';
+    if (delta.nodesUpdated && delta.nodesUpdated.length > 0) {
+      traceId = delta.nodesUpdated[0].properties?.['trace_id'] as string || '';
+    }
+
+    const currentData = this.layoutRuntime.getCanvasData();
+    const allNodes = this.getAllNodesFlat(currentData.nodes);
+
+    console.log(`[RuntimeCanvasController] Found ${allNodes.length} total nodes`);
+    console.log(`[RuntimeCanvasController] Sample node IDs: ${allNodes.slice(0, 3).map(n => n.id).join(', ')}`);
+    console.log(`[RuntimeCanvasController] Sample node structure:`, JSON.stringify(allNodes.slice(0, 1).map(n => ({
+      id: n.id,
+      text: n.text,
+      GUID: (n as any).GUID,
+      allKeys: Object.keys(n)
+    }))));
+
+    // Track if we need to run layout (if new nodes lack positions)
+    let needsLayout = false;
+
+    // Apply node updates
+    if (delta.nodesUpdated && delta.nodesUpdated.length > 0) {
+      console.log(`[RuntimeCanvasController] Processing ${delta.nodesUpdated.length} node update(s)`);
+      delta.nodesUpdated.forEach(update => {
+        console.log(`[RuntimeCanvasController] Looking for node with GUID: ${update.guid}`);
+        const node = allNodes.find(n => (n as any).GUID === update.guid);
+        if (node) {
+          console.log(`[RuntimeCanvasController] Found node:`, node.id, 'Current text:', node.text);
+          // Merge properties - update both the property and the display field
+          Object.keys(update.properties).forEach(key => {
+            if (!['x', 'y', 'width', 'height', 'children', 'selected', 'visible', 'collapsed'].includes(key)) {
+              (node as any)[key] = update.properties[key];
+              // If updating name, also update text for display
+              if (key === 'name') {
+                node.text = update.properties[key] as string;
+                // Add render timestamp for latency measurement
+                if (traceId) {
+                  const t5 = Date.now();
+                  node.text = `${node.text} [T5:${t5}]`;
+                  console.log(`[TIMING:${traceId}:T5:${t5}] Canvas render complete`);
+                }
+                console.log(`[RuntimeCanvasController] Updated node ${update.guid} text to: ${node.text}`);
+              }
+            }
+          });
+        } else {
+          console.warn(`[RuntimeCanvasController] Node not found for GUID: ${update.guid}`);
+        }
+      });
+    }
+
+    // Apply node deletions
+    delta.nodesDeleted.forEach(guid => {
+      this.removeNodeRecursive(currentData.nodes, guid);
+    });
+
+    // Apply node creations
+    delta.nodesCreated.forEach((newNodeData: any) => {
+      const newNode = this.convertToHierarchicalNode(newNodeData);
+
+      // Check if node has position
+      if (newNode.x === undefined || newNode.y === undefined) {
+        needsLayout = true;
+      }
+
+      // Find parent if specified
+      if (newNodeData.parent_guid || newNodeData.parentGUID) {
+        const parentGuid = newNodeData.parent_guid || newNodeData.parentGUID;
+        const parent = allNodes.find(n => n.GUID === parentGuid || n.id === parentGuid);
+        if (parent) {
+          parent.children = parent.children || [];
+          parent.children.push(newNode);
+        } else {
+          // No parent found, add to root
+          currentData.nodes.push(newNode);
+        }
+      } else {
+        // Add to root
+        currentData.nodes.push(newNode);
+      }
+    });
+
+    // Apply edge deletions
+    const originalEdges = currentData.originalEdges || currentData.edges;
+    currentData.originalEdges = originalEdges.filter(edge =>
+      !delta.relationshipsDeleted.includes(edge.id)
+    );
+
+    // Apply edge creations
+    delta.relationshipsCreated.forEach((newEdgeData: any) => {
+      const newEdge = this.convertToEdge(newEdgeData);
+      currentData.originalEdges.push(newEdge);
+    });
+
+    // Recompute edges with inheritance
+    currentData.edges = this.computeEdgesWithInheritance(currentData.originalEdges);
+
+    // Update layout runtime with system source to suppress history
+    this.layoutRuntime.setCanvasData(currentData, needsLayout, 'system');
+
+    // Emit callback if recording history
+    if (options.recordHistory && this.onDataChangedCallback) {
+      this.onDataChangedCallback(currentData);
+    }
+
+    // [TIMING T5] Delta applied and canvas updated
+    if (traceId) {
+      console.log(`[TIMING:${traceId}:T5] Delta applied and canvas updated`);
+    }
+
+    console.log('[RuntimeCanvasController] Delta applied, needsLayout:', needsLayout);
+  }
+
+  /**
+   * Convert backend node data to HierarchicalNode
+   */
+  private convertToHierarchicalNode(data: any): HierarchicalNode {
+    return {
+      id: data.guid,
+      GUID: data.guid,
+      type: data.labels?.[0] || 'Unknown',
+      x: data.position?.x || 0,
+      y: data.position?.y || 0,
+      width: data.display?.width || 150,
+      height: data.display?.height || 100,
+      text: data.properties?.name || data.properties?.label || data.guid,
+      style: {
+        fill: data.display?.color || '#ffffff',
+        stroke: data.display?.border_color || '#000000',
+        icon: data.display?.icon
+      },
+      children: [],
+      visible: true,
+      collapsed: false,
+      metadata: data.properties
+    };
+  }
+
+  /**
+   * Convert backend edge data to Edge
+   */
+  private convertToEdge(data: any): Edge {
+    return {
+      id: data.guid,
+      from: data.source_guid,
+      to: data.target_guid,
+      fromGUID: data.source_guid,
+      toGUID: data.target_guid,
+      label: data.type || data.display?.label || '',
+      style: {
+        stroke: data.display?.color || '#666666',
+        strokeWidth: data.display?.width || 2,
+        strokeDashArray: data.display?.dash || null
+      }
+    };
+  }
+
+  /**
+   * Remove a node from the hierarchy by GUID
+   */
+  private removeNodeRecursive(nodes: HierarchicalNode[], guid: string): boolean {
+    for (let i = 0; i < nodes.length; i++) {
+      if (nodes[i].GUID === guid || nodes[i].id === guid) {
+        nodes.splice(i, 1);
+        return true;
+      }
+      if (nodes[i].children && this.removeNodeRecursive(nodes[i].children, guid)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**

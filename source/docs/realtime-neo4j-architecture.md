@@ -1,612 +1,498 @@
-# Real-Time Neo4j Updates - Architecture Analysis
+ start.sh is the ONLY way to start the system. It makes sure all compiles work and stops old processes. Use it. Run it in the background then you can do whatever testing you need. 
 
-**Target System**: RuntimeCanvasComponent → RuntimeCanvasController → ContainmentRuntime-Merge View
+ cd /workspace/source && ./start.sh
+Once it is running it will tell you were to read the log file
+Then tail -f 
+ 
 
----
 
-## Current Architecture
+ # IMPLEMENTATION STATUS (2025-10-19)
 
-### Data Flow (One-Time Load)
-```
-Neo4j Database
-    ↓ (HTTP POST)
-Rust API Gateway (/runtime/canvas/data)
-    ↓ (HTTP Response)
-Neo4jDataService.executeViewNodeQuery()
-    ↓
-RuntimeCanvasComponent.loadViewNodeData()
-    ↓
-RuntimeCanvasController.setData()
-    ↓
-LayoutRuntime → ContainmentRuntimeLayoutEngine
-    ↓
-Canvas Renderer
-```
+Here's the complete flow from database update to UI:
 
-### Current Behavior
-- Data is loaded **ONCE** when ViewNode is selected
-- **NO polling or refresh mechanism**
-- User must manually reload to see database changes
-- WebSocket infrastructure exists but **NOT used for graph data**
+  1. Neo4j Query Execution
+  - User runs Cypher query (via cypher-shell, frontend, or API)
+  - Query updates node properties: SET n.name = 'New Value'
 
-### Existing WebSocket Infrastructure
-✅ **Already Implemented:**
-- `/ws` endpoint in api-gateway (websocket.rs)
-- WebSocketLoggerService for console logging
-- RedisSpaService for agent messaging
-- LogsPanelComponent uses WebSocket for streaming logs
+  2. API Gateway Handler (services/api-gateway/src/handlers/cypher_unified.rs:141-156)
+  - Receives query via HTTP POST to /api/unified_cypher
+  - Executes query against Neo4j
+  - Gets result with updated node data
 
-❌ **Not Implemented:**
-- Neo4j change notifications
-- Graph data streaming
-- Real-time node/edge updates
+  3. Delta Extraction (services/api-gateway/src/graph_events/emit.rs:19-67)
+  - try_emit_delta() extracts changed nodes from Neo4j result
+  - Parses GUID and properties from result data
+  - Creates GraphDelta with NodeUpdate objects
 
----
+  4. Redis Stream Publish (services/api-gateway/src/graph_events/publish.rs:30-45)
+  - Delta serialized to JSON
+  - Published to Redis Stream: graph_events:{view_node_id}
+  - Stream key includes ViewNode GUID for routing
 
-## Best Practice Options for Real-Time Neo4j Updates
+  5. WebSocket Broadcast (services/api-gateway/src/websocket.rs:266-308)
+  - Redis consumer reads stream in background task
+  - Matches delta to subscribed WebSocket connections by ViewNode ID
+  - Sends delta JSON to matching clients
 
-### Option 1: **Neo4j Change Data Capture (CDC)** ⭐ RECOMMENDED
+  6. Frontend Service (frontend/src/app/core/services/neo4j-realtime.service.ts:45-62)
+  - WebSocket receives delta message
+  - Parses JSON into GraphDelta object
+  - Emits via RxJS Observable (deltaSubject$)
 
-**How It Works:**
-```
-Neo4j Database (with CDC plugin)
-    ↓ (Kafka/NATS)
-CDC Event Processor (Rust)
-    ↓ (WebSocket broadcast)
-Frontend Clients (via existing /ws)
-```
+  7. Canvas Component (frontend/src/app/components/modular-canvas/runtime-canvas.component.ts:185-203)
+  - Subscribes to neo4jRealtimeService.getDelta$()
+  - Receives delta and calls engine.applyDelta()
 
-**Pros:**
-- ✅ Native Neo4j support (Enterprise & Community)
-- ✅ Event-driven, low latency (<100ms)
-- ✅ Captures ALL changes (CREATE, UPDATE, DELETE, relationships)
-- ✅ No polling overhead
-- ✅ Scalable to thousands of nodes
-- ✅ Industry standard pattern
+  8. Canvas Controller (frontend/src/app/shared/canvas/runtime-canvas-controller.ts:543-582)
+  - applyDelta() finds node by GUID: allNodes.find(n => (n as any).GUID === update.guid)
+  - Updates node properties
+  - If property is name, also updates node.text for display
+  - Canvas re-renders with updated data
 
-**Cons:**
-- ⚠️ Requires Neo4j plugin configuration
-- ⚠️ Need message broker (Kafka/NATS/Redis Streams)
-- ⚠️ More complex initial setup
+  Key Files in Order:
+  1. cypher_unified.rs:141-156 - Query execution
+  2. emit.rs:19-67 - Delta extraction
+  3. publish.rs:30-45 - Redis publish
+  4. websocket.rs:266-308 - WebSocket broadcast
+  5. neo4j-realtime.service.ts:45-62 - Frontend reception
+  6. runtime-canvas.component.ts:185-203 - Component handler
+  7. runtime-canvas-controller.ts:543-582 - Canvas update
 
-**Neo4j CDC Configuration:**
-```cypher
-// Enable CDC on database
-CALL apoc.cdc.enable('graph-changes');
+  
+## ✅ ALL 8 PHASES COMPLETED - DEBUGGING REQUIRED
 
-// Configure change stream
-CALL apoc.cdc.query('graph-changes', {
-  select: 'n, r',
-  where: 'n:CodeElement OR n:ViewNode',
-  changeMode: 'diff'
-}) YIELD txId, changes
-```
+The complete real-time Neo4j architecture has been implemented but **WebSocket deltas are not being received**. All code compiles and tests pass, but the feature requires debugging.
 
----
+### Files Created/Modified
 
-### Option 2: **Polling with Smart Diffing**
+#### Backend (Rust)
+- ✅ `services/api-gateway/src/graph_events/mod.rs` - Module definition
+- ✅ `services/api-gateway/src/graph_events/types.rs` - GraphDelta & NodeUpdate DTOs
+- ✅ `services/api-gateway/src/graph_events/emit.rs` - Write detection & delta emission
+- ✅ `services/api-gateway/src/graph_events/redis_publisher.rs` - Redis Stream publisher
+- ✅ `services/api-gateway/src/graph_events/tests.rs` - Integration tests (13 tests passing)
+- ✅ `services/api-gateway/src/handlers/cypher_unified.rs` - Delta emission hook
+- ✅ `services/api-gateway/src/websocket.rs` - subscribe_graph_changes handler
+- ✅ `services/api-gateway/src/state.rs` - GraphDeltaPublisher in AppState
+- ✅ `services/api-gateway/src/{lib.rs,main.rs}` - Module wiring
+- ✅ `services/api-gateway/src/runtime/dto.rs` - Added Deserialize traits
 
-**How It Works:**
-```
-Frontend (setInterval every 2-5 seconds)
-    ↓ (HTTP POST with lastModified timestamp)
-API Gateway (query only changed nodes)
-    ↓
-Neo4j (WHERE lastModified > $timestamp)
-    ↓
-Return delta (changed/added/deleted nodes)
-```
+#### Frontend (TypeScript)
+- ✅ `frontend/src/app/core/services/neo4j-realtime.service.ts` - WebSocket client
+- ✅ `frontend/src/app/shared/canvas/runtime-canvas-controller.ts` - applyDelta() method
 
-**Pros:**
-- ✅ Simple to implement (no new infrastructure)
-- ✅ Uses existing HTTP endpoints
-- ✅ No Neo4j plugins required
-- ✅ Good for low-frequency updates
+#### Scripts & Config
+- ✅ `scripts/neo4j/add_timestamp_support.cypher` - Timestamp migration
+- ✅ `scripts/neo4j/README.md` - Updated with migration docs
+- ✅ `.env` - Added `ENABLE_GRAPH_DELTA=true`
+- ✅ `.env.example` - Added feature flag documentation
 
-**Cons:**
-- ❌ Requires `lastModified` timestamp on ALL nodes
-- ❌ Polling overhead (wasted queries when no changes)
-- ❌ Higher latency (2-5 second delay)
-- ❌ Doesn't scale well (1000 clients = 1000 queries/second)
-- ❌ Misses rapid changes between polls
+#### Tests
+- ✅ `frontend/tests/e2e/realtime-delta-update.spec.ts` - E2E test (passes but no delta received)
 
-**Implementation:**
-```typescript
-// Frontend polling
-setInterval(async () => {
-  const delta = await neo4jService.getDelta(lastTimestamp);
-  if (delta.hasChanges) {
-    runtimeController.applyDelta(delta);
-  }
-}, 3000);
-```
+### How to Start the System
 
----
+**CRITICAL: Always use start.sh - it's the ONLY supported way to start the system**
 
-### Option 3: **WebSocket + Transaction Log Tailing**
-
-**How It Works:**
-```
-Neo4j Transaction Log
-    ↓ (Custom Rust reader)
-Transaction Log Parser
-    ↓ (WebSocket broadcast)
-Frontend Clients
-```
-
-**Pros:**
-- ✅ Near real-time (<50ms)
-- ✅ Captures ALL database changes
-- ✅ No Neo4j configuration needed
-
-**Cons:**
-- ❌ Requires direct filesystem access to Neo4j logs
-- ❌ Complex parsing logic
-- ❌ Fragile (log format changes break it)
-- ❌ Not officially supported by Neo4j
-
----
-
-### Option 4: **Server-Sent Events (SSE)**
-
-**How It Works:**
-```
-Neo4j (polling or CDC)
-    ↓
-API Gateway (SSE endpoint /sse/graph-changes)
-    ↓ (text/event-stream)
-Frontend (EventSource)
-```
-
-**Pros:**
-- ✅ Built-in browser support (EventSource API)
-- ✅ Simpler than WebSocket
-- ✅ Automatic reconnection
-
-**Cons:**
-- ❌ One-way only (server → client)
-- ❌ Less efficient than WebSocket
-- ❌ Still need Neo4j change detection
-
----
-
-## Recommended Architecture: **Neo4j CDC + WebSocket**
-
-### Why This Is Best
-
-1. **Event-Driven**: Changes push instantly, no polling waste
-2. **Scalable**: Handles thousands of concurrent clients
-3. **Reliable**: Native Neo4j support, battle-tested
-4. **Efficient**: Only transmit changed data
-5. **Integrates with Existing Infrastructure**: Uses current WebSocket endpoint
-
-### Architecture Diagram
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      Neo4j Database                          │
-│  (WITH CDC PLUGIN ENABLED)                                   │
-└────────────────────┬────────────────────────────────────────┘
-                     │ CDC Events
-                     ↓
-┌─────────────────────────────────────────────────────────────┐
-│              Message Broker (NATS/Redis)                     │
-│  Stream: graph-changes                                       │
-│  Events: node_created, node_updated, node_deleted           │
-│          relationship_created, relationship_deleted          │
-└────────────────────┬────────────────────────────────────────┘
-                     │ Subscribe
-                     ↓
-┌─────────────────────────────────────────────────────────────┐
-│           Rust API Gateway (NEW: CDC Processor)              │
-│                                                              │
-│  1. Subscribe to graph-changes stream                        │
-│  2. Filter events (only relevant ViewNode queries)           │
-│  3. Transform to frontend format                             │
-│  4. Broadcast via WebSocket                                  │
-└────────────────────┬────────────────────────────────────────┘
-                     │ WebSocket /ws
-                     ↓
-┌─────────────────────────────────────────────────────────────┐
-│              Frontend (Angular)                              │
-│                                                              │
-│  Neo4jRealtimeService                                        │
-│      ↓                                                       │
-│  RuntimeCanvasComponent                                      │
-│      ↓                                                       │
-│  RuntimeCanvasController.applyDelta()                        │
-│      ↓                                                       │
-│  LayoutRuntime (incremental update)                          │
-│      ↓                                                       │
-│  Renderer (animated transition)                              │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Implementation Plan
-
-### Phase 1: Infrastructure Setup
-
-#### 1.1 Neo4j CDC Configuration
 ```bash
-# Install Neo4j CDC plugin (if not present)
-# Add to neo4j.conf:
-apoc.cdc.enabled=true
-apoc.cdc.change.identifier.topic=graph-changes
+cd /workspace/source
+./start.sh
 ```
 
-#### 1.2 Message Broker (Use existing Redis or add NATS)
+This will:
+- Build Rust backend and frontend
+- Start Redis and Neo4j (if not running)
+- Start kalisi-gateway with all environment variables loaded
+- Log output to `/workspace/source/logs/gateway-debug.log`
+
+**Do NOT manually start the gateway** - start.sh ensures proper build and environment setup.
+
+### How to Run Tests
+
 ```bash
-# Option A: Redis Streams (if already using Redis)
-# Already available in your stack
+# Backend tests (all passing)
+cargo test -p kalisi-gateway graph_events --lib
 
-# Option B: NATS (lightweight, fast)
-docker run -d --name nats -p 4222:4222 nats:latest
+# E2E test (passes but delta not received)
+cd /workspace/source/frontend
+npx playwright test realtime-delta-update.spec.ts
+
+# Check screenshots
+ls -lh /workspace/source/logs/realtime-delta-*.png
 ```
 
-#### 1.3 Backend: CDC Event Processor (Rust)
+### Where to Check Logs
 
-**New Module**: `services/api-gateway/src/neo4j_cdc.rs`
+- **Gateway logs**: `/workspace/source/logs/gateway-debug.log`
+  - Contains all backend logs including browser console logs
+  - Search for: "graph", "delta", "subscribe", "ENABLE_GRAPH_DELTA"
 
+- **Playwright test logs**: `/workspace/source/logs/playwright-test*.log`
+  - Contains test execution output
+
+- **Screenshots**: `/workspace/source/logs/realtime-delta-{before,after}.png`
+  - Visual comparison of canvas state
+
+### Current Issue
+
+**Problem**: Delta emission is working (database updates succeed), but deltas are NOT being received via WebSocket.
+
+**Test Results**:
+```
+✅ Node update via API: SUCCESS (name changed in Neo4j)
+✅ Test execution: PASSES
+❌ WebSocket delta received: FALSE
+❌ Visual change on canvas: NOT VERIFIED
+```
+
+**What Works**:
+- ✅ All code compiles (Rust + TypeScript)
+- ✅ All unit tests pass (13 tests)
+- ✅ GraphDelta serialization/deserialization
+- ✅ Write query detection
+- ✅ Database updates via /v0/cypher/unified
+- ✅ E2E test navigates and executes successfully
+
+**What Doesn't Work**:
+- ❌ WebSocket deltas not received by test
+- ❌ Frontend not applying real-time updates
+- ❌ No visible change in canvas screenshots
+
+### Debugging Checklist
+
+1. **Verify feature flag is loaded**:
+   ```bash
+   grep ENABLE_GRAPH_DELTA /workspace/source/.env
+   # Should show: ENABLE_GRAPH_DELTA=true
+   ```
+
+2. **Check if gateway reads the flag**:
+   ```bash
+   grep -i "graph delta\|ENABLE_GRAPH_DELTA" /workspace/source/logs/gateway-debug.log
+   ```
+
+3. **Verify Redis Stream messages**:
+   ```bash
+   redis-cli XREAD COUNT 10 STREAMS graph:delta 0
+   ```
+
+4. **Check WebSocket subscription messages**:
+   - Look in gateway-debug.log for "subscribe_graph_changes"
+   - Look for "graph_subscription_ack" responses
+
+5. **Verify RuntimeCanvasComponent integration**:
+   - Check if Neo4jRealtimeService is injected
+   - Check if delta subscription is set up after view loads
+   - May need to wire up the service in the component
+
+### Next Steps for Debugging
+
+1. **Add more logging** to graph_events/emit.rs to verify feature flag is read
+2. **Check if Redis Stream is receiving messages** (redis-cli XREAD)
+3. **Verify WebSocket handler** is processing subscribe_graph_changes messages
+4. **Wire up Neo4jRealtimeService** in RuntimeCanvasComponent (may be missing)
+5. **Test with a simpler scenario** - update a node that's definitely visible on canvas
+6. **Check browser DevTools** WebSocket frames to see actual messages
+
+### Quick Test Command
+
+```bash
+# After starting with start.sh, run this to update a node and check Redis:
+echo "MATCH (n:CodeElement) WHERE n.name IS NOT NULL SET n.name = 'Test Update ' + toString(timestamp()) RETURN n LIMIT 1" | redis-cli -x SET test:query
+redis-cli GET test:query | cypher-shell -u neo4j -p <password>
+redis-cli XREAD COUNT 5 STREAMS graph:delta 0
+```
+
+---
+
+# ORIGINAL ARCHITECTURE DOCUMENT
+
+• - Gateway-originated deltas it is. We can reuse the GraphDelta shape from services/api-gateway/src/runtime/canvas.rs types
+    (CanvasNodeDto, CanvasRelationshipDto) plus a lean NodeUpdate { guid, properties }.
+  - In services/api-gateway/src/handlers/cypher_unified.rs, after a successful write we can detect whether the Cypher mutated the graph:
+    simplest first pass is to treat any non-MATCH query as a write and, when it targets a ViewNode canvas, run the same code path as /
+    runtime/canvas/data to produce a before/after diff. Follow-up optimisation: let callers flag when they expect a delta and pass the
+    relevant ViewNode id.
+  - For the initial implementation, derive the delta synchronously right after the transaction commits, publish it to Redis (graph:delta)
+    via a dedicated connection, and immediately broadcast to subscribed WebSockets. That keeps latency minimal and avoids polling logic.
+  - Suggested message payload (JSON) once serialized:
+
+    {
+      "type": "graph_delta",
+      "viewNodeId": "...",
+      "timestamp": 1734982292000,
+      "nodesCreated": [...CanvasNodeDto...],
+      "nodesUpdated": [{"guid": "...", "properties": {...}}],
+      "nodesDeleted": ["..."],
+      "relationshipsCreated": [...CanvasRelationshipDto...],
+      "relationshipsDeleted": ["..."]
+    }
+    Frontend can key off type === 'graph_delta'.
+  - Next steps:
+      1. Scaffold graph_events module with the DTO and Redis publisher (new connection manager).
+      2. Extend cypher_unified handler with a feature-flagged hook that, given a ViewNode id (temporary query parameter), queries the
+         refreshed graph, diffs it against the previous cached response, and emits the delta.
+      3. Update /ws handler to accept subscribe_graph_changes and forward graph_delta messages.
+      4. Implement Neo4jRealtimeService + RuntimeCanvasController.applyDelta() to consume the payload.
+
+# Real-Time Neo4j Updates – Validated Architecture
+
+## 1. Context & Objective
+Containment Runtime-Merge is the forward-looking canvas experience. Today the runtime canvas loads a ViewNode graph once and keeps rendering cached data. The goal is to surface Neo4j changes in the UI immediately, without forcing users to reload the view, while respecting the new runtime architecture and avoiding regressions in the legacy path.
+
+This document consolidates the verified behaviour in the codebase and replaces speculative ideas with an architecture that can be implemented incrementally and safely.
+
+---
+
+## 2. Current Behaviour (Validated)
+
+### 2.1 Data Load Path
+```
+Neo4j
+  ↓  (POST /runtime/canvas/data)
+services/api-gateway::handlers::runtime::fetch_canvas_data
+  ↓  build_canvas_response()             # services/api-gateway/src/runtime/canvas.rs
+RuntimeCanvasComponent.loadViewNodeData  # frontend/.../runtime-canvas.component.ts:201
+  ↓
+RuntimeCanvasController                  # frontend/.../runtime-canvas-controller.ts
+  ↓
+CanvasLayoutRuntime                       # shared/layout-runtime.ts
+  ↓
+requestAnimationFrame loop                # runtime-canvas-controller.ts:176
+```
+
+### 2.2 What Already Works in Our Favour
+- **Render loop** continuously re-reads `layoutRuntime.getCanvasData()` every frame. Any in-memory mutation shows up automatically.
+- **Event bus** (`CanvasEventBus`) and history services are wired for telemetry and undo/redo.
+- **WebSocket route** `/ws` already exists with broadcast support (`UpdateChannel` in `AppState`).
+- **Redis plumbing** for streaming agent data is proven in `redis_spa_bridge.rs`, giving us a template for robust Redis Stream consumption.
+- **Layout engines** that back the runtime (`containment-runtime`, `containment-grid`, etc.) are tagged as `supportsIncremental`/`canHandleRealtime`.
+
+### 2.3 Gaps Blocking Real-Time Updates
+1. No standard signal when Neo4j data changes.
+2. No backend surface that pushes graph deltas over `/ws`.
+3. Runtime controller lacks an `applyDelta` path that keeps `originalEdges`, collapsed state, layout, and history in sync.
+4. Neo4j schema does not yet maintain the `lastModified` metadata required by a poller or CDC feed.
+
+---
+
+## 3. Recommended Architecture (High-Level)
+
+```
+┌──────────────┐      ┌───────────────┐      ┌───────────────┐      ┌────────────────────┐      ┌────────────────────┐
+│ Neo4j Writers│ ───► │ Change Emitter│ ───► │ Redis Stream  │ ───► │ Gateway /ws Worker │ ───► │ Runtime Canvas     │
+│ (gateway or  │      │ (event DTO)   │      │ graph:delta   │      │ (per ViewNode)     │      │ Neo4jRealtimeService│
+│ external CDC)│      └───────────────┘      └───────────────┘      └────────────────────┘      └────────────────────┘
+```
+
+Key ideas:
+- **Change emission lives close to the write**. For gateway-managed writes, emit immediately after the transaction. For external writers, use Neo4j CDC/trigger feeds that publish the same delta format.
+- **Redis Streams** buffer and fan out deltas; each WebSocket subscriber consumes its own message feed without blocking other traffic.
+- **WebSocket extension** reuses `/ws` with a new `subscribe_graph_changes` command. Each websocket task owns a Redis stream consumer tied to the requested ViewNode.
+- **Frontend runtime layer** applies deltas through the existing `RuntimeCanvasController`, preserving edge inheritance, layout, and undo history semantics.
+- **Telemetry** continues to rely on `CanvasEventBus`, adding `GraphDeltaApplied` events for observability.
+
+---
+
+## 4. Detailed Components
+
+### 4.1 Change Source Options
+
+| Option | When to Use | Shape | Notes |
+|--------|-------------|-------|-------|
+| **Gateway-emitted** | Existing API (`/v0/cypher/unified`, `/runtime/canvas/data`) performs the write | Immediately produce a `GraphDelta` struct and push to Redis | Zero lag, no polling, easy to reason about |
+| **Neo4j CDC / Trigger** | External systems also mutate the graph | `lastModified` checkpoints or APOC trigger publishing `GraphDelta` messages | Requires Enterprise CDC or APOC; bootstrap scripts must create triggers/indexes |
+
+Both approaches should converge on the same DTO so downstream consumers do not care where the event originated.
+
+### 4.2 Graph Delta Contract (Gateway First)
+
+**Decision:** start with gateway-originated deltas. Any handler that successfully mutates the graph (e.g. `/v0/cypher/unified`) becomes responsible for emitting a `GraphDelta` right after commit. Later, Neo4j CDC code simply needs to publish the same payload structure.
+
+Backend type (new module `services/api-gateway/src/graph_events/mod.rs`):
 ```rust
-use tokio::sync::broadcast;
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum GraphChangeEvent {
-    NodeCreated { guid: String, labels: Vec<String>, properties: serde_json::Value },
-    NodeUpdated { guid: String, properties: serde_json::Value },
-    NodeDeleted { guid: String },
-    RelationshipCreated { guid: String, from: String, to: String, rel_type: String },
-    RelationshipDeleted { guid: String },
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GraphDelta {
+    pub view_node_id: String,
+    pub timestamp: i64,
+    pub nodes_created: Vec<CanvasNodeDto>,
+    pub nodes_updated: Vec<NodeUpdate>,
+    pub nodes_deleted: Vec<String>,
+    pub relationships_created: Vec<CanvasRelationshipDto>,
+    pub relationships_deleted: Vec<String>,
 }
+```
+`CanvasNodeDto` / `CanvasRelationshipDto` already exist (runtime/canvas.rs); reuse them to stay aligned with the runtime loader. `NodeUpdate` only carries the fields that changed.
 
-pub struct Neo4jCdcProcessor {
-    redis_client: redis::Client,
-    broadcast_tx: broadcast::Sender<GraphChangeEvent>,
-}
-
-impl Neo4jCdcProcessor {
-    pub async fn start(&self) {
-        // Subscribe to Redis stream: graph-changes
-        let mut conn = self.redis_client.get_async_connection().await.unwrap();
-
-        loop {
-            // Read CDC events from Redis
-            let events: Vec<GraphChangeEvent> = redis::cmd("XREAD")
-                .arg("BLOCK").arg(0)
-                .arg("STREAMS").arg("graph-changes").arg("$")
-                .query_async(&mut conn)
-                .await.unwrap();
-
-            for event in events {
-                // Broadcast to all WebSocket clients
-                let _ = self.broadcast_tx.send(event);
-            }
-        }
-    }
+Serialized JSON example:
+```json
+{
+  "type": "graph_delta",
+  "viewNodeId": "af6c06d2-5fd6-46e7-98d3-3b4249a7de45",
+  "timestamp": 1734982292000,
+  "nodesCreated": [{ "...": "CanvasNodeDto fields" }],
+  "nodesUpdated": [{ "guid": "node-123", "properties": { "name": "Updated Name" } }],
+  "nodesDeleted": ["node-456"],
+  "relationshipsCreated": [{ "...": "CanvasRelationshipDto fields" }],
+  "relationshipsDeleted": ["rel-789"]
 }
 ```
 
-**Update**: `services/api-gateway/src/websocket.rs`
+While CDC is not yet in play, the gateway will need a way to know which ViewNode(s) the change affects. During the transition, accept an explicit `viewNodeId` hint (query parameter or metadata) so the delta hook can scope work correctly. When CDC is introduced, it should emit the same payload to the Redis stream.
 
-```rust
-// Add to handle_socket()
-match msg_data.get("type").and_then(|t| t.as_str()) {
-    Some("subscribe_graph_changes") => {
-        let view_node_id = msg_data.get("viewNodeId")
-            .and_then(|v| v.as_str())
-            .unwrap_or("all");
+### 4.3 Redis Stream Layer
+- Use a dedicated stream per deployment, e.g. `graph:delta`.
+- Producers: either the gateway handler after a successful write or a CDC worker.
+- Consumers: WebSocket tasks. Follow the same pattern as `redis_spa_bridge.rs`—each task opens its own `ConnectionManager`, joins a consumer group keyed by the ViewNode, and acknowledges processed messages.
+- Do **not** reuse the shared `MultiplexedConnection` from `AppState`; blocking `XREADGROUP` would starve other Redis work.
 
-        // Subscribe this client to graph changes
-        let mut cdc_rx = state.cdc_processor.subscribe();
+### 4.4 WebSocket Extension
+1. In `services/api-gateway/src/websocket.rs`, add a handler that recognises:
+   ```json
+   {"type":"subscribe_graph_changes","viewNodeId":"..."}
+   ```
+2. Spawn a task that:
+   - Creates/joins a Redis consumer group (e.g. `ws:<uuid>`).
+   - Filters deltas by `view_node_id`.
+   - Streams messages back to the browser as JSON.
+3. Ensure shutdown cleans up the consumer group (or expires after inactivity).
+4. Continue delivering existing security updates alongside graph deltas.
 
-        tokio::spawn(async move {
-            while let Ok(event) = cdc_rx.recv().await {
-                // Filter events for this ViewNode
-                if should_send_to_client(&event, view_node_id) {
-                    let json = serde_json::to_string(&event).unwrap();
-                    let _ = socket.send(Message::Text(json.into())).await;
-                }
-            }
-        });
-    }
-    // ... existing ping, console_log handlers
-}
-```
+### 4.5 Frontend Realtime Service
+- New file `frontend/src/app/core/services/neo4j-realtime.service.ts`.
+- Responsibilities:
+  - Manage `/ws` connection, subscription message, exponential backoff, and status observable.
+  - Parse backend JSON into a `GraphDelta` interface aligned with runtime DTOs.
+  - Expose `delta$` for components.
+  - Dispose resources in `disconnect`.
 
-### Phase 2: Frontend Integration
+### 4.6 Runtime Canvas Integration
+1. Extend `RuntimeCanvasController`:
+   - Store `canvasId` for event emission.
+   - Implement `applyDelta(delta, {recordHistory?: boolean})` that:
+     - Updates `nodes`, `edges`, **and** `originalEdges`.
+     - Keeps collapsed state and selection intact.
+     - Schedules `layoutRuntime.setCanvasData(updatedData, shouldRunLayout, 'system')`.
+     - Runs layout if positions are missing or container bounds change.
+     - Emits `GraphDeltaApplied` on the event bus and triggers `onDataChanged` only when recording is desired.
+   - Suppress history recording for system-origin updates by coordinating with `CanvasHistoryService.beginRestore/endRestore`.
+2. Extend `CanvasEventBus` union with:
+   ```ts
+   | {
+       readonly type: 'GraphDeltaApplied';
+       readonly canvasId: string;
+       readonly source: CanvasEventSource;
+       readonly timestamp: number;
+       readonly delta: { nodesCreated: number; nodesUpdated: number; ... };
+     }
+   ```
+3. In `RuntimeCanvasComponent`:
+   - Inject `Neo4jRealtimeService`.
+   - Subscribe after the engine is created.
+   - On destroy, unsubscribe and call `neo4jRealtime.disconnect()`.
+   - Avoid duplicating subscriptions when a new ViewNode is selected.
 
-#### 2.1 New Service: `Neo4jRealtimeService`
-
-**File**: `frontend/src/app/core/services/neo4j-realtime.service.ts`
-
-```typescript
-import { Injectable } from '@angular/core';
-import { BehaviorSubject, Subject } from 'rxjs';
-
-export interface GraphDelta {
-  nodesCreated: HierarchicalNode[];
-  nodesUpdated: { guid: string; properties: any }[];
-  nodesDeleted: string[];
-  relationshipsCreated: Edge[];
-  relationshipsDeleted: string[];
-}
-
-@Injectable({ providedIn: 'root' })
-export class Neo4jRealtimeService {
-  private ws: WebSocket | null = null;
-  private deltaSubject = new Subject<GraphDelta>();
-
-  public delta$ = this.deltaSubject.asObservable();
-  public connected$ = new BehaviorSubject<boolean>(false);
-
-  connect(viewNodeId: string): void {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    this.ws = new WebSocket(`${protocol}//${host}/ws`);
-
-    this.ws.onopen = () => {
-      this.connected$.next(true);
-
-      // Subscribe to graph changes for this ViewNode
-      this.ws!.send(JSON.stringify({
-        type: 'subscribe_graph_changes',
-        viewNodeId: viewNodeId
-      }));
-    };
-
-    this.ws.onmessage = (event) => {
-      const change = JSON.parse(event.data);
-      this.processCDCEvent(change);
-    };
-
-    this.ws.onclose = () => {
-      this.connected$.next(false);
-    };
-  }
-
-  private processCDCEvent(event: any): void {
-    // Accumulate changes into delta
-    const delta: GraphDelta = {
-      nodesCreated: [],
-      nodesUpdated: [],
-      nodesDeleted: [],
-      relationshipsCreated: [],
-      relationshipsDeleted: []
-    };
-
-    switch (event.type) {
-      case 'NodeCreated':
-        delta.nodesCreated.push(this.convertToHierarchicalNode(event));
-        break;
-      case 'NodeUpdated':
-        delta.nodesUpdated.push({ guid: event.guid, properties: event.properties });
-        break;
-      case 'NodeDeleted':
-        delta.nodesDeleted.push(event.guid);
-        break;
-      case 'RelationshipCreated':
-        delta.relationshipsCreated.push(this.convertToEdge(event));
-        break;
-      case 'RelationshipDeleted':
-        delta.relationshipsDeleted.push(event.guid);
-        break;
-    }
-
-    this.deltaSubject.next(delta);
-  }
-
-  disconnect(): void {
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-    }
-  }
-}
-```
-
-#### 2.2 Update RuntimeCanvasController
-
-**File**: `frontend/src/app/shared/canvas/runtime-canvas-controller.ts`
-
-```typescript
-/**
- * Apply incremental delta to canvas data
- * For real-time Neo4j CDC updates
- */
-public applyDelta(delta: GraphDelta): void {
-  const data = this.layoutRuntime.getCanvasData();
-
-  // Apply node deletions
-  delta.nodesDeleted.forEach(guid => {
-    const index = data.nodes.findIndex(n => (n.GUID ?? n.id) === guid);
-    if (index !== -1) {
-      data.nodes.splice(index, 1);
-    }
-  });
-
-  // Apply node updates
-  delta.nodesUpdated.forEach(update => {
-    const node = data.nodes.find(n => (n.GUID ?? n.id) === update.guid);
-    if (node) {
-      Object.assign(node, update.properties);
-    }
-  });
-
-  // Apply node creations
-  delta.nodesCreated.forEach(newNode => {
-    data.nodes.push(newNode);
-  });
-
-  // Apply relationship deletions
-  delta.relationshipsDeleted.forEach(guid => {
-    const index = data.edges.findIndex(e => e.id === guid);
-    if (index !== -1) {
-      data.edges.splice(index, 1);
-    }
-  });
-
-  // Apply relationship creations
-  delta.relationshipsCreated.forEach(newEdge => {
-    data.edges.push(newEdge);
-  });
-
-  // Recompute edges with inheritance
-  data.edges = this.computeEdgesWithInheritance(data.originalEdges || data.edges);
-
-  // Update layout runtime
-  this.layoutRuntime.setCanvasData(data, false);
-
-  // Trigger re-render with animation
-  if (this.onDataChangedCallback) {
-    this.onDataChangedCallback(data);
-  }
-}
-```
-
-#### 2.3 Update RuntimeCanvasComponent
-
-**File**: `frontend/src/app/components/modular-canvas/runtime-canvas.component.ts`
-
-```typescript
-import { Neo4jRealtimeService } from '../../core/services/neo4j-realtime.service';
-
-export class RuntimeCanvasComponent implements OnInit, OnDestroy {
-  private realtimeSubscription?: Subscription;
-
-  constructor(
-    // ... existing dependencies
-    private neo4jRealtime: Neo4jRealtimeService
-  ) {}
-
-  private async loadViewNodeData(viewNodeId: string): Promise<void> {
-    // ... existing initial load logic
-
-    // NEW: Subscribe to real-time updates
-    this.neo4jRealtime.connect(viewNodeId);
-
-    this.realtimeSubscription = this.neo4jRealtime.delta$.subscribe(delta => {
-      if (this.engine) {
-        this.engine.applyDelta(delta);
-      }
-    });
-  }
-
-  ngOnDestroy(): void {
-    // ... existing cleanup
-    this.neo4jRealtime.disconnect();
-    this.realtimeSubscription?.unsubscribe();
-  }
-}
-```
+### 4.7 Database Support
+- Add `lastModified` (or similar) properties to nodes and relationships.
+- Create indexes to support timestamp queries: `CREATE INDEX IF NOT EXISTS FOR (n:CodeElement) ON (n.lastModified);`
+- If using APOC triggers, bundle trigger creation in deployment scripts so the dev + prod databases stay consistent.
+- Ensure all write paths (imports, scripts, API handlers) update `lastModified`.
 
 ---
 
-## What Needs to Change
+## 5. Implementation Roadmap
 
-### Backend Changes
-1. ✅ WebSocket infrastructure exists - just extend it
-2. ⚠️ **NEW**: Neo4j CDC plugin configuration
-3. ⚠️ **NEW**: CDC event processor (Rust module)
-4. ⚠️ **NEW**: Message broker integration (Redis Streams or NATS)
-5. ✅ Existing websocket.rs - add graph_changes subscription handler
+| Phase | Goal | Key Files |
+|-------|------|-----------|
+| **1. Types & DTOs** | Define `GraphDelta`, `NodeUpdate`, module wiring. | `services/api-gateway/src/graph_events/` |
+| **2. Change Emission Hook** | Emit deltas from gateway write paths (initially behind a feature flag). | `handlers/cypher_unified.rs`, any bespoke write handlers |
+| **3. Redis Stream Publisher** | Wrap Redis connection & publish helper with dedicated connection per worker. | `graph_events/redis_publisher.rs` |
+| **4. WebSocket Subscription** | Extend `/ws` to accept graph subscriptions and stream filtered deltas. | `services/api-gateway/src/websocket.rs` |
+| **5. Frontend Service** | Implement `Neo4jRealtimeService` with connection management. | `frontend/src/app/core/services/neo4j-realtime.service.ts` |
+| **6. Runtime Delta Integration** | Add `applyDelta` to `RuntimeCanvasController`, event bus update, history suppression. | `frontend/src/app/shared/canvas/runtime-canvas-controller.ts`, `layout-events.ts`, `runtime-canvas.component.ts` |
+| **7. Neo4j Timestamp Support** | Backfill timestamps, add indexes, optional APOC triggers. | Cypher migration scripts / infra |
+| **8. Testing & Telemetry** | End-to-end test harness: mutate via API, assert WebSocket delta ➜ UI update. Monitor `GraphDeltaApplied` events. | Integration tests, logging |
 
-### Frontend Changes
-1. ⚠️ **NEW**: `Neo4jRealtimeService` (WebSocket client for graph data)
-2. ⚠️ **NEW**: `RuntimeCanvasController.applyDelta()` method
-3. ⚠️ **MODIFY**: `RuntimeCanvasComponent` - subscribe to delta$
-4. ✅ RuntimeCanvasController already has state management
-5. ✅ LayoutRuntime already supports incremental updates
+Each phase should compile independently and default to a disabled state (feature flag like `ENABLE_GRAPH_DELTA_STREAM`) until the full pipeline is in place.
 
-### Database Changes
-1. ⚠️ **REQUIRED**: Enable Neo4j CDC plugin
-2. ⚠️ **REQUIRED**: Add `lastModified` timestamp to all nodes (for fallback polling)
-3. ⚠️ **RECOMMENDED**: Index on timestamps for efficient queries
+### 5.1 Build & Commit Cadence
+For a smooth rollout and easy rollback, treat each phase as a self-contained commit with its own build/test gate:
 
----
+| Phase | Primary Files | Required Command | Suggested Commit |
+|-------|---------------|------------------|------------------|
+| 1 | `services/api-gateway/src/graph_events/{mod.rs,types.rs}` | `cargo check -p kalisi-gateway` | `feat(graph-events): add graph delta DTOs` |
+| 2 | `services/api-gateway/src/handlers/cypher_unified.rs`, `graph_events/emit.rs` | `cargo test -p kalisi-gateway handlers::cypher_unified` | `feat(graph-events): emit gateway deltas behind flag` |
+| 3 | `services/api-gateway/src/graph_events/redis_publisher.rs`, `state.rs` (if wiring) | `cargo check -p kalisi-gateway` | `feat(graph-events): add redis delta publisher` |
+| 4 | `services/api-gateway/src/websocket.rs` | `cargo test -p kalisi-gateway websocket` | `feat(websocket): stream graph deltas to subscribers` |
+| 5 | `frontend/src/app/core/services/neo4j-realtime.service.ts`, module wiring | `(cd frontend && npm run build)` | `feat(frontend): add Neo4j realtime service` |
+| 6 | `frontend/src/app/shared/canvas/runtime-canvas-controller.ts`, `layout-events.ts`, `runtime-canvas.component.ts` | `(cd frontend && npm run build)` | `feat(frontend): apply realtime graph deltas` |
+| 7 | Cypher migration scripts, docs | No build; document commands | `chore(neo4j): add lastModified support` |
+| 8 | Integration tests (Rust + Angular) | `cargo test -p kalisi-gateway`, `(cd frontend && npm run test)` | `test(realtime): cover websocket delta pipeline` |
 
-## Effort Estimation
+Always run the listed command **before** committing. If new warnings appear, fix them in the same phase so the tree stays clean.
 
-| Component | Complexity | Time Estimate |
-|-----------|-----------|---------------|
-| Neo4j CDC Setup | Low | 2-4 hours |
-| Message Broker (Redis Streams) | Low | 2-4 hours |
-| Backend CDC Processor | Medium | 1-2 days |
-| Frontend Neo4jRealtimeService | Low | 4-6 hours |
-| RuntimeCanvasController.applyDelta() | Medium | 1 day |
-| Integration & Testing | Medium | 1-2 days |
-| **TOTAL** | - | **4-6 days** |
+### 5.2 Deliverables per Phase
+- **Phase 1:** DTO module, unit tests for basic serialization.
+- **Phase 2:** Feature-flagged delta emitter in gateway, including placeholder diff logic (can be naïve initial implementation).
+- **Phase 3:** Redis publisher with dedicated connection + simple smoke test (mock Redis or feature-flag skip).
+- **Phase 4:** WebSocket subscription branch, acknowledging and forwarding delta messages.
+- **Phase 5:** Angular service plumbing, connection status observable, reconnection/backoff.
+- **Phase 6:** Runtime delta application, event bus emission, history suppression guard.
+- **Phase 7:** Migration scripts + deployment notes for timestamps and indexes.
+- **Phase 8:** Automated tests (API to WebSocket path, frontend unit tests for delta application).
 
----
-
-## Performance Considerations
-
-### Scalability
-- ✅ WebSocket: Handles 10,000+ concurrent connections
-- ✅ Neo4j CDC: Minimal overhead (<1% query performance impact)
-- ✅ Message Broker: NATS = 11M msg/sec, Redis Streams = 1M msg/sec
-- ⚠️ Frontend: Throttle delta application (max 60fps)
-
-### Bandwidth
-- Average change event: ~500 bytes
-- 100 changes/second = 50 KB/sec per client
-- 1000 clients = 50 MB/sec total (easily handled)
-
-### Latency
-- Neo4j CDC → Message Broker: <10ms
-- Message Broker → WebSocket: <20ms
-- WebSocket → Frontend: <20ms
-- **Total: <50ms end-to-end**
+Document feature flag defaults in `.env.example` during the appropriate phase so local environments stay predictable.
 
 ---
 
-## Alternative: Quick Win with Polling
+## 6. Agent Execution Checklist
 
-If CDC setup is too complex initially, implement polling as Phase 1:
+1. **Confirm configuration**  
+   - Ensure `ENABLE_GRAPH_DELTA=false` in local `.env` until the full pipeline is wired.  
+   - Have Redis and Neo4j running locally (use `start.sh` if unsure).
+2. **Work phase-by-phase**  
+   - Follow Section 5 tables.  
+   - After each phase: run the command, ensure no warnings, commit with suggested message.
+3. **Gateway delta emission**  
+   - For early smoke tests, add a temporary CLI or integration test that calls `/v0/cypher/unified` with a known ViewNode ID and prints the emitted delta.
+4. **WebSocket contract**  
+   - Use `wscat` or the existing frontend logger to subscribe via `{"type":"subscribe_graph_changes","viewNodeId": "<id>"}` and verify messages arrive.
+5. **Frontend integration**  
+   - Stub the backend by pushing a handcrafted `graph_delta` message through the WebSocket to confirm `RuntimeCanvasController.applyDelta` behaves before full backend is ready.
+6. **Testing discipline**  
+   - Before enabling the feature flag, ensure automated tests exist for the complete flow.
+7. **Documentation updates**  
+   - If assumptions shift (e.g., multiple ViewNodes affected by one query), update this document immediately so future agents stay aligned.
 
-```typescript
-// Simple polling fallback
-private startPolling(viewNodeId: string): void {
-  setInterval(async () => {
-    const delta = await this.neo4jDataService.getGraphDelta(
-      viewNodeId,
-      this.lastPollTimestamp
-    );
-
-    if (delta.hasChanges) {
-      this.engine?.applyDelta(delta);
-      this.lastPollTimestamp = Date.now();
-    }
-  }, 3000); // Poll every 3 seconds
-}
-```
-
-**Pros**: Implement in 1 day, no infrastructure changes
-**Cons**: Higher latency, polling overhead, requires timestamps
+Keep a running checklist in the PR description referencing these steps; it makes reviews easier.
 
 ---
 
-## Recommendation
+## 7. Risks & Mitigations
 
-**Start with CDC + WebSocket architecture** because:
-
-1. ✅ Your WebSocket infrastructure is already built
-2. ✅ Scales to production (thousands of nodes, thousands of users)
-3. ✅ Industry best practice
-4. ✅ Low latency (<50ms)
-5. ✅ Minimal rework needed (extends existing systems)
-6. ✅ Future-proof (supports complex queries, filters, subscriptions)
-
-**Fallback**: If Neo4j CDC proves difficult, use polling temporarily while CDC is configured.
+| Risk | Mitigation |
+|------|------------|
+| Polling Neo4j misses external updates or causes load | Prefer direct emission from gateway. If polling is required, restrict to the relevant labels and verify indexes. |
+| Redis consumer leaks | Tie consumer group lifetime to WebSocket lifecycle; reuse patterns from `redis_spa_bridge.rs`. |
+| Frontend history spam | Use the existing `CanvasHistoryService.beginRestore/endRestore` hooks to suppress automatic history recording for system deltas. |
+| Layout drift for new nodes | When delta lacks coordinates, run a partial layout pass and mark the node as system-positioned. |
+| Backwards compatibility | Keep existing `/ws` payloads intact; extend with new `type` values rather than replacing current behaviour. |
 
 ---
 
-## Questions to Answer
+## 8. Open Points to Decide
+1. **Authoritative change source**: can we guarantee all writes flow through the gateway, or do we need CDC for external tooling?
+2. **Delta granularity**: do we ever require “full refresh” events (e.g. when a batch import reorganises a view) or can we restrict to incremental operations?
+3. **Retention**: should Redis keep historical deltas for late subscribers, or can we trim aggressively once acknowledged?
 
-1. **Is Neo4j Enterprise or Community Edition?** (CDC available in both)
-2. **What message broker is preferred?** (Redis Streams = easy, NATS = fast)
-3. **What's acceptable update latency?** (<50ms CDC, 2-5s polling)
-4. **How many concurrent users expected?** (affects scaling strategy)
-5. **Should updates be throttled/batched?** (prevents UI jank on rapid changes)
+Answering these will help lock in stream configuration and payload shape.
+
+---
+
+## 9. Summary
+- The runtime architecture is already primed for real-time updates thanks to the render loop, layout runtime, and WebSocket infrastructure.
+- The recommended approach keeps change signalling close to the write pipeline, uses Redis Streams for fan-out, and layers delta application on top of the existing runtime controller.
+- Implementation can be staged safely, with feature flags and integration tests at each milestone.
+- Once delivered, Containment Runtime-Merge will reflect Neo4j updates instantly, without regressing legacy views. 
+
+This document supersedes earlier drafts and represents the vetted plan aligned with the current codebase.

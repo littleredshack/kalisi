@@ -1,8 +1,8 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CanvasNodeDto {
     pub guid: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -19,7 +19,7 @@ pub struct CanvasNodeDto {
     pub properties: HashMap<String, Value>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodePosition {
     pub x: f64,
     pub y: f64,
@@ -27,7 +27,7 @@ pub struct NodePosition {
     pub z: Option<f64>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeDisplay {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub width: Option<f64>,
@@ -45,14 +45,14 @@ pub struct NodeDisplay {
     pub label_visible: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BadgeDisplay {
     pub text: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub color: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RelationshipDisplay {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub color: Option<String>,
@@ -66,7 +66,7 @@ pub struct RelationshipDisplay {
     pub dash: Option<Vec<f64>>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CanvasRelationshipDto {
     pub guid: String,
     pub source_guid: String,
