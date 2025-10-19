@@ -580,12 +580,16 @@ export class RuntimeCanvasController {
   /**
    * Propagate resize changes upward through ancestor hierarchy
    * Ensures all ancestors can contain their children after a resize
+   * ONLY propagates for VISIBLE nodes
    */
   private propagateResizeUpward(
     resizedNode: HierarchicalNode,
     parent: HierarchicalNode,
     allNodes: HierarchicalNode[]
   ): void {
+    // Skip if the resized node is not visible
+    if (resizedNode.visible === false) return;
+
     // Check if parent needs to grow to contain this child
     const padding = 20;
     const requiredWidth = resizedNode.x + resizedNode.width + padding;
@@ -614,6 +618,7 @@ export class RuntimeCanvasController {
   /**
    * Apply parent resize constraint - ensures parent can't shrink smaller than children
    * RECURSIVE: Calculates minimum size based on entire descendant hierarchy
+   * ONLY considers VISIBLE children
    * PORTED FROM ComposableHierarchicalCanvasEngine
    */
   private applyParentResizeConstraint(parentNode: HierarchicalNode): void {
@@ -623,9 +628,13 @@ export class RuntimeCanvasController {
     let minWidth = 100; // Absolute minimum
     let minHeight = 100;
 
-    // Calculate minimum size needed to contain all children
+    // Filter for visible children only
+    const visibleChildren = parentNode.children.filter(child => child.visible !== false);
+    if (visibleChildren.length === 0) return;
+
+    // Calculate minimum size needed to contain all VISIBLE children
     // RECURSIVE: First ensure each child respects ITS children's constraints
-    parentNode.children.forEach(child => {
+    visibleChildren.forEach(child => {
       // Recursively apply constraints to child first (bottom-up)
       if (child.children && child.children.length > 0) {
         this.applyParentResizeConstraint(child);
@@ -650,13 +659,17 @@ export class RuntimeCanvasController {
 
   /**
    * Adjust children that are outside parent bounds after parent resize
+   * ONLY adjusts VISIBLE children
    * PORTED FROM ComposableHierarchicalCanvasEngine
    */
   private adjustChildrenAfterParentResize(parentNode: HierarchicalNode): void {
     const padding = 10;
 
-    // Recursively adjust all children to stay within parent bounds
+    // Recursively adjust all VISIBLE children to stay within parent bounds
     const adjustChild = (child: HierarchicalNode) => {
+      // Skip invisible children
+      if (child.visible === false) return;
+
       // Check if child is now outside parent bounds
       const maxX = parentNode.width - child.width - padding;
       const maxY = parentNode.height - child.height - padding;
@@ -681,7 +694,9 @@ export class RuntimeCanvasController {
       }
     };
 
-    parentNode.children.forEach(child => adjustChild(child));
+    if (parentNode.children && parentNode.children.length > 0) {
+      parentNode.children.forEach(child => adjustChild(child));
+    }
   }
 
   /**
