@@ -324,9 +324,9 @@ async fn consume_graph_deltas(
     let consumer_group = format!("ws_graph_delta_{}", Uuid::new_v4());
     let consumer_name = "consumer";
 
-    // Ensure consumer group exists
+    // Ensure consumer group exists - start from $ (now) to skip old messages
     match redis_conn
-        .xgroup_create_mkstream::<_, _, _, String>(GRAPH_DELTA_STREAM, &consumer_group, "0")
+        .xgroup_create_mkstream::<_, _, _, String>(GRAPH_DELTA_STREAM, &consumer_group, "$")
         .await
     {
         Ok(_) => {

@@ -66,32 +66,39 @@ pub async fn try_emit_delta(
     warn!("✅ This IS a write query, proceeding with delta emission");
 
     // Extract changed nodes from Neo4j result
+    // raw_response structure: { "results": [...], "count": N }
     let mut delta = GraphDelta::new(view_node_id);
 
     if let Some(results) = neo4j_result.get("results").and_then(|v| v.as_array()) {
         warn!("📊 Extracting {} result(s) from Neo4j response", results.len());
 
         for result in results {
-            // Extract GUID - this is critical, must use GUID not elementId
-            if let Some(guid) = result.get("guid").and_then(|v| v.as_str()) {
-                // Build properties map from all fields except guid
-                let mut properties = HashMap::new();
+            // Each result is an object with variable names as keys (e.g., {"n": {...}})
+            if let Some(result_obj) = result.as_object() {
+                for (_var_name, node_value) in result_obj {
+                    // Check if this is a node object with GUID
+                    if let Some(guid) = node_value.get("GUID").and_then(|v| v.as_str()) {
+                        // Extract properties from the node
+                        let mut properties = HashMap::new();
 
-                if let Some(obj) = result.as_object() {
-                    for (key, value) in obj {
-                        if key != "guid" {
-                            properties.insert(key.clone(), value.clone());
+                        if let Some(props) = node_value.get("properties").and_then(|v| v.as_object()) {
+                            for (key, value) in props {
+                                // Skip GUID in properties since it's in the main object
+                                if key != "GUID" {
+                                    properties.insert(key.clone(), value.clone());
+                                }
+                            }
                         }
+
+                        let node_update = NodeUpdate {
+                            guid: guid.to_string(),
+                            properties,
+                        };
+
+                        warn!("✅ Adding node update for GUID: {} with {} properties", guid, node_update.properties.len());
+                        delta.nodes_updated.push(node_update);
                     }
                 }
-
-                let node_update = NodeUpdate {
-                    guid: guid.to_string(),
-                    properties,
-                };
-
-                warn!("✅ Adding node update for GUID: {}", guid);
-                delta.nodes_updated.push(node_update);
             }
         }
     }

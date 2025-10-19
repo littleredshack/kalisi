@@ -150,12 +150,6 @@ export class RuntimeCanvasController {
               // If updating name, also update text for display
               if (key === 'name') {
                 node.text = update.properties[key] as string;
-                // Add render timestamp for latency measurement
-                if (traceId) {
-                  const t5 = Date.now();
-                  node.text = `${node.text} [T5:${t5}]`;
-                  console.log(`[TIMING:${traceId}:T5:${t5}] Canvas render complete`);
-                }
                 console.log(`[RuntimeCanvasController] Updated node ${update.guid} text to: ${node.text}`);
               }
             }
