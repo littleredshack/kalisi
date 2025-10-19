@@ -407,7 +407,7 @@ export class RuntimeCanvasController {
     const targetCollapsed = !node.collapsed;
 
     if (!targetCollapsed) {
-      // EXPANDING
+      // EXPANDING - Restore previous visibility state
       node.collapsed = false;
       const lockedPosition = (node as any)._lockedPosition;
       if (lockedPosition) {
@@ -416,8 +416,8 @@ export class RuntimeCanvasController {
         (node as any)._userLocked = true;
       }
 
-      // Show immediate children
-      this.showImmediateChildren(node);
+      // Restore visibility state from snapshot
+      this.restoreVisibilityState(node);
 
       const childBounds = this.calculateChildBounds(node.children.filter(c => c.visible));
       const requiredWidth = childBounds.maxX + 40;
@@ -428,7 +428,9 @@ export class RuntimeCanvasController {
         node.height = Math.max(node.height, requiredHeight);
       }
     } else {
-      // COLLAPSING
+      // COLLAPSING - Save current visibility state before hiding
+      this.saveVisibilityState(node);
+
       (node as any)._lockedPosition = { x: node.x, y: node.y };
       node.collapsed = true;
       if (node.children && node.children.length > 0) {
@@ -459,12 +461,15 @@ export class RuntimeCanvasController {
 
   /**
    * Show immediate children of a node
-   * PORTED FROM ComposableHierarchicalCanvasEngine
+   * PORTED FROM ComposableHierarchicalCanvasEngine (line 632)
+   * Immediate children start collapsed with hidden descendants
    */
   private showImmediateChildren(node: HierarchicalNode): void {
     if (node.children && node.children.length > 0) {
       node.children.forEach(child => {
         child.visible = true;
+        child.collapsed = true; // Immediate children start collapsed
+        this.hideAllDescendants(child);
       });
     }
   }
@@ -485,6 +490,85 @@ export class RuntimeCanvasController {
     };
     if (node.children) {
       hideRecursive(node.children);
+    }
+  }
+
+  /**
+   * Save visibility state of all descendants before collapsing
+   * PORTED FROM ComposableHierarchicalCanvasEngine
+   * Uses same structure as ViewNodeStateService for consistency
+   */
+  private saveVisibilityState(node: HierarchicalNode): void {
+    if (!node.children || node.children.length === 0) return;
+
+    const captureNodeState = (n: HierarchicalNode): any => {
+      const nodeGuid = n.GUID ?? n.id;
+      const childrenStates = new Map<string, any>();
+
+      if (n.children && n.children.length > 0) {
+        n.children.forEach(child => {
+          const childGuid = child.GUID ?? child.id;
+          const childState = captureNodeState(child);
+          childrenStates.set(childGuid, childState);
+        });
+      }
+
+      return {
+        nodeGuid,
+        visible: n.visible !== false,
+        collapsed: n.collapsed === true,
+        childrenStates: childrenStates.size > 0 ? childrenStates : undefined
+      };
+    };
+
+    const state = captureNodeState(node);
+
+    // Store snapshot on the node (in metadata to avoid polluting the node structure)
+    if (!node.metadata) {
+      node.metadata = {};
+    }
+    node.metadata['_visibilitySnapshot'] = state;
+  }
+
+  /**
+   * Restore visibility state of all descendants from saved snapshot
+   * PORTED FROM ComposableHierarchicalCanvasEngine
+   * If no snapshot exists, defaults to showing only immediate children
+   */
+  private restoreVisibilityState(node: HierarchicalNode): void {
+    if (!node.children || node.children.length === 0) return;
+
+    const savedState = node.metadata?.['_visibilitySnapshot'];
+
+    if (savedState) {
+      // Restore from snapshot using same recursive method as composable
+      this.restoreNodeStateRecursively(node, savedState);
+    } else {
+      // No snapshot - default to showing only immediate children
+      this.showImmediateChildren(node);
+    }
+  }
+
+  /**
+   * Restore node state recursively from saved state
+   * PORTED FROM ComposableHierarchicalCanvasEngine (line 606)
+   */
+  private restoreNodeStateRecursively(node: HierarchicalNode, savedState: any): void {
+    if (node.children && node.children.length > 0 && savedState.childrenStates) {
+      node.children.forEach(child => {
+        const childGuid = child.GUID ?? child.id;
+        const childSavedState = savedState.childrenStates.get(childGuid);
+
+        if (childSavedState) {
+          child.visible = childSavedState.visible;
+          child.collapsed = childSavedState.collapsed;
+
+          // Recursively restore grandchildren state
+          if (childSavedState.childrenStates) {
+            this.restoreNodeStateRecursively(child, childSavedState);
+          }
+        }
+      });
     }
   }
 
