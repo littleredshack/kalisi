@@ -8,11 +8,11 @@ export interface GraphDelta {
   type: 'graph_delta';
   viewNodeId: string;
   timestamp: number;
-  nodesCreated: Array<any>;
-  nodesUpdated: Array<{ guid: string; properties: Record<string, any> }>;
-  nodesDeleted: Array<string>;
-  relationshipsCreated: Array<any>;
-  relationshipsDeleted: Array<string>;
+  nodesCreated?: Array<any>;
+  nodesUpdated?: Array<{ guid: string; properties: Record<string, any> }>;
+  nodesDeleted?: Array<string>;
+  relationshipsCreated?: Array<any>;
+  relationshipsDeleted?: Array<string>;
 }
 
 /**

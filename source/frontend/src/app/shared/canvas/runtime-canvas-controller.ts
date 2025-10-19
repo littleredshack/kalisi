@@ -167,12 +167,15 @@ export class RuntimeCanvasController {
     }
 
     // Apply node deletions
-    delta.nodesDeleted.forEach(guid => {
-      this.removeNodeRecursive(currentData.nodes, guid);
-    });
+    if (delta.nodesDeleted && delta.nodesDeleted.length > 0) {
+      delta.nodesDeleted.forEach(guid => {
+        this.removeNodeRecursive(currentData.nodes, guid);
+      });
+    }
 
     // Apply node creations
-    delta.nodesCreated.forEach((newNodeData: any) => {
+    if (delta.nodesCreated && delta.nodesCreated.length > 0) {
+      delta.nodesCreated.forEach((newNodeData: any) => {
       const newNode = this.convertToHierarchicalNode(newNodeData);
 
       // Check if node has position
@@ -195,19 +198,27 @@ export class RuntimeCanvasController {
         // Add to root
         currentData.nodes.push(newNode);
       }
-    });
+      });
+    }
 
     // Apply edge deletions
     const originalEdges = currentData.originalEdges || currentData.edges;
-    currentData.originalEdges = originalEdges.filter(edge =>
-      !delta.relationshipsDeleted.includes(edge.id)
-    );
+    if (delta.relationshipsDeleted && delta.relationshipsDeleted.length > 0) {
+      const deletedIds = delta.relationshipsDeleted;
+      currentData.originalEdges = originalEdges.filter(edge =>
+        !deletedIds.includes(edge.id)
+      );
+    } else {
+      currentData.originalEdges = originalEdges;
+    }
 
     // Apply edge creations
-    delta.relationshipsCreated.forEach((newEdgeData: any) => {
-      const newEdge = this.convertToEdge(newEdgeData);
-      currentData.originalEdges.push(newEdge);
-    });
+    if (delta.relationshipsCreated && delta.relationshipsCreated.length > 0) {
+      delta.relationshipsCreated.forEach((newEdgeData: any) => {
+        const newEdge = this.convertToEdge(newEdgeData);
+        currentData.originalEdges.push(newEdge);
+      });
+    }
 
     // Recompute edges with inheritance
     currentData.edges = this.computeEdgesWithInheritance(currentData.originalEdges);
