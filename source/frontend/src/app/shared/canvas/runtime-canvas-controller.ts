@@ -112,37 +112,17 @@ export class RuntimeCanvasController {
    * Merges incremental changes into the current graph while preserving visibility and selection state
    */
   applyDelta(delta: GraphDelta, options: { recordHistory?: boolean } = {}): void {
-    console.log('[RuntimeCanvasController] Applying delta:', delta);
-
-    // Extract trace_id for timing if present
-    let traceId = '';
-    if (delta.nodesUpdated && delta.nodesUpdated.length > 0) {
-      traceId = delta.nodesUpdated[0].properties?.['trace_id'] as string || '';
-    }
-
     const currentData = this.layoutRuntime.getCanvasData();
     const allNodes = this.getAllNodesFlat(currentData.nodes);
-
-    console.log(`[RuntimeCanvasController] Found ${allNodes.length} total nodes`);
-    console.log(`[RuntimeCanvasController] Sample node IDs: ${allNodes.slice(0, 3).map(n => n.id).join(', ')}`);
-    console.log(`[RuntimeCanvasController] Sample node structure:`, JSON.stringify(allNodes.slice(0, 1).map(n => ({
-      id: n.id,
-      text: n.text,
-      GUID: (n as any).GUID,
-      allKeys: Object.keys(n)
-    }))));
 
     // Track if we need to run layout (if new nodes lack positions)
     let needsLayout = false;
 
     // Apply node updates
     if (delta.nodesUpdated && delta.nodesUpdated.length > 0) {
-      console.log(`[RuntimeCanvasController] Processing ${delta.nodesUpdated.length} node update(s)`);
       delta.nodesUpdated.forEach(update => {
-        console.log(`[RuntimeCanvasController] Looking for node with GUID: ${update.guid}`);
         const node = allNodes.find(n => (n as any).GUID === update.guid);
         if (node) {
-          console.log(`[RuntimeCanvasController] Found node:`, node.id, 'Current text:', node.text);
           // Merge properties - update both the property and the display field
           Object.keys(update.properties).forEach(key => {
             if (!['x', 'y', 'width', 'height', 'children', 'selected', 'visible', 'collapsed'].includes(key)) {
@@ -150,12 +130,9 @@ export class RuntimeCanvasController {
               // If updating name, also update text for display
               if (key === 'name') {
                 node.text = update.properties[key] as string;
-                console.log(`[RuntimeCanvasController] Updated node ${update.guid} text to: ${node.text}`);
               }
             }
           });
-        } else {
-          console.warn(`[RuntimeCanvasController] Node not found for GUID: ${update.guid}`);
         }
       });
     }
@@ -225,13 +202,6 @@ export class RuntimeCanvasController {
     if (options.recordHistory && this.onDataChangedCallback) {
       this.onDataChangedCallback(currentData);
     }
-
-    // [TIMING T5] Delta applied and canvas updated
-    if (traceId) {
-      console.log(`[TIMING:${traceId}:T5] Delta applied and canvas updated`);
-    }
-
-    console.log('[RuntimeCanvasController] Delta applied, needsLayout:', needsLayout);
   }
 
   /**
