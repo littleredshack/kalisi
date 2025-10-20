@@ -112,27 +112,37 @@ export class RuntimeCanvasController {
    * Merges incremental changes into the current graph while preserving visibility and selection state
    */
   applyDelta(delta: GraphDelta, options: { recordHistory?: boolean } = {}): void {
+    console.log('[RuntimeCanvasController] applyDelta called with delta:', delta);
     const currentData = this.layoutRuntime.getCanvasData();
     const allNodes = this.getAllNodesFlat(currentData.nodes);
+    console.log('[RuntimeCanvasController] Total nodes in flat list:', allNodes.length);
 
     // Track if we need to run layout (if new nodes lack positions)
     let needsLayout = false;
 
     // Apply node updates
     if (delta.nodesUpdated && delta.nodesUpdated.length > 0) {
+      console.log('[RuntimeCanvasController] Processing', delta.nodesUpdated.length, 'node updates');
       delta.nodesUpdated.forEach(update => {
+        console.log('[RuntimeCanvasController] Looking for node with GUID:', update.guid);
         const node = allNodes.find(n => (n as any).GUID === update.guid);
         if (node) {
+          console.log('[RuntimeCanvasController] Found node:', node.id, 'current text:', node.text);
           // Merge properties - update both the property and the display field
           Object.keys(update.properties).forEach(key => {
             if (!['x', 'y', 'width', 'height', 'children', 'selected', 'visible', 'collapsed'].includes(key)) {
+              console.log('[RuntimeCanvasController] Updating property', key, 'from', (node as any)[key], 'to', update.properties[key]);
               (node as any)[key] = update.properties[key];
               // If updating name, also update text for display
               if (key === 'name') {
                 node.text = update.properties[key] as string;
+                console.log('[RuntimeCanvasController] Updated node.text to:', node.text);
               }
             }
           });
+          console.log('[RuntimeCanvasController] Node after update:', node);
+        } else {
+          console.warn('[RuntimeCanvasController] Could not find node with GUID:', update.guid);
         }
       });
     }
@@ -194,14 +204,20 @@ export class RuntimeCanvasController {
     // Recompute edges with inheritance
     currentData.edges = this.computeEdgesWithInheritance(currentData.originalEdges);
 
+    console.log('[RuntimeCanvasController] About to call setCanvasData with updated data');
+    console.log('[RuntimeCanvasController] Updated nodes count:', currentData.nodes.length);
+
     // Update layout runtime with system source to suppress history
     // Force cache invalidation by passing true to trigger renderer rebuild
     this.layoutRuntime.setCanvasData(currentData, true, 'system');
+    console.log('[RuntimeCanvasController] setCanvasData completed, cache invalidated');
 
     // Emit callback if recording history
     if (options.recordHistory && this.onDataChangedCallback) {
+      console.log('[RuntimeCanvasController] Calling onDataChangedCallback');
       this.onDataChangedCallback(currentData);
     }
+    console.log('[RuntimeCanvasController] applyDelta completed');
   }
 
   /**
