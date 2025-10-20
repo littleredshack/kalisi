@@ -57,8 +57,10 @@ export class StylePanelComponent extends HudPanelBaseComponent implements OnInit
   }
 
   override ngOnInit(): void {
+    console.log('[StylePanel] ngOnInit called, panelId:', this.panelId);
     super.ngOnInit();
 
+    console.log('[StylePanel] Registering panel:', this.panelId);
     // Register panel
     this.hudPanel.registerPanel(this.panelId, {
       id: this.panelId,
@@ -67,6 +69,7 @@ export class StylePanelComponent extends HudPanelBaseComponent implements OnInit
       defaultPosition: { x: 20, y: 100 },
       defaultVisible: false
     });
+    console.log('[StylePanel] Panel registered');
 
     // React to selection changes
     effect(() => {

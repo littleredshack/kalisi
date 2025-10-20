@@ -126,6 +126,7 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   // Component state
 
   ngAfterViewInit(): void {
+    console.log('[RuntimeCanvas] ngAfterViewInit called - component is rendered');
     // Canvas is ready - but wait for data to be loaded before creating engine
     this.resizeCanvas();
     // Register this canvas with the control service
