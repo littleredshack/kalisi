@@ -15,6 +15,7 @@ export class UiStateService {
   private _libraryPanelOpen = signal<boolean>(false);
   private _settingsPanelOpen = signal<boolean>(false);
   private _propertiesPanelOpen = signal<boolean>(false);
+  private _nodeStylePanelOpen = signal<boolean>(false);
   private _chatPanelOpen = signal<boolean>(false);
   private _debugPanelOpen = signal<boolean>(false);
   private _exploreMode = signal<boolean>(false);
@@ -28,6 +29,7 @@ export class UiStateService {
   readonly libraryPanelOpen = this._libraryPanelOpen.asReadonly();
   readonly settingsPanelOpen = this._settingsPanelOpen.asReadonly();
   readonly propertiesPanelOpen = this._propertiesPanelOpen.asReadonly();
+  readonly nodeStylePanelOpen = this._nodeStylePanelOpen.asReadonly();
   readonly chatPanelOpen = this._chatPanelOpen.asReadonly();
   readonly debugPanelOpen = this._debugPanelOpen.asReadonly();
   readonly exploreMode = this._exploreMode.asReadonly();
@@ -38,7 +40,7 @@ export class UiStateService {
   // Computed signals
   readonly hasActiveItem = computed(() => this._activeItemId() !== null);
   readonly hasActiveView = computed(() => this._activeView() !== null);
-  readonly anyPanelOpen = computed(() => this._libraryPanelOpen() || this._settingsPanelOpen() || this._propertiesPanelOpen() || this._chatPanelOpen() || this._debugPanelOpen());
+  readonly anyPanelOpen = computed(() => this._libraryPanelOpen() || this._settingsPanelOpen() || this._propertiesPanelOpen() || this._nodeStylePanelOpen() || this._chatPanelOpen() || this._debugPanelOpen());
 
   // State mutations
   setActiveItem(itemId: string | null) {
@@ -82,6 +84,13 @@ export class UiStateService {
     this.persistPanelStates();
   }
 
+  setNodeStylePanel(open: boolean) {
+    this._nodeStylePanelOpen.set(open);
+    // Node style panel is floating and independent
+    // Do NOT close any other panels
+    this.persistPanelStates();
+  }
+
   setChatPanel(open: boolean) {
     this._chatPanelOpen.set(open);
     // Chat panel is right-side and independent
@@ -106,6 +115,7 @@ export class UiStateService {
       this._libraryPanelOpen.set(false);
       this._settingsPanelOpen.set(false);
       this._propertiesPanelOpen.set(false);
+      this._nodeStylePanelOpen.set(false);
       this._chatPanelOpen.set(false);
       this._debugPanelOpen.set(false);
       this._activeItemId.set(null);
@@ -126,6 +136,10 @@ export class UiStateService {
     this.setPropertiesPanel(!this._propertiesPanelOpen());
   }
 
+  toggleNodeStylePanel() {
+    this.setNodeStylePanel(!this._nodeStylePanelOpen());
+  }
+
   toggleChatPanel() {
     this.setChatPanel(!this._chatPanelOpen());
   }
@@ -138,6 +152,7 @@ export class UiStateService {
     this._libraryPanelOpen.set(false);
     this._settingsPanelOpen.set(false);
     this._propertiesPanelOpen.set(false);
+    this._nodeStylePanelOpen.set(false);
     this._chatPanelOpen.set(false);
     this._debugPanelOpen.set(false);
     this.persistPanelStates();
@@ -196,6 +211,7 @@ export class UiStateService {
       libraryPanelOpen: this._libraryPanelOpen(),
       settingsPanelOpen: this._settingsPanelOpen(),
       propertiesPanelOpen: this._propertiesPanelOpen(),
+      nodeStylePanelOpen: this._nodeStylePanelOpen(),
       chatPanelOpen: this._chatPanelOpen(),
       debugPanelOpen: this._debugPanelOpen()
     };
@@ -211,6 +227,7 @@ export class UiStateService {
         if (panelStates.libraryPanelOpen !== undefined) this._libraryPanelOpen.set(panelStates.libraryPanelOpen);
         if (panelStates.settingsPanelOpen !== undefined) this._settingsPanelOpen.set(panelStates.settingsPanelOpen);
         if (panelStates.propertiesPanelOpen !== undefined) this._propertiesPanelOpen.set(panelStates.propertiesPanelOpen);
+        if (panelStates.nodeStylePanelOpen !== undefined) this._nodeStylePanelOpen.set(panelStates.nodeStylePanelOpen);
         if (panelStates.chatPanelOpen !== undefined) this._chatPanelOpen.set(panelStates.chatPanelOpen);
         if (panelStates.debugPanelOpen !== undefined) this._debugPanelOpen.set(panelStates.debugPanelOpen);
       } catch (e) {

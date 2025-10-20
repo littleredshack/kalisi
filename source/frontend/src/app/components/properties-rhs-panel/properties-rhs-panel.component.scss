@@ -1,76 +1,147 @@
-// Match exact styling of chat panel with identical positioning and animations
+// Floating panel with dynamic positioning
 .properties-rhs-panel {
   position: fixed;
-  right: -340px; // Hidden by default
-  top: 0;
-  bottom: 0;
-  width: 340px; // Default width, will be overridden by resizing
-  min-width: 280px; // Minimum width
-  max-width: 600px; // Maximum width
-  background: var(--properties-panel-bg, rgba(11, 15, 20, 0.85)); // Dynamic neon glass background
-  border-left: 1px solid rgba(110, 168, 254, 0.25); // Match exact border
-  box-shadow: -12px 0 30px rgba(110, 168, 254, 0.12);
-  backdrop-filter: blur(10px);
-  transform: translateX(100%); // Match transform pattern (opposite direction)
-  transition: transform 600ms ease, right 400ms cubic-bezier(0.23, 1, 0.32, 1); // Match exact timing
-  z-index: 90; // Match z-index of other panels
+  width: 340px; // Default width, will be overridden
+  height: 600px; // Default height, will be overridden
+  background: var(--properties-panel-bg, rgba(11, 15, 20, 0.95)); // Floating glass background
+  border: 1px solid rgba(110, 168, 254, 0.3);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(110, 168, 254, 0.1);
+  backdrop-filter: blur(12px);
+  z-index: 90;
   display: flex;
   flex-direction: column;
-  overflow: hidden; // Prevent content overflow during resize
+  overflow: hidden;
+  opacity: 0;
+  transform: scale(0.95);
+  transition: opacity 300ms ease, transform 300ms ease;
+  pointer-events: none;
 
   &.visible {
-    transform: translateX(0); // Match transform pattern
-    right: 0;
+    opacity: 1;
+    transform: scale(1);
+    pointer-events: auto;
+  }
+
+  &.dragging {
+    user-select: none;
+    cursor: move;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.8), 0 0 0 2px rgba(110, 168, 254, 0.4);
   }
 
   &.resizing {
-    user-select: none; // Prevent text selection during resize
-    pointer-events: auto; // Ensure drag works
+    user-select: none;
+    transition: none; // Disable transitions during resize
   }
 }
 
-// Resize Handle
+// Resize Handles
 .resize-handle {
   position: absolute;
-  left: -5px;
-  top: 0;
-  bottom: 0;
-  width: 10px;
   background: transparent;
-  cursor: ew-resize;
   z-index: 100;
-  
-  &:hover {
-    background: rgba(110, 168, 254, 0.2); // Highlight on hover
+  transition: background 0.2s ease;
+
+  &.resize-right {
+    right: -5px;
+    top: 0;
+    bottom: 0;
+    width: 10px;
+    cursor: ew-resize;
+
+    &:hover {
+      background: rgba(110, 168, 254, 0.2);
+    }
+
+    &::after {
+      content: '';
+      position: absolute;
+      right: 4px;
+      top: 50%;
+      width: 2px;
+      height: 40px;
+      background: rgba(110, 168, 254, 0.3);
+      border-radius: 1px;
+      transform: translateY(-50%);
+    }
+
+    &:hover::after {
+      background: rgba(110, 168, 254, 0.6);
+    }
   }
-  
-  // Add a visual indicator line
-  &::after {
-    content: '';
-    position: absolute;
-    left: 4px;
-    top: 50%;
-    width: 2px;
-    height: 40px;
-    background: rgba(110, 168, 254, 0.3);
-    border-radius: 1px;
-    transform: translateY(-50%);
-    transition: background 0.2s ease;
+
+  &.resize-bottom {
+    left: 0;
+    right: 0;
+    bottom: -5px;
+    height: 10px;
+    cursor: ns-resize;
+
+    &:hover {
+      background: rgba(110, 168, 254, 0.2);
+    }
+
+    &::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      bottom: 4px;
+      width: 40px;
+      height: 2px;
+      background: rgba(110, 168, 254, 0.3);
+      border-radius: 1px;
+      transform: translateX(-50%);
+    }
+
+    &:hover::after {
+      background: rgba(110, 168, 254, 0.6);
+    }
   }
-  
-  &:hover::after {
-    background: rgba(110, 168, 254, 0.6);
+
+  &.resize-bottom-right {
+    right: -5px;
+    bottom: -5px;
+    width: 20px;
+    height: 20px;
+    cursor: nwse-resize;
+
+    &:hover {
+      background: rgba(110, 168, 254, 0.3);
+      border-radius: 0 0 8px 0;
+    }
+
+    &::after {
+      content: '';
+      position: absolute;
+      right: 6px;
+      bottom: 6px;
+      width: 8px;
+      height: 8px;
+      border-right: 2px solid rgba(110, 168, 254, 0.4);
+      border-bottom: 2px solid rgba(110, 168, 254, 0.4);
+    }
+
+    &:hover::after {
+      border-color: rgba(110, 168, 254, 0.8);
+    }
   }
 }
 
-// Panel Header - match chat panel styling
+// Panel Header - draggable
 .properties-header {
   padding: 16px 20px;
   border-bottom: 1px solid rgba(110, 168, 254, 0.2);
+  border-radius: 8px 8px 0 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
   min-height: 60px;
+  cursor: move;
+  user-select: none;
+
+  &:active {
+    cursor: grabbing;
+  }
 }
 
 .header-title {

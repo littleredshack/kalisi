@@ -627,9 +627,12 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       this.canvasControlService.notifyStateChange();
     });
 
-    // Setup selection change callback for HUD panels
-    this.engine.setOnSelectionChanged((node) => {
-      const snapshot = node ? this.convertNodeToSnapshot(node) : null;
+    // Setup selection change callback for HUD panels and Node Style Panel
+    this.engine.setOnSelectionChanged(node => {
+      let snapshot: NodeSelectionSnapshot | null = null;
+      if (node && this.engine) {
+        snapshot = this.engine.getSelectedNodeSnapshot();
+      }
       this.canvasControlService.setSelectionSnapshot(snapshot);
     });
 
@@ -1227,6 +1230,7 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     this.currentLensId = lensId;
   }
 
+  // For HUD panels - convert node to snapshot format
   private convertNodeToSnapshot(node: HierarchicalNode): NodeSelectionSnapshot {
     const styleOverrides = node.metadata?.['styleOverrides'] as NodeStyleOverrides | undefined;
 
@@ -1258,6 +1262,22 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       style,
       overrides
     };
+  }
+
+  // For Node Style Panel - get selected node snapshot
+  getSelectedNodeSnapshot(): NodeSelectionSnapshot | null {
+    return this.engine?.getSelectedNodeSnapshot() ?? null;
+  }
+
+  // Apply node style overrides
+  applyNodeStyleOverride(
+    nodeId: string,
+    overrides: Partial<NodeStyleOverrides>,
+    scope: 'node' | 'type' = 'node'
+  ): void {
+    if (this.engine) {
+      this.engine.applyNodeStyleOverride(nodeId, overrides, scope);
+    }
   }
 
   private refreshHistoryState(): void {

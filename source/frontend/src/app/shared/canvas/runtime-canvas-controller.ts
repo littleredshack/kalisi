@@ -1,4 +1,4 @@
-import { CanvasData, Camera, HierarchicalNode, Edge } from './types';
+import { CanvasData, Camera, HierarchicalNode, Edge, NodeSelectionSnapshot, NodeStyleOverrides, NodeShape } from './types';
 import { CanvasLayoutRuntime } from './layout-runtime';
 import { IRenderer } from './renderer';
 import { CameraSystem } from './camera';
@@ -376,6 +376,177 @@ export class RuntimeCanvasController {
    */
   getSelectedNode(): HierarchicalNode | null {
     return this.interactionHandler.getSelectedNode();
+  }
+
+  /**
+   * Get selected node snapshot for properties panel
+   */
+  getSelectedNodeSnapshot(): NodeSelectionSnapshot | null {
+    const node = this.interactionHandler.getSelectedNode();
+    if (!node) {
+      return null;
+    }
+
+    const metadata = (node as any).metadata ?? {};
+    const overrides = (metadata['styleOverrides'] as NodeStyleOverrides | undefined) ?? {};
+    const shape: NodeShape = overrides.shape ?? 'rounded';
+    const cornerRadius = overrides.cornerRadius ?? 8;
+    const labelVisible = overrides.labelVisible ?? (metadata['labelVisible'] !== false);
+
+    return {
+      kind: 'node',
+      id: node.GUID ?? node.id,
+      guid: node.GUID ?? undefined,
+      label: node.text,
+      type: node.type,
+      style: {
+        fill: node.style.fill,
+        stroke: node.style.stroke,
+        icon: node.style.icon,
+        shape,
+        cornerRadius,
+        labelVisible
+      },
+      overrides: this.cloneOverrides(overrides)
+    };
+  }
+
+  /**
+   * Clone style overrides
+   */
+  private cloneOverrides(overrides: NodeStyleOverrides): NodeStyleOverrides {
+    return {
+      ...overrides,
+      badges: overrides.badges ? overrides.badges.map(badge => ({ ...badge })) : undefined
+    };
+  }
+
+  /**
+   * Apply node style overrides
+   */
+  applyNodeStyleOverride(
+    nodeId: string,
+    overrides: Partial<NodeStyleOverrides>,
+    scope: 'node' | 'type' = 'node'
+  ): void {
+    const data = this.layoutRuntime.getCanvasData();
+    const targetNode = this.findNodeByIdInData(nodeId, data.nodes);
+
+    if (!targetNode) {
+      console.warn('[RuntimeCanvas] applyNodeStyleOverride: node not found', nodeId);
+      return;
+    }
+
+    const nodesToUpdate = scope === 'type'
+      ? this.collectNodesByType(targetNode.type, data.nodes)
+      : [targetNode];
+
+    nodesToUpdate.forEach(node => {
+      this.mergeNodeStyleOverrides(node, overrides);
+      this.applyOverridesToNode(node);
+    });
+
+    // The data is modified by reference, so the changes will be picked up
+    // by the render loop on the next frame. Notify that data has changed.
+    if (this.onDataChangedCallback) {
+      this.onDataChangedCallback(data);
+    }
+  }
+
+  private findNodeByIdInData(nodeId: string, nodes: HierarchicalNode[]): HierarchicalNode | null {
+    for (const node of nodes) {
+      if (node.GUID === nodeId || node.id === nodeId) {
+        return node;
+      }
+      if (node.children) {
+        const found = this.findNodeByIdInData(nodeId, node.children);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  private collectNodesByType(type: string, nodes: HierarchicalNode[]): HierarchicalNode[] {
+    const normalizedType = typeof type === 'string' ? type.trim().toLowerCase() : '';
+    if (!normalizedType) return [];
+
+    const results: HierarchicalNode[] = [];
+    const visit = (nodeList: HierarchicalNode[]) => {
+      nodeList.forEach(node => {
+        const nodeType = (node.type ?? (node as any).metadata?.['type']) as string | undefined;
+        const normalizedNodeType = typeof nodeType === 'string' ? nodeType.trim().toLowerCase() : '';
+        if (normalizedNodeType === normalizedType) {
+          results.push(node);
+        }
+        if (node.children && node.children.length > 0) {
+          visit(node.children);
+        }
+      });
+    };
+    visit(nodes);
+    return results;
+  }
+
+  private mergeNodeStyleOverrides(node: HierarchicalNode, overrides: Partial<NodeStyleOverrides>): void {
+    if (!overrides) return;
+
+    const metadata = (node as any).metadata ?? {};
+    (node as any).metadata = metadata;
+
+    const current = { ...(metadata['styleOverrides'] as NodeStyleOverrides | undefined) };
+    let changed = false;
+
+    Object.entries(overrides).forEach(([key, value]) => {
+      const hasExisting = Object.prototype.hasOwnProperty.call(current, key);
+      if (value === undefined) {
+        if (hasExisting) {
+          delete (current as Record<string, unknown>)[key];
+          changed = true;
+        }
+        return;
+      }
+      changed = true;
+      if (value === null) {
+        delete (current as Record<string, unknown>)[key];
+      } else {
+        (current as Record<string, unknown>)[key] = value as unknown;
+      }
+    });
+
+    if (!changed) return;
+
+    if (Object.keys(current).length === 0) {
+      delete metadata['styleOverrides'];
+    } else {
+      metadata['styleOverrides'] = current;
+    }
+  }
+
+  private applyOverridesToNode(node: HierarchicalNode): void {
+    const metadata = (node as any).metadata ?? {};
+    const overrides = (metadata['styleOverrides'] as NodeStyleOverrides | undefined) ?? {};
+
+    if (overrides.fill !== undefined) {
+      node.style.fill = overrides.fill;
+    }
+    if (overrides.stroke !== undefined) {
+      node.style.stroke = overrides.stroke;
+    }
+    if (overrides.icon !== undefined) {
+      node.style.icon = overrides.icon;
+    }
+    if (overrides.labelVisible !== undefined) {
+      metadata['labelVisible'] = overrides.labelVisible;
+    }
+    if (overrides.shape !== undefined) {
+      metadata['shape'] = overrides.shape;
+    }
+    if (overrides.cornerRadius !== undefined) {
+      metadata['cornerRadius'] = overrides.cornerRadius;
+    }
+    if (overrides.badges !== undefined) {
+      metadata['badges'] = overrides.badges;
+    }
   }
 
   /**

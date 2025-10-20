@@ -1,15 +1,25 @@
-<div class="properties-rhs-panel" [class.visible]="isVisible" [style.width.px]="panelWidth">
-  <!-- Resize Handle -->
-  <div class="resize-handle" (mousedown)="onResizeStart($event)"></div>
-  
-  <!-- Panel Header -->
-  <div class="properties-header">
+<div class="properties-rhs-panel"
+     [class.visible]="isVisible"
+     [class.dragging]="dragging"
+     [class.resizing]="resizing"
+     [style.left.px]="panelX"
+     [style.top.px]="panelY"
+     [style.width.px]="panelWidth"
+     [style.height.px]="panelHeight">
+
+  <!-- Resize Handles -->
+  <div class="resize-handle resize-right" (mousedown)="onResizeStart($event, 'right')"></div>
+  <div class="resize-handle resize-bottom" (mousedown)="onResizeStart($event, 'bottom')"></div>
+  <div class="resize-handle resize-bottom-right" (mousedown)="onResizeStart($event, 'bottom-right')"></div>
+
+  <!-- Panel Header - Draggable -->
+  <div class="properties-header" (mousedown)="onHeaderDragStart($event)">
     <div class="header-title">
       <i class="pi pi-check-square header-icon"></i>
       <h3 class="title-text">Properties</h3>
     </div>
     <div class="header-controls">
-      <button 
+      <button
         class="control-btn close-btn"
         (click)="closePanel()"
         pTooltip="Close properties"

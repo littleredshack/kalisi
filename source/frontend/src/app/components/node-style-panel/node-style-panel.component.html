@@ -1,0 +1,150 @@
+<div class="node-style-panel"
+     [class.visible]="isVisible"
+     [class.dragging]="dragging"
+     [class.resizing]="resizing"
+     [style.left.px]="panelX"
+     [style.top.px]="panelY"
+     [style.width.px]="panelWidth"
+     [style.height.px]="panelHeight">
+
+  <!-- Resize Handles -->
+  <div class="resize-handle resize-right" (mousedown)="onResizeStart($event, 'right')"></div>
+  <div class="resize-handle resize-bottom" (mousedown)="onResizeStart($event, 'bottom')"></div>
+  <div class="resize-handle resize-bottom-right" (mousedown)="onResizeStart($event, 'bottom-right')"></div>
+
+  <!-- Panel Header - Draggable -->
+  <div class="panel-header" (mousedown)="onHeaderDragStart($event)">
+    <div class="header-title">
+      <i class="pi pi-palette header-icon"></i>
+      <h3 class="title-text">Node Styling</h3>
+    </div>
+    <div class="header-controls">
+      <button
+        class="control-btn close-btn"
+        (click)="closePanel()"
+        pTooltip="Close node styling"
+        tooltipPosition="left">
+        <i class="pi pi-times"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Panel Content -->
+  <div class="panel-content">
+    <ng-container *ngIf="selection$ | async as selection">
+      <div class="section section--node" *ngIf="nodeStyle; else nodeStyleEmpty">
+        <div class="section-summary">
+          <div class="summary-primary">
+            <span class="summary-title">{{ selection.label || 'Selected node' }}</span>
+            <span class="summary-meta summary-meta--badge">{{ selection.type }}</span>
+          </div>
+          <div class="scope-group">
+            <label>Apply to</label>
+            <select [ngModel]="currentScope" (ngModelChange)="onScopeChange($event)">
+              <option *ngFor="let option of scopeOptions" [value]="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <div class="style-grid">
+          <div class="style-row">
+            <span class="style-label">Fill</span>
+            <div class="style-control color-control">
+              <p-colorPicker
+                [(ngModel)]="nodeStyle.fill"
+                format="hex"
+                [appendTo]="'body'"
+                (ngModelChange)="onFillChange($event)"
+                class="color-swatch-button"
+              ></p-colorPicker>
+              <span class="color-preview" [style.background]="nodeStyle.fill"></span>
+              <input
+                type="text"
+                class="hex-input"
+                [(ngModel)]="nodeStyle.fill"
+                (ngModelChange)="onFillInputChange($event)"
+                placeholder="#1f2937"
+                maxlength="7"
+                pattern="^#[0-9A-Fa-f]{6}$">
+            </div>
+            <button type="button" class="ghost-button" (click)="resetFill()">Reset</button>
+          </div>
+
+          <div class="style-row">
+            <span class="style-label">Border</span>
+            <div class="style-control color-control">
+              <p-colorPicker
+                [(ngModel)]="nodeStyle.stroke"
+                format="hex"
+                [appendTo]="'body'"
+                (ngModelChange)="onStrokeChange($event)"
+                class="color-swatch-button"
+              ></p-colorPicker>
+              <span class="color-preview" [style.background]="nodeStyle.stroke"></span>
+              <input
+                type="text"
+                class="hex-input"
+                [(ngModel)]="nodeStyle.stroke"
+                (ngModelChange)="onStrokeInputChange($event)"
+                placeholder="#4b5563"
+                maxlength="7"
+                pattern="^#[0-9A-Fa-f]{6}$">
+            </div>
+            <button type="button" class="ghost-button" (click)="resetStroke()">Reset</button>
+          </div>
+
+          <div class="style-row">
+            <span class="style-label">Label</span>
+            <div class="style-control">
+              <label class="toggle">
+                <input type="checkbox" [checked]="nodeStyle.labelVisible" (change)="onLabelToggle($any($event.target).checked)">
+                <span>Visible</span>
+              </label>
+            </div>
+            <button type="button" class="ghost-button" (click)="resetLabelVisibility()">Reset</button>
+          </div>
+
+          <div class="style-row">
+            <span class="style-label">Icon</span>
+            <div class="style-control">
+              <input type="text" [(ngModel)]="nodeStyle.icon" (blur)="onIconChange(nodeStyle.icon)" placeholder="Emoji or glyph" />
+            </div>
+            <button type="button" class="ghost-button" (click)="resetIcon()">Reset</button>
+          </div>
+
+          <div class="style-row">
+            <span class="style-label">Shape</span>
+            <div class="style-control">
+              <select [ngModel]="nodeStyle.shape" (ngModelChange)="onShapeChange($event)">
+                <option *ngFor="let shape of shapeOptions" [value]="shape.value">{{ shape.label }}</option>
+              </select>
+            </div>
+            <button type="button" class="ghost-button" (click)="resetShape()">Reset</button>
+          </div>
+
+          <div class="style-row" *ngIf="nodeStyle.shape === 'rounded'">
+            <span class="style-label">Radius</span>
+            <div class="style-control range-control">
+              <input type="range" min="0" max="100" [value]="nodeStyle.cornerRadius" (input)="onCornerRadiusChange($any($event.target).value)" />
+              <span class="range-value">{{ nodeStyle.cornerRadius }}</span>
+            </div>
+            <button type="button" class="ghost-button" (click)="resetCornerRadius()">Reset</button>
+          </div>
+        </div>
+      </div>
+      <ng-template #nodeStyleEmpty>
+        <div class="section empty">
+          <i class="pi pi-info-circle"></i>
+          <p>Select a node on the canvas to adjust styling.</p>
+        </div>
+      </ng-template>
+    </ng-container>
+
+    <div class="section empty" *ngIf="!(selection$ | async)">
+      <i class="pi pi-info-circle"></i>
+      <p>Select a node on the canvas to adjust styling.</p>
+    </div>
+  </div>
+</div>

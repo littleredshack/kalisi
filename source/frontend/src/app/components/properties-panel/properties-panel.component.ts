@@ -6,16 +6,7 @@ import { ButtonModule } from 'primeng/button';
 import { ColorPickerModule } from 'primeng/colorpicker';
 import { CanvasControlService } from '../../core/services/canvas-control.service';
 import { ThemeService } from '../../core/services/theme.service';
-import { NodeSelectionSnapshot, StyleApplicationScope, NodeShape, NodeStyleOverrides } from '../../shared/canvas/types';
-
-interface EditableNodeStyle {
-  fill: string;
-  stroke: string;
-  icon: string;
-  labelVisible: boolean;
-  shape: NodeShape;
-  cornerRadius: number;
-}
+import { NodeSelectionSnapshot } from '../../shared/canvas/types';
 
 @Component({
   selector: 'app-properties-panel',
@@ -162,124 +153,6 @@ interface EditableNodeStyle {
             </p-accordion-content>
           </p-accordion-panel>
 
-          <p-accordion-panel value="node-settings" *ngIf="nodeSelection">
-            <p-accordion-header>
-              <span class="accordion-header">
-                <i class="pi pi-palette"></i>
-                <span>Node / Relationship Settings</span>
-              </span>
-            </p-accordion-header>
-            <p-accordion-content>
-              <div class="section section--node" *ngIf="nodeStyle; else nodeStyleEmpty">
-                <div class="section-summary">
-                  <div class="summary-primary">
-                    <span class="summary-title">{{ nodeSelection!.label || 'Selected node' }}</span>
-                    <span class="summary-meta summary-meta--badge">{{ nodeSelection!.type }}</span>
-                  </div>
-                  <div class="scope-group">
-                    <label>Apply to</label>
-                    <select [ngModel]="currentScope" (ngModelChange)="onScopeChange($event)">
-                      <option *ngFor="let option of scopeOptions" [value]="option.value">
-                        {{ option.label }}
-                      </option>
-                    </select>
-                  </div>
-                </div>
-
-                <div class="style-grid">
-                  <div class="style-row">
-                    <span class="style-label">Fill</span>
-                    <div class="style-control color-control">
-                      <p-colorPicker
-                        [(ngModel)]="nodeStyle.fill"
-                        format="hex"
-                        [appendTo]="'body'"
-                        (ngModelChange)="onFillChange($event)"
-                        class="color-swatch-button"
-                      ></p-colorPicker>
-                      <span class="color-preview" [style.background]="nodeStyle.fill"></span>
-                      <input
-                        type="text"
-                        class="hex-input"
-                        [(ngModel)]="nodeStyle.fill"
-                        (ngModelChange)="onFillInputChange($event)"
-                        placeholder="#1f2937"
-                        maxlength="7"
-                        pattern="^#[0-9A-Fa-f]{6}$">
-                    </div>
-                    <button type="button" class="ghost-button" (click)="resetFill()">Reset</button>
-                  </div>
-
-                  <div class="style-row">
-                    <span class="style-label">Border</span>
-                    <div class="style-control color-control">
-                      <p-colorPicker
-                        [(ngModel)]="nodeStyle.stroke"
-                        format="hex"
-                        [appendTo]="'body'"
-                        (ngModelChange)="onStrokeChange($event)"
-                        class="color-swatch-button"
-                      ></p-colorPicker>
-                      <span class="color-preview" [style.background]="nodeStyle.stroke"></span>
-                      <input
-                        type="text"
-                        class="hex-input"
-                        [(ngModel)]="nodeStyle.stroke"
-                        (ngModelChange)="onStrokeInputChange($event)"
-                        placeholder="#4b5563"
-                        maxlength="7"
-                        pattern="^#[0-9A-Fa-f]{6}$">
-                    </div>
-                    <button type="button" class="ghost-button" (click)="resetStroke()">Reset</button>
-                  </div>
-
-                  <div class="style-row">
-                    <span class="style-label">Label</span>
-                    <div class="style-control">
-                      <label class="toggle">
-                        <input type="checkbox" [checked]="nodeStyle.labelVisible" (change)="onLabelToggle($event.target.checked)">
-                        <span>Visible</span>
-                      </label>
-                    </div>
-                    <button type="button" class="ghost-button" (click)="resetLabelVisibility()">Reset</button>
-                  </div>
-
-                  <div class="style-row">
-                    <span class="style-label">Icon</span>
-                    <div class="style-control">
-                      <input type="text" [(ngModel)]="nodeStyle.icon" (blur)="onIconChange(nodeStyle.icon)" placeholder="Emoji or glyph" />
-                    </div>
-                    <button type="button" class="ghost-button" (click)="resetIcon()">Reset</button>
-                  </div>
-
-                  <div class="style-row">
-                    <span class="style-label">Shape</span>
-                    <div class="style-control">
-                      <select [ngModel]="nodeStyle.shape" (ngModelChange)="onShapeChange($event)">
-                        <option *ngFor="let shape of shapeOptions" [value]="shape.value">{{ shape.label }}</option>
-                      </select>
-                    </div>
-                    <button type="button" class="ghost-button" (click)="resetShape()">Reset</button>
-                  </div>
-
-                  <div class="style-row" *ngIf="nodeStyle.shape === 'rounded'">
-                    <span class="style-label">Radius</span>
-                    <div class="style-control range-control">
-                      <input type="range" min="0" max="100" [value]="nodeStyle.cornerRadius" (input)="onCornerRadiusChange($any($event.target).value)" />
-                      <span class="range-value">{{ nodeStyle.cornerRadius }}</span>
-                    </div>
-                    <button type="button" class="ghost-button" (click)="resetCornerRadius()">Reset</button>
-                  </div>
-                </div>
-              </div>
-              <ng-template #nodeStyleEmpty>
-                <div class="section empty">
-                  <i class="pi pi-info-circle"></i>
-                  <p>Select a node on the canvas to adjust styling.</p>
-                </div>
-              </ng-template>
-            </p-accordion-content>
-          </p-accordion-panel>
         </p-accordion>
       </div>
       <div class="panel-footer">
@@ -841,23 +714,9 @@ export class PropertiesPanelComponent implements OnChanges {
   @Input() hasPresetOverrides = false;
 
   openPanels: string[] = ['canvas-settings'];
-  nodeStyle: EditableNodeStyle | null = null;
-  currentScope: StyleApplicationScope = 'node';
   containmentEnabled = false;
   panelOpacity = 0.85;
   paletteDraft: Record<string, string> = {};
-
-  readonly scopeOptions: Array<{ value: StyleApplicationScope; label: string }> = [
-    { value: 'node', label: 'This node only' },
-    { value: 'type', label: 'All nodes of this type' }
-  ];
-
-  readonly shapeOptions: Array<{ value: NodeShape; label: string }> = [
-    { value: 'rounded', label: 'Rounded Rectangle' },
-    { value: 'rectangle', label: 'Rectangle' },
-    { value: 'circle', label: 'Circle' },
-    { value: 'triangle', label: 'Triangle' }
-  ];
 
   readonly paletteKeys: Array<{ key: string; label: string; fallback: string }> = [
     { key: 'primary', label: 'Primary', fallback: '#60a5fa' },
@@ -869,8 +728,6 @@ export class PropertiesPanelComponent implements OnChanges {
     { key: 'danger', label: 'Danger', fallback: '#f97316' }
   ];
 
-  private pendingNodeOverrides: Partial<NodeStyleOverrides> = {};
-
   constructor(
     private readonly canvasControlService: CanvasControlService,
     private readonly themeService: ThemeService
@@ -881,25 +738,8 @@ export class PropertiesPanelComponent implements OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if ('nodeSelection' in changes) {
-      this.syncNodeSelection();
-    }
     if ('presetPalette' in changes || 'activePresetId' in changes) {
       this.syncPaletteDraft();
-    }
-  }
-
-  private syncNodeSelection(): void {
-    if (this.nodeSelection) {
-      this.nodeStyle = this.createEditableStyle(this.nodeSelection);
-      this.pendingNodeOverrides = this.extractSelectionOverrides() ?? {};
-      if (!this.openPanels.includes('node-settings')) {
-        this.openPanels = [...this.openPanels, 'node-settings'];
-      }
-    } else {
-      this.nodeStyle = null;
-      this.pendingNodeOverrides = {};
-      this.openPanels = this.openPanels.filter(panel => panel !== 'node-settings');
     }
   }
 
@@ -919,19 +759,6 @@ export class PropertiesPanelComponent implements OnChanges {
     this.paletteDraft = next;
   }
 
-  private createEditableStyle(selection: NodeSelectionSnapshot): EditableNodeStyle {
-    const base = selection.style;
-    const overrides = (selection.overrides ?? {}) as NodeStyleOverrides;
-    return {
-      fill: overrides.fill ?? base.fill,
-      stroke: overrides.stroke ?? base.stroke,
-      icon: overrides.icon ?? base.icon ?? '',
-      labelVisible: overrides.labelVisible ?? base.labelVisible,
-      shape: overrides.shape ?? base.shape,
-      cornerRadius: overrides.cornerRadius ?? base.cornerRadius
-    };
-  }
-
   private normalizeColor(input: string | { value: string } | null | undefined): string | undefined {
     if (!input) return undefined;
     const raw = typeof input === 'object' ? input.value : input;
@@ -940,83 +767,6 @@ export class PropertiesPanelComponent implements OnChanges {
     return value.length === 7 ? value : undefined;
   }
 
-  private applyOverrides(overrides: Partial<NodeStyleOverrides>): void {
-    if (!this.nodeSelection) {
-      return;
-    }
-    this.updatePendingOverrides(overrides);
-    this.canvasControlService.applyNodeStyleOverride(overrides, this.currentScope);
-  }
-
-  onFillChange(color: string | { value: string }): void {
-    const value = this.normalizeColor(color);
-    if (value) {
-      this.applyOverrides({ fill: value });
-    }
-  }
-
-  onFillInputChange(value: string): void {
-    const normalised = this.normalizeColor(value);
-    if (normalised) {
-      this.applyOverrides({ fill: normalised });
-    }
-  }
-
-  resetFill(): void {
-    this.applyOverrides({ fill: undefined });
-  }
-
-  onStrokeChange(color: string | { value: string }): void {
-    const value = this.normalizeColor(color);
-    if (value) {
-      this.applyOverrides({ stroke: value });
-    }
-  }
-
-  onStrokeInputChange(value: string): void {
-    const normalised = this.normalizeColor(value);
-    if (normalised) {
-      this.applyOverrides({ stroke: normalised });
-    }
-  }
-
-  resetStroke(): void {
-    this.applyOverrides({ stroke: undefined });
-  }
-
-  onLabelToggle(visible: boolean): void {
-    this.applyOverrides({ labelVisible: visible });
-  }
-
-  resetLabelVisibility(): void {
-    this.applyOverrides({ labelVisible: undefined });
-  }
-
-  onIconChange(icon: string): void {
-    const trimmed = icon?.trim() ?? '';
-    this.applyOverrides({ icon: trimmed.length > 0 ? trimmed : undefined });
-  }
-
-  resetIcon(): void {
-    this.applyOverrides({ icon: undefined });
-  }
-
-  onShapeChange(shape: NodeShape): void {
-    this.applyOverrides({ shape });
-  }
-
-  resetShape(): void {
-    this.applyOverrides({ shape: undefined });
-  }
-
-  onCornerRadiusChange(value: string): void {
-    const numeric = Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
-    this.applyOverrides({ cornerRadius: numeric });
-  }
-
-  resetCornerRadius(): void {
-    this.applyOverrides({ cornerRadius: undefined });
-  }
   onPanelOpacityChange(value: number | string): void {
     const numeric = typeof value === 'string' ? Number(value) : value;
     if (!Number.isFinite(numeric)) {
@@ -1025,18 +775,6 @@ export class PropertiesPanelComponent implements OnChanges {
     const clamped = Math.min(1, Math.max(0, numeric));
     this.panelOpacity = clamped;
     this.themeService.setPropertiesPanelOpacity(clamped);
-  }
-
-
-  onScopeChange(scope: StyleApplicationScope): void {
-    this.currentScope = scope;
-
-    if (scope === 'type') {
-      const overrides = this.normalizePendingOverrides();
-      if (overrides) {
-        this.canvasControlService.applyNodeStyleOverride(overrides, scope);
-      }
-    }
   }
 
   resetCanvas(): void {
@@ -1103,46 +841,6 @@ export class PropertiesPanelComponent implements OnChanges {
     this.paletteDraft = { ...this.paletteDraft, [key]: normalised };
     this.canvasControlService.updatePresetPalette({ [key]: normalised });
   }
-
-  private extractSelectionOverrides(): Partial<NodeStyleOverrides> | null {
-    const overrides = this.nodeSelection?.overrides;
-    if (!overrides) {
-      return null;
-    }
-
-    const result: Partial<NodeStyleOverrides> = {};
-    if (overrides.fill !== undefined) result.fill = overrides.fill;
-    if (overrides.stroke !== undefined) result.stroke = overrides.stroke;
-    if (overrides.icon !== undefined) result.icon = overrides.icon;
-    if (overrides.labelVisible !== undefined) result.labelVisible = overrides.labelVisible;
-    if (overrides.shape !== undefined) result.shape = overrides.shape;
-    if (overrides.cornerRadius !== undefined) result.cornerRadius = overrides.cornerRadius;
-    if (overrides.badges) {
-      result.badges = overrides.badges.map(badge => ({ ...badge }));
-    }
-
-    return Object.keys(result).length > 0 ? result : null;
-  }
-
-  private updatePendingOverrides(patch: Partial<NodeStyleOverrides>): void {
-    this.pendingNodeOverrides = { ...this.pendingNodeOverrides };
-    Object.entries(patch).forEach(([key, value]) => {
-      (this.pendingNodeOverrides as Record<string, unknown>)[key] = value;
-    });
-  }
-
-  private normalizePendingOverrides(): Partial<NodeStyleOverrides> | null {
-    const entries = Object.entries(this.pendingNodeOverrides ?? {});
-    if (entries.length === 0) {
-      return null;
-    }
-    const result: Partial<NodeStyleOverrides> = {};
-    entries.forEach(([key, value]) => {
-      (result as Record<string, unknown>)[key] = value;
-    });
-    return Object.keys(result).length > 0 ? result : null;
-  }
-
 
   getCurrentViewName(): string {
     const details = this.selectedViewNodeDetails;

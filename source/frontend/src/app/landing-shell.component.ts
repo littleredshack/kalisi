@@ -25,6 +25,7 @@ import { ModularCanvasComponent } from './components/modular-canvas/modular-canv
 import { RuntimeCanvasComponent } from './components/modular-canvas/runtime-canvas.component';
 import { ChatRhsPanelComponent } from './components/chat-rhs-panel/chat-rhs-panel.component';
 import { PropertiesRhsPanelComponent } from './components/properties-rhs-panel/properties-rhs-panel.component';
+import { NodeStylePanelComponent } from './components/node-style-panel/node-style-panel.component';
 import { DebugPanelComponent } from './components/debug-panel/debug-panel.component';
 import { ViewType } from './core/models/view.models';
 import { SettingsComponent } from './settings/settings.component';
@@ -79,6 +80,7 @@ const LIBRARY_ITEMS: LibraryItem[] = [
     RuntimeCanvasComponent,
     ChatRhsPanelComponent,
     PropertiesRhsPanelComponent,
+    NodeStylePanelComponent,
     DebugPanelComponent,
     SettingsComponent,
     TreeTableComponent
@@ -156,12 +158,17 @@ const LIBRARY_ITEMS: LibraryItem[] = [
       </app-chat-rhs-panel>
 
       <!-- Properties Panel (Right Side) -->
-      <app-properties-rhs-panel 
+      <app-properties-rhs-panel
         [isOpen]="propertiesPanelOpen"
         [selectedLibraryItem]="selectedLibraryItem"
         [selectedViewNodeDetails]="selectedViewNodeDetails"
         (panelToggled)="onPropertiesPanelToggled($event)">
       </app-properties-rhs-panel>
+
+      <!-- Node Style Panel (Floating) -->
+      <app-node-style-panel
+        [isOpen]="nodeStylePanelOpen">
+      </app-node-style-panel>
 
       <!-- Main Workspace Area -->
       <div class="main-workspace"
@@ -936,6 +943,7 @@ export class LandingShellComponent implements OnInit, OnDestroy {
   get libraryPanelOpen() { return this.uiState.libraryPanelOpen(); }
   get settingsPanelOpen() { return this.uiState.settingsPanelOpen(); }
   get propertiesPanelOpen() { return this.uiState.propertiesPanelOpen(); }
+  get nodeStylePanelOpen() { return this.uiState.nodeStylePanelOpen(); }
   get chatPanelOpen() { return this.uiState.chatPanelOpen(); }
   get debugPanelOpen() { return this.uiState.debugPanelOpen(); }
 

@@ -298,19 +298,23 @@ export class CanvasControlService {
       return;
     }
 
-    const canvasId = this.getActiveCanvasId();
-    if (canvasId) {
-      this.canvasEventHubService.emitEvent(canvasId, {
-        type: 'StyleOverrideRequested',
-        canvasId,
-        nodeId: selection.id,
-        overrides,
-        scope,
-        source: 'user',
-        timestamp: Date.now()
-      });
-    } else if (this.activeCanvas?.applyNodeStyleOverride) {
+    // If the canvas has the method, call it directly (used by RuntimeCanvas)
+    // Otherwise, try to use the event hub (used by ModularCanvas with event-based architecture)
+    if (this.activeCanvas?.applyNodeStyleOverride) {
       this.activeCanvas.applyNodeStyleOverride(selection.id, overrides, scope);
+    } else {
+      const canvasId = this.getActiveCanvasId();
+      if (canvasId) {
+        this.canvasEventHubService.emitEvent(canvasId, {
+          type: 'StyleOverrideRequested',
+          canvasId,
+          nodeId: selection.id,
+          overrides,
+          scope,
+          source: 'user',
+          timestamp: Date.now()
+        });
+      }
     }
     this.refreshSelectionSnapshot();
   }

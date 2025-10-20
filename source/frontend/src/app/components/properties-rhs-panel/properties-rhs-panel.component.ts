@@ -64,11 +64,25 @@ export class PropertiesRhsPanelComponent implements OnInit, OnDestroy, OnChanges
 
   // Panel state
   isVisible = false;
-  panelWidth = 340; // Default width matching chat panel
-  private resizing = false;
+  panelWidth = 340; // Default width
+  panelHeight = 600; // Default height
+  panelX = 100; // Default X position
+  panelY = 100; // Default Y position
+
+  resizing = false;
   private resizeStartX = 0;
+  private resizeStartY = 0;
   private resizeStartWidth = 0;
-  private readonly STORAGE_KEY = 'properties-panel-width';
+  private resizeStartHeight = 0;
+  private resizeHandle = '';
+
+  dragging = false;
+  private dragStartX = 0;
+  private dragStartY = 0;
+  private dragOffsetX = 0;
+  private dragOffsetY = 0;
+
+  private readonly STORAGE_KEY = 'properties-panel-state';
 
   // Canvas control observables
   hasActiveCanvas$: Observable<boolean>;
@@ -230,42 +244,103 @@ export class PropertiesRhsPanelComponent implements OnInit, OnDestroy, OnChanges
     this.panelToggled.emit(false);
   }
 
-  // Resize functionality - copied from chat panel
-  onResizeStart(event: MouseEvent): void {
+  // Drag functionality for moving the panel
+  onHeaderDragStart(event: MouseEvent): void {
+    // Don't start dragging if clicking on buttons or interactive elements
+    const target = event.target as HTMLElement;
+    if (target.closest('button') || target.closest('.control-btn')) {
+      return;
+    }
+
+    this.dragging = true;
+    this.dragStartX = event.clientX;
+    this.dragStartY = event.clientY;
+    this.dragOffsetX = event.clientX - this.panelX;
+    this.dragOffsetY = event.clientY - this.panelY;
+    event.preventDefault();
+  }
+
+  // Resize functionality
+  onResizeStart(event: MouseEvent, handle: string): void {
     this.resizing = true;
+    this.resizeHandle = handle;
     this.resizeStartX = event.clientX;
+    this.resizeStartY = event.clientY;
     this.resizeStartWidth = this.panelWidth;
+    this.resizeStartHeight = this.panelHeight;
     event.preventDefault();
   }
 
   private onGlobalMouseMove = (event: MouseEvent): void => {
-    if (!this.resizing) return;
+    if (this.dragging) {
+      // Update panel position
+      this.panelX = event.clientX - this.dragOffsetX;
+      this.panelY = event.clientY - this.dragOffsetY;
 
-    const deltaX = this.resizeStartX - event.clientX; // Reversed for right-side panel
-    const newWidth = Math.max(280, Math.min(600, this.resizeStartWidth + deltaX));
-    this.panelWidth = newWidth;
+      // Keep panel within viewport bounds
+      const maxX = window.innerWidth - 100; // Keep at least 100px visible
+      const maxY = window.innerHeight - 60; // Keep header visible
+      this.panelX = Math.max(0, Math.min(maxX, this.panelX));
+      this.panelY = Math.max(0, Math.min(maxY, this.panelY));
+    } else if (this.resizing) {
+      const deltaX = event.clientX - this.resizeStartX;
+      const deltaY = event.clientY - this.resizeStartY;
+
+      switch (this.resizeHandle) {
+        case 'right':
+          this.panelWidth = Math.max(280, Math.min(600, this.resizeStartWidth + deltaX));
+          break;
+        case 'bottom':
+          this.panelHeight = Math.max(400, Math.min(900, this.resizeStartHeight + deltaY));
+          break;
+        case 'bottom-right':
+          this.panelWidth = Math.max(280, Math.min(600, this.resizeStartWidth + deltaX));
+          this.panelHeight = Math.max(400, Math.min(900, this.resizeStartHeight + deltaY));
+          break;
+      }
+    }
   };
 
   private onGlobalMouseUp = (): void => {
-    if (this.resizing) {
-      // Save width to localStorage when resize ends
-      this.savePanelWidth();
+    if (this.resizing || this.dragging) {
+      // Save panel state to localStorage when resize or drag ends
+      this.savePanelState();
     }
     this.resizing = false;
+    this.dragging = false;
+    this.resizeHandle = '';
   };
 
   private loadPanelWidth(): void {
-    const savedWidth = localStorage.getItem(this.STORAGE_KEY);
-    if (savedWidth) {
-      const width = parseInt(savedWidth, 10);
-      // Validate the saved width is within acceptable bounds
-      if (width >= 280 && width <= 600) {
-        this.panelWidth = width;
+    const savedState = localStorage.getItem(this.STORAGE_KEY);
+    if (savedState) {
+      try {
+        const state = JSON.parse(savedState);
+        // Validate and apply saved state
+        if (state.width >= 280 && state.width <= 600) {
+          this.panelWidth = state.width;
+        }
+        if (state.height >= 400 && state.height <= 900) {
+          this.panelHeight = state.height;
+        }
+        if (state.x !== undefined && state.y !== undefined) {
+          this.panelX = Math.max(0, Math.min(window.innerWidth - 100, state.x));
+          this.panelY = Math.max(0, Math.min(window.innerHeight - 60, state.y));
+        }
+      } catch (e) {
+        // If parsing fails, use defaults
+        console.warn('Failed to parse saved panel state', e);
       }
     }
   }
 
-  private savePanelWidth(): void {
-    localStorage.setItem(this.STORAGE_KEY, this.panelWidth.toString());
+  private savePanelState(): void {
+    const state = {
+      x: this.panelX,
+      y: this.panelY,
+      width: this.panelWidth,
+      height: this.panelHeight
+    };
+    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
   }
 }
