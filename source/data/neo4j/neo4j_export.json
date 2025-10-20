@@ -1,0 +1,867 @@
+{
+  "export_metadata": {
+    "timestamp": "2025-10-20T01:22:47.865927",
+    "neo4j_uri": "bolt://localhost:7687",
+    "excluded_labels": [
+      "CodeElement"
+    ],
+    "node_count": 33,
+    "edge_count": 35
+  },
+  "nodes": [
+    {
+      "id": 0,
+      "labels": [
+        "Imported",
+        "SetNode"
+      ],
+      "properties": {
+        "GUID": "adf16aa2-4501-4b45-b9bc-a21631d4851f",
+        "name": "CodeBase Analysis",
+        "description": "View and analyze the complete codebase structure",
+        "id": "codebase-set-001"
+      }
+    },
+    {
+      "id": 1,
+      "labels": [
+        "Imported",
+        "QueryNode"
+      ],
+      "properties": {
+        "cypherQuery": "MATCH (root:CodebaseNode {name: \"Kalisi\"}) MATCH (root)-[r:CONTAINS*0..]->(descendant) OPTIONAL MATCH (descendant)-[rel:CONTAINS]->(child) RETURN root, descendant, r, rel, child",
+        "name": "CodeBase Structure Query",
+        "GUID": "67bab7c7-e44b-44b2-96c2-8654b35f3145",
+        "description": "Returns complete codebase hierarchy with all relationships",
+        "id": "codebase-query-001"
+      }
+    },
+    {
+      "id": 2,
+      "labels": [
+        "Imported",
+        "ViewNode"
+      ],
+      "properties": {
+        "renderer": "composable-containment-orthogonal",
+        "name": "CodeBase Hierarchical View",
+        "GUID": "878cafb6-1341-4b8c-8a38-7915383c9427",
+        "description": "Hierarchical view with containment and orthogonal routing",
+        "layout_engine": "hierarchical",
+        "id": "codebase-view-001",
+        "autoLayoutSettings": "{\"collapseBehavior\": \"full-size\", \"reflowBehavior\": \"static\"}"
+      }
+    },
+    {
+      "id": 3,
+      "labels": [
+        "Imported",
+        "ViewNode"
+      ],
+      "properties": {
+        "layout": "{\"nodes\":[{\"id\":\"Node 1\",\"GUID\":\"parent-1\",\"type\":\"container\",\"x\":50,\"y\":50,\"width\":390,\"height\":400,\"text\":\"Node 1\",\"style\":{\"fill\":\"#1f2937\",\"stroke\":\"#4b5563\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[{\"id\":\"Node 1-1\",\"GUID\":\"child-1\",\"type\":\"node\",\"x\":93,\"y\":70.23127463863337,\"width\":180,\"height\":140,\"text\":\"Node 1-1\",\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[{\"id\":\"Node 1-1-1\",\"GUID\":\"grandchild-1\",\"type\":\"component\",\"x\":20,\"y\":40,\"width\":120,\"height\":60,\"text\":\"Node 1-1-1\",\"style\":{\"fill\":\"#2d4f22\",\"stroke\":\"#5b8729\"},\"selected\":false,\"visible\":true,\"collapsed\":true,\"dragging\":false,\"children\":[]}]}]},{\"id\":\"Node 2\",\"GUID\":\"parent-2\",\"type\":\"container\",\"x\":490,\"y\":48.79279478539189,\"width\":380,\"height\":400,\"text\":\"Node 2\",\"style\":{\"fill\":\"#1f2937\",\"stroke\":\"#4b5563\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[{\"id\":\"Node 2-2\",\"GUID\":\"child-3\",\"type\":\"node\",\"x\":46,\"y\":69.13929040735873,\"width\":160,\"height\":80,\"text\":\"Node 2-2\",\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[]},{\"id\":\"Node 2-1\",\"GUID\":\"child-2\",\"type\":\"node\",\"x\":73,\"y\":192.07095926412617,\"width\":160,\"height\":120,\"text\":\"Node 2-1\",\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[{\"id\":\"Node 2-1-1\",\"GUID\":\"grandchild-2\",\"type\":\"component\",\"x\":20,\"y\":40,\"width\":120,\"height\":60,\"text\":\"Node 2-1-1\",\"style\":{\"fill\":\"#2d4f22\",\"stroke\":\"#5b8729\"},\"selected\":false,\"visible\":true,\"collapsed\":true,\"dragging\":false,\"children\":[]}]}]}],\"edges\":[{\"id\":\"link-grandchild1-grandchild2\",\"from\":\"grandchild-1\",\"to\":\"grandchild-2\",\"label\":\"Link 11\",\"style\":{\"stroke\":\"#6ea8fe\",\"strokeWidth\":2,\"strokeDashArray\":null},\"source\":\"grandchild-1\",\"target\":\"grandchild-2\",\"type\":\"LINK\",\"GUID\":\"link-grandchild1-grandchild2\",\"fromGUID\":\"grandchild-1\",\"toGUID\":\"grandchild-2\"}],\"originalEdges\":[{\"id\":\"link-grandchild1-grandchild2\",\"from\":\"grandchild-1\",\"to\":\"grandchild-2\",\"label\":\"Link 11\",\"style\":{\"stroke\":\"#6ea8fe\",\"strokeWidth\":2,\"strokeDashArray\":null},\"source\":\"grandchild-1\",\"target\":\"grandchild-2\",\"type\":\"LINK\",\"GUID\":\"link-grandchild1-grandchild2\",\"fromGUID\":\"grandchild-1\",\"toGUID\":\"grandchild-2\"}],\"camera\":{\"x\":-241,\"y\":-141.95795006570302,\"zoom\":1}}",
+        "renderer": "composable-hierarchical",
+        "created": "DateTime(BoltDateTime { seconds: BoltInteger { value: 1758136540 }, nanoseconds: BoltInteger { value: 198000000 }, tz_offset_seconds: BoltInteger { value: 0 } })",
+        "name": "Composable Processes View",
+        "GUID": "ac4c95e5-206b-47a9-a9fd-71ab11f437fa",
+        "description": "New composable architecture hierarchical containment view",
+        "layout_engine": "hierarchical",
+        "id": "composable-hierarchical-b39cd9eb-03b3-48b4-82b2-628addbe32b3",
+        "version": "1.0",
+        "autoLayoutSettings": "{\"collapseBehavior\":\"full-size\",\"reflowBehavior\":\"static\"}",
+        "updatedAt": "DateTime(BoltDateTime { seconds: BoltInteger { value: 1758573358 }, nanoseconds: BoltInteger { value: 356000000 }, tz_offset_seconds: BoltInteger { value: 0 } })"
+      }
+    },
+    {
+      "id": 4,
+      "labels": [
+        "Imported",
+        "Process"
+      ],
+      "properties": {
+        "name": "Processes",
+        "GUID": "36bcc622-c4cf-4b87-a772-3ae5dca63ad8",
+        "id": "Processes"
+      }
+    },
+    {
+      "id": 5,
+      "labels": [
+        "Imported",
+        "System"
+      ],
+      "properties": {
+        "name": "Systems",
+        "GUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+        "id": "Systems"
+      }
+    },
+    {
+      "id": 6,
+      "labels": [
+        "Imported",
+        "System"
+      ],
+      "properties": {
+        "name": "API Gateway",
+        "GUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+        "id": "API Gateway"
+      }
+    },
+    {
+      "id": 7,
+      "labels": [
+        "Imported",
+        "System"
+      ],
+      "properties": {
+        "name": "Database Cluster",
+        "GUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+        "id": "Database Cluster"
+      }
+    },
+    {
+      "id": 8,
+      "labels": [
+        "Imported",
+        "Component"
+      ],
+      "properties": {
+        "name": "REST API",
+        "GUID": "ff9377d6-4d13-478d-b3c4-7e626706a7c2",
+        "id": "REST API"
+      }
+    },
+    {
+      "id": 9,
+      "labels": [
+        "Imported",
+        "Component"
+      ],
+      "properties": {
+        "name": "GraphQL API",
+        "GUID": "8d2e9392-ac29-4b5d-98c9-81be5de3d801",
+        "id": "GraphQL API"
+      }
+    },
+    {
+      "id": 10,
+      "labels": [
+        "Imported",
+        "Component"
+      ],
+      "properties": {
+        "name": "Primary DB",
+        "GUID": "84b3acb1-45c0-4c19-8052-75288cff470f",
+        "id": "Primary DB"
+      }
+    },
+    {
+      "id": 11,
+      "labels": [
+        "Imported",
+        "Component"
+      ],
+      "properties": {
+        "name": "Replica DB",
+        "GUID": "23aa2270-7a09-48a2-8c35-c1a231b86a34",
+        "id": "Replica DB"
+      }
+    },
+    {
+      "id": 12,
+      "labels": [
+        "Imported",
+        "Process"
+      ],
+      "properties": {
+        "name": "Order Processing",
+        "GUID": "d09df8f0-2dc0-4f25-9f61-73fc919ec122",
+        "id": "Order Processing"
+      }
+    },
+    {
+      "id": 13,
+      "labels": [
+        "Imported",
+        "TestModular"
+      ],
+      "properties": {
+        "name": "Test-modular",
+        "GUID": "test-modular-root"
+      }
+    },
+    {
+      "id": 14,
+      "labels": [
+        "Imported",
+        "Node"
+      ],
+      "properties": {
+        "trace_id": "trace_1760910738539_0h4u0byad",
+        "name": "Node 1",
+        "GUID": "parent-1",
+        "text": "Node 1",
+        "lastModified": 1760910738542,
+        "type": "container"
+      }
+    },
+    {
+      "id": 15,
+      "labels": [
+        "Imported",
+        "Node"
+      ],
+      "properties": {
+        "name": "Node 2",
+        "GUID": "parent-2",
+        "text": "Node 2",
+        "type": "container"
+      }
+    },
+    {
+      "id": 16,
+      "labels": [
+        "Imported",
+        "Node"
+      ],
+      "properties": {
+        "name": "Node 1-1",
+        "GUID": "child-1",
+        "text": "Node 1-1",
+        "type": "node"
+      }
+    },
+    {
+      "id": 17,
+      "labels": [
+        "Imported",
+        "Node"
+      ],
+      "properties": {
+        "name": "Node 2-1",
+        "GUID": "child-2",
+        "text": "Node 2-1",
+        "type": "node"
+      }
+    },
+    {
+      "id": 18,
+      "labels": [
+        "Imported",
+        "Node"
+      ],
+      "properties": {
+        "name": "Node 1-1-1",
+        "GUID": "grandchild-1",
+        "text": "Node 1-1-1",
+        "type": "component"
+      }
+    },
+    {
+      "id": 19,
+      "labels": [
+        "Imported",
+        "Node"
+      ],
+      "properties": {
+        "name": "Node 2-1-1",
+        "GUID": "grandchild-2",
+        "text": "Node 2-1-1",
+        "type": "component"
+      }
+    },
+    {
+      "id": 20,
+      "labels": [
+        "Imported",
+        "Node"
+      ],
+      "properties": {
+        "name": "Node 2-2",
+        "GUID": "child-3",
+        "text": "Node 2-2",
+        "type": "node"
+      }
+    },
+    {
+      "id": 21,
+      "labels": [
+        "Imported",
+        "QueryNode"
+      ],
+      "properties": {
+        "createdAt": "DateTime(BoltDateTime { seconds: BoltInteger { value: 1757715676 }, nanoseconds: BoltInteger { value: 941000000 }, tz_offset_seconds: BoltInteger { value: 0 } })",
+        "cypherQuery": "MATCH (n:Node) OPTIONAL MATCH (n)-[r]-(m:Node) RETURN n, r, m",
+        "name": "TestModularQuery",
+        "GUID": "09b08571-1f6e-4792-ad87-f18401999e54",
+        "updatedAt": "DateTime(BoltDateTime { seconds: BoltInteger { value: 1757715676 }, nanoseconds: BoltInteger { value: 941000000 }, tz_offset_seconds: BoltInteger { value: 0 } })"
+      }
+    },
+    {
+      "id": 22,
+      "labels": [
+        "Imported",
+        "ViewNode"
+      ],
+      "properties": {
+        "layout": "{\"nodes\":[{\"id\":\"Node 2\",\"type\":\"container\",\"x\":50,\"y\":50,\"width\":380,\"height\":180,\"text\":\"Node 2\",\"style\":{\"fill\":\"#1f2937\",\"stroke\":\"#4b5563\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[{\"id\":\"Node 2-2\",\"type\":\"node\",\"x\":20,\"y\":40,\"width\":160,\"height\":80,\"text\":\"Node 2-2\",\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[]},{\"id\":\"Node 2-1\",\"type\":\"node\",\"x\":200,\"y\":40,\"width\":160,\"height\":120,\"text\":\"Node 2-1\",\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"selected\":true,\"visible\":true,\"collapsed\":true,\"dragging\":false,\"children\":[{\"id\":\"Node 2-1-1\",\"type\":\"component\",\"x\":20,\"y\":40,\"width\":120,\"height\":60,\"text\":\"Node 2-1-1\",\"style\":{\"fill\":\"#2d4f22\",\"stroke\":\"#5b8729\"},\"selected\":false,\"visible\":false,\"collapsed\":false,\"dragging\":false,\"children\":[]}]}]},{\"id\":\"Node 1\",\"type\":\"container\",\"x\":176,\"y\":376.5032851511169,\"width\":200,\"height\":180,\"text\":\"Node 1\",\"style\":{\"fill\":\"#1f2937\",\"stroke\":\"#4b5563\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[{\"id\":\"Node 1-1\",\"type\":\"node\",\"x\":20,\"y\":40,\"width\":160,\"height\":120,\"text\":\"Node 1-1\",\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[{\"id\":\"Node 1-1-1\",\"type\":\"component\",\"x\":20,\"y\":40,\"width\":120,\"height\":60,\"text\":\"Node 1-1-1\",\"style\":{\"fill\":\"#2d4f22\",\"stroke\":\"#5b8729\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[]}]}]}],\"edges\":[{\"id\":\"inherited-link-grandchild1-grandchild2\",\"from\":\"Node 1-1-1\",\"to\":\"Node 2-1\",\"label\":\"Link 11\",\"style\":{\"stroke\":\"#1e3a8a\",\"strokeWidth\":3,\"strokeDashArray\":[4,4]},\"source\":\"grandchild-1\",\"target\":\"grandchild-2\",\"type\":\"LINK\",\"GUID\":\"link-grandchild1-grandchild2\",\"fromGUID\":\"grandchild-1\",\"toGUID\":\"grandchild-2\"}],\"originalEdges\":[{\"id\":\"link-grandchild1-grandchild2\",\"from\":\"Node 1-1-1\",\"to\":\"Node 2-1-1\",\"label\":\"Link 11\",\"style\":{\"stroke\":\"#6ea8fe\",\"strokeWidth\":2,\"strokeDashArray\":null},\"source\":\"grandchild-1\",\"target\":\"grandchild-2\",\"type\":\"LINK\",\"GUID\":\"link-grandchild1-grandchild2\",\"fromGUID\":\"grandchild-1\",\"toGUID\":\"grandchild-2\"}],\"camera\":{\"x\":0,\"y\":0,\"zoom\":1}}",
+        "createdAt": "DateTime(BoltDateTime { seconds: BoltInteger { value: 1757780905 }, nanoseconds: BoltInteger { value: 630000000 }, tz_offset_seconds: BoltInteger { value: 0 } })",
+        "cypherQuery": "MATCH (root {name: \"Test-modular\"}) OPTIONAL MATCH (root)-[r:CONTAINS*0..]->(descendant) OPTIONAL MATCH (descendant)-[rel]->(child) RETURN root, descendant, rel, child",
+        "name": "Compliance",
+        "GUID": "1ecff804-b554-49dc-93f4-59e200f2b8c5",
+        "id": "compliance-001",
+        "autoLayoutSettings": "{\"collapseBehavior\": \"full-size\", \"reflowBehavior\": \"static\"}",
+        "updatedAt": "DateTime(BoltDateTime { seconds: BoltInteger { value: 1758040136 }, nanoseconds: BoltInteger { value: 564000000 }, tz_offset_seconds: BoltInteger { value: 0 } })"
+      }
+    },
+    {
+      "id": 23,
+      "labels": [
+        "Imported",
+        "SetNode"
+      ],
+      "properties": {
+        "name": "Test Architecture Set",
+        "GUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+        "description": "Set for architecture and test views",
+        "id": "test-set-001"
+      }
+    },
+    {
+      "id": 24,
+      "labels": [
+        "Imported",
+        "QueryNode"
+      ],
+      "properties": {
+        "cypherQuery": "MATCH (n:Node) OPTIONAL MATCH (n)-[r]-(m:Node) RETURN n, r, m",
+        "name": "Architecture Components Query",
+        "GUID": "6df5d2a2-8068-4dc3-857a-470aef528be6",
+        "id": "query-001"
+      }
+    },
+    {
+      "id": 25,
+      "labels": [
+        "Imported",
+        "ViewNode"
+      ],
+      "properties": {
+        "layout": "{\"nodes\":[{\"id\":\"Node 1-1\",\"GUID\":\"child-1\",\"type\":\"node\",\"x\":682,\"y\":303.2759526938239,\"width\":120,\"height\":80,\"text\":\"Node 1-1\",\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"children\":[],\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"metadata\":{\"worldPosition\":{\"x\":682,\"y\":303.2759526938239},\"__relative\":true,\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"displayMode\":\"force-directed\",\"defaultWidth\":120,\"defaultHeight\":80}},{\"id\":\"Node 1\",\"GUID\":\"parent-1\",\"type\":\"container\",\"x\":940.6979603717467,\"y\":512.9192297107122,\"width\":120,\"height\":80,\"text\":\"Node 1\",\"style\":{\"fill\":\"#1f2937\",\"stroke\":\"#4b5563\"},\"children\":[],\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"metadata\":{\"worldPosition\":{\"x\":940.6979603717467,\"y\":512.9192297107122},\"__relative\":true,\"style\":{\"fill\":\"#1f2937\",\"stroke\":\"#4b5563\"},\"displayMode\":\"force-directed\",\"defaultWidth\":120,\"defaultHeight\":80}},{\"id\":\"Node 2-2\",\"GUID\":\"child-3\",\"type\":\"node\",\"x\":490.4958132087371,\"y\":632.5755955769692,\"width\":120,\"height\":80,\"text\":\"Node 2-2\",\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"children\":[],\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"metadata\":{\"worldPosition\":{\"x\":490.4958132087371,\"y\":632.5755955769692},\"__relative\":true,\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"displayMode\":\"force-directed\",\"defaultWidth\":120,\"defaultHeight\":80}},{\"id\":\"Node 2\",\"GUID\":\"parent-2\",\"type\":\"container\",\"x\":142.80622641951618,\"y\":476.31945478803203,\"width\":120,\"height\":80,\"text\":\"Node 2\",\"style\":{\"fill\":\"#1f2937\",\"stroke\":\"#4b5563\"},\"children\":[],\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"metadata\":{\"worldPosition\":{\"x\":142.80622641951618,\"y\":476.31945478803203},\"__relative\":true,\"style\":{\"fill\":\"#1f2937\",\"stroke\":\"#4b5563\"},\"displayMode\":\"force-directed\",\"defaultWidth\":120,\"defaultHeight\":80}},{\"id\":\"Node 2-1\",\"GUID\":\"child-2\",\"type\":\"node\",\"x\":273.8062264195162,\"y\":254.71865296492467,\"width\":120,\"height\":80,\"text\":\"Node 2-1\",\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"children\":[],\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"metadata\":{\"worldPosition\":{\"x\":273.8062264195162,\"y\":254.71865296492467},\"__relative\":true,\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"displayMode\":\"force-directed\",\"defaultWidth\":120,\"defaultHeight\":80}},{\"id\":\"Node 1-1-1\",\"GUID\":\"grandchild-1\",\"type\":\"component\",\"x\":516.4958132087371,\"y\":77.71481178176933,\"width\":120,\"height\":80,\"text\":\"Node 1-1-1\",\"style\":{\"fill\":\"#2d4f22\",\"stroke\":\"#5b8729\"},\"children\":[],\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"metadata\":{\"worldPosition\":{\"x\":516.4958132087371,\"y\":77.71481178176933},\"__relative\":true,\"style\":{\"fill\":\"#2d4f22\",\"stroke\":\"#5b8729\"},\"displayMode\":\"force-directed\",\"defaultWidth\":120,\"defaultHeight\":80}},{\"id\":\"Node 2-1-1\",\"GUID\":\"grandchild-2\",\"type\":\"component\",\"x\":70.69796037174672,\"y\":79.47528766480988,\"width\":120,\"height\":80,\"text\":\"Node 2-1-1\",\"style\":{\"fill\":\"#2d4f22\",\"stroke\":\"#5b8729\"},\"children\":[],\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"metadata\":{\"worldPosition\":{\"x\":70.69796037174672,\"y\":79.47528766480988},\"__relative\":true,\"style\":{\"fill\":\"#2d4f22\",\"stroke\":\"#5b8729\"},\"displayMode\":\"force-directed\",\"defaultWidth\":120,\"defaultHeight\":80}}],\"edges\":[{\"id\":\"contains-parent1-child1\",\"from\":\"parent-1\",\"to\":\"child-1\",\"fromGUID\":\"parent-1\",\"toGUID\":\"child-1\",\"label\":\"CONTAINS\",\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null},\"metadata\":{\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null}}},{\"id\":\"contains-parent2-child3\",\"from\":\"parent-2\",\"to\":\"child-3\",\"fromGUID\":\"parent-2\",\"toGUID\":\"child-3\",\"label\":\"CONTAINS\",\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null},\"metadata\":{\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null}}},{\"id\":\"contains-parent2-child2\",\"from\":\"parent-2\",\"to\":\"child-2\",\"fromGUID\":\"parent-2\",\"toGUID\":\"child-2\",\"label\":\"CONTAINS\",\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null},\"metadata\":{\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null}}},{\"id\":\"contains-child1-grandchild1\",\"from\":\"child-1\",\"to\":\"grandchild-1\",\"fromGUID\":\"child-1\",\"toGUID\":\"grandchild-1\",\"label\":\"CONTAINS\",\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null},\"metadata\":{\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null}}},{\"id\":\"contains-child2-grandchild2\",\"from\":\"child-2\",\"to\":\"grandchild-2\",\"fromGUID\":\"child-2\",\"toGUID\":\"grandchild-2\",\"label\":\"CONTAINS\",\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null},\"metadata\":{\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null}}},{\"id\":\"link-grandchild1-grandchild2\",\"from\":\"grandchild-1\",\"to\":\"grandchild-2\",\"fromGUID\":\"grandchild-1\",\"toGUID\":\"grandchild-2\",\"label\":\"Link 11\",\"style\":{\"stroke\":\"#6ea8fe\",\"strokeWidth\":2,\"strokeDashArray\":null},\"metadata\":{\"style\":{\"stroke\":\"#6ea8fe\",\"strokeWidth\":2,\"strokeDashArray\":null}}}],\"originalEdges\":[{\"id\":\"contains-parent1-child1\",\"from\":\"parent-1\",\"to\":\"child-1\",\"fromGUID\":\"parent-1\",\"toGUID\":\"child-1\",\"label\":\"CONTAINS\",\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null},\"metadata\":{\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null}}},{\"id\":\"contains-parent2-child3\",\"from\":\"parent-2\",\"to\":\"child-3\",\"fromGUID\":\"parent-2\",\"toGUID\":\"child-3\",\"label\":\"CONTAINS\",\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null},\"metadata\":{\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null}}},{\"id\":\"contains-parent2-child2\",\"from\":\"parent-2\",\"to\":\"child-2\",\"fromGUID\":\"parent-2\",\"toGUID\":\"child-2\",\"label\":\"CONTAINS\",\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null},\"metadata\":{\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null}}},{\"id\":\"contains-child1-grandchild1\",\"from\":\"child-1\",\"to\":\"grandchild-1\",\"fromGUID\":\"child-1\",\"toGUID\":\"grandchild-1\",\"label\":\"CONTAINS\",\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null},\"metadata\":{\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null}}},{\"id\":\"contains-child2-grandchild2\",\"from\":\"child-2\",\"to\":\"grandchild-2\",\"fromGUID\":\"child-2\",\"toGUID\":\"grandchild-2\",\"label\":\"CONTAINS\",\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null},\"metadata\":{\"style\":{\"stroke\":\"#3b82f6\",\"strokeWidth\":2,\"strokeDashArray\":null}}},{\"id\":\"link-grandchild1-grandchild2\",\"from\":\"grandchild-1\",\"to\":\"grandchild-2\",\"fromGUID\":\"grandchild-1\",\"toGUID\":\"grandchild-2\",\"label\":\"Link 11\",\"style\":{\"stroke\":\"#6ea8fe\",\"strokeWidth\":2,\"strokeDashArray\":null},\"metadata\":{\"style\":{\"stroke\":\"#6ea8fe\",\"strokeWidth\":2,\"strokeDashArray\":null}}}],\"camera\":{\"x\":-14.162880036396178,\"y\":-46.25409139185085,\"zoom\":1.0625794903362404}}",
+        "renderer": "composable-flat",
+        "name": "Composable Flat Graph",
+        "GUID": "e65aca95-cc3c-4af0-acf4-c45e4bb29ce2",
+        "description": "New composable architecture flat graph view",
+        "layout_engine": "flat-graph",
+        "id": "composable-flat-0f36120d-4cc4-4ecb-b3ff-9fa589013788",
+        "autoLayoutSettings": "{\"collapseBehavior\":\"full-size\",\"reflowBehavior\":\"static\"}",
+        "updatedAt": "2025-10-12T15:50:15.601000000+00:00"
+      }
+    },
+    {
+      "id": 26,
+      "labels": [
+        "Imported",
+        "ViewNode"
+      ],
+      "properties": {
+        "layout": "{\"nodes\":[{\"id\":\"Node 1\",\"GUID\":\"parent-1\",\"type\":\"container\",\"x\":50,\"y\":50,\"width\":239,\"height\":400,\"text\":\"Node 1\",\"style\":{\"fill\":\"#1f2937\",\"stroke\":\"#4b5563\"},\"selected\":true,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[{\"id\":\"Node 1-1\",\"GUID\":\"child-1\",\"type\":\"node\",\"x\":19,\"y\":73.50722733245729,\"width\":180,\"height\":140,\"text\":\"Node 1-1\",\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[{\"id\":\"Node 1-1-1\",\"GUID\":\"grandchild-1\",\"type\":\"component\",\"x\":20,\"y\":40,\"width\":120,\"height\":60,\"text\":\"Node 1-1-1\",\"style\":{\"fill\":\"#2d4f22\",\"stroke\":\"#5b8729\"},\"selected\":false,\"visible\":true,\"collapsed\":true,\"dragging\":false,\"children\":[],\"metadata\":{\"worldPosition\":{\"x\":89,\"y\":163.5072273324573},\"__relative\":true}}],\"metadata\":{\"worldPosition\":{\"x\":69,\"y\":123.50722733245729},\"__relative\":true}}],\"metadata\":{\"worldPosition\":{\"x\":50,\"y\":50},\"__relative\":true},\"_lockedPosition\":{\"x\":50,\"y\":50},\"_userLocked\":true},{\"id\":\"Node 2\",\"GUID\":\"parent-2\",\"type\":\"container\",\"x\":545,\"y\":347.0197109067017,\"width\":380,\"height\":400,\"text\":\"Node 2\",\"style\":{\"fill\":\"#1f2937\",\"stroke\":\"#4b5563\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[{\"id\":\"Node 2-2\",\"GUID\":\"child-3\",\"type\":\"node\",\"x\":22,\"y\":287.5361366622866,\"width\":160,\"height\":80,\"text\":\"Node 2-2\",\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"selected\":false,\"visible\":true,\"collapsed\":true,\"dragging\":false,\"children\":[],\"metadata\":{\"worldPosition\":{\"x\":567,\"y\":634.5558475689883},\"__relative\":true}},{\"id\":\"Node 2-1\",\"GUID\":\"child-2\",\"type\":\"node\",\"x\":20,\"y\":120,\"width\":180,\"height\":140,\"text\":\"Node 2-1\",\"style\":{\"fill\":\"#22384f\",\"stroke\":\"#5b7287\"},\"selected\":false,\"visible\":true,\"collapsed\":false,\"dragging\":false,\"children\":[{\"id\":\"Node 2-1-1\",\"GUID\":\"grandchild-2\",\"type\":\"component\",\"x\":22,\"y\":57.47174770039419,\"width\":120,\"height\":60,\"text\":\"Node 2-1-1\",\"style\":{\"fill\":\"#2d4f22\",\"stroke\":\"#5b8729\"},\"selected\":false,\"visible\":true,\"collapsed\":true,\"dragging\":false,\"children\":[],\"metadata\":{\"worldPosition\":{\"x\":587,\"y\":524.4914586070959},\"__relative\":true}}],\"metadata\":{\"worldPosition\":{\"x\":565,\"y\":467.0197109067017},\"__relative\":true}}],\"metadata\":{\"worldPosition\":{\"x\":545,\"y\":347.0197109067017},\"__relative\":true}}],\"edges\":[{\"id\":\"link-grandchild1-grandchild2\",\"from\":\"grandchild-1\",\"to\":\"grandchild-2\",\"label\":\"Link 11\",\"style\":{\"stroke\":\"#6ea8fe\",\"strokeWidth\":2,\"strokeDashArray\":null},\"source\":\"grandchild-1\",\"target\":\"grandchild-2\",\"type\":\"LINK\",\"GUID\":\"link-grandchild1-grandchild2\",\"fromGUID\":\"grandchild-1\",\"toGUID\":\"grandchild-2\",\"waypoints\":[{\"x\":209,\"y\":193.5072273324573},{\"x\":647,\"y\":193.5072273324573},{\"x\":647,\"y\":524.4914586070959}]}],\"originalEdges\":[{\"id\":\"link-grandchild1-grandchild2\",\"from\":\"grandchild-1\",\"to\":\"grandchild-2\",\"label\":\"Link 11\",\"style\":{\"stroke\":\"#6ea8fe\",\"strokeWidth\":2,\"strokeDashArray\":null},\"source\":\"grandchild-1\",\"target\":\"grandchild-2\",\"type\":\"LINK\",\"GUID\":\"link-grandchild1-grandchild2\",\"fromGUID\":\"grandchild-1\",\"toGUID\":\"grandchild-2\",\"waypoints\":[{\"x\":209,\"y\":193.5072273324573},{\"x\":647,\"y\":193.5072273324573},{\"x\":647,\"y\":524.4914586070959}]}],\"camera\":{\"x\":-404.11047267877035,\"y\":-130.37514443154558,\"zoom\":0.8136704107271113}}",
+        "renderer": "composable-containment-orthogonal",
+        "name": "Containment - Orthogonal",
+        "GUID": "ff144d84-d482-487d-b3bb-35359034ff03",
+        "layout_engine": "hierarchical",
+        "id": "containment-orthogonal-001",
+        "autoLayoutSettings": "{\"collapseBehavior\":\"full-size\",\"reflowBehavior\":\"static\"}",
+        "updatedAt": "2025-10-13T19:39:17.318000000+00:00"
+      }
+    },
+    {
+      "id": 27,
+      "labels": [
+        "Imported",
+        "QueryNode"
+      ],
+      "properties": {
+        "createdAt": "DateTime(BoltDateTime { seconds: BoltInteger { value: 1757715676 }, nanoseconds: BoltInteger { value: 941000000 }, tz_offset_seconds: BoltInteger { value: 0 } })",
+        "cypherQuery": "MATCH (n:Node) OPTIONAL MATCH (n)-[r]-(m:Node) RETURN n, r, m",
+        "name": "TestModularQuery",
+        "GUID": "3a18d264-1aab-451b-86ca-5ca8d8b5baa6",
+        "updatedAt": "DateTime(BoltDateTime { seconds: BoltInteger { value: 1757715676 }, nanoseconds: BoltInteger { value: 941000000 }, tz_offset_seconds: BoltInteger { value: 0 } })"
+      }
+    },
+    {
+      "id": 28,
+      "labels": [
+        "Imported",
+        "QueryNode"
+      ],
+      "properties": {
+        "cypherQuery": "MATCH (n:Node) OPTIONAL MATCH (n)-[r]-(m:Node) RETURN n, r, m",
+        "name": "Architecture Components Query",
+        "GUID": "af907edb-997e-4d90-bdb8-255d5a210116",
+        "id": "query-001"
+      }
+    },
+    {
+      "id": 8379,
+      "labels": [
+        "SetNode"
+      ],
+      "properties": {
+        "GUID": "5af5e2c5-0200-473b-b29d-1ffdf9c482b7",
+        "name": "Code Graph",
+        "id": "code-model-set"
+      }
+    },
+    {
+      "id": 8380,
+      "labels": [
+        "QueryNode"
+      ],
+      "properties": {
+        "cypherQuery": "MATCH (root:CodeElement {name: \"workspace\"}) WITH root.import_batch AS batch MATCH path = (root)-[:HAS_CHILD*0..]->(child) WHERE child.import_batch = batch RETURN root AS n, relationships(path) AS rels, child AS m",
+        "GUID": "a0456319-aa1d-4801-af6c-dc14dcb8730e",
+        "name": "Code Model Query",
+        "id": "code-model-query"
+      }
+    },
+    {
+      "id": 8381,
+      "labels": [
+        "ViewNode"
+      ],
+      "properties": {
+        "summary": "Explore the imported code model graph.",
+        "defaultCollapseLevel": 1,
+        "renderer": "composable-containment-orthogonal",
+        "GUID": "31f94e0b-836c-4296-b2a1-89badfe47e77",
+        "name": "Code Model",
+        "layout_engine": "hierarchical",
+        "detail": "Loads CodeElement nodes and relationships for the code model batch.",
+        "id": "code-model-view",
+        "autoLayoutSettings": "{\"collapseBehavior\":\"shrink\",\"reflowBehavior\":\"dynamic\"}"
+      }
+    },
+    {
+      "id": 10288,
+      "labels": [
+        "Imported",
+        "ViewNode"
+      ],
+      "properties": {
+        "createdAt": "2025-10-15T23:10:49.321000000+00:00",
+        "renderer": "runtime-containment-renderer",
+        "name": "Containment - Runtime Merge",
+        "GUID": "87a9ac07-5da9-42ab-80f2-0563837b592d",
+        "description": "Prototype: raw containment orthogonal runtime merge",
+        "layout_engine": "containment-runtime",
+        "id": "containment-orthogonal-runtime",
+        "autoLayoutSettings": "{\"collapseBehavior\":\"full-size\",\"reflowBehavior\":\"static\"}",
+        "updatedAt": "2025-10-15T23:10:49.321000000+00:00"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": 2,
+      "type": "HAS_QUERYNODE",
+      "source_id": 0,
+      "target_id": 1,
+      "properties": {
+        "toGUID": "67bab7c7-e44b-44b2-96c2-8654b35f3145",
+        "fromGUID": "adf16aa2-4501-4b45-b9bc-a21631d4851f",
+        "GUID": "38ac12a1-829c-4871-ae3e-f244e9fe2c3d"
+      }
+    },
+    {
+      "id": 1,
+      "type": "HAS_VIEWNODE",
+      "source_id": 0,
+      "target_id": 2,
+      "properties": {
+        "toGUID": "878cafb6-1341-4b8c-8a38-7915383c9427",
+        "fromGUID": "adf16aa2-4501-4b45-b9bc-a21631d4851f",
+        "GUID": "50bd773a-f403-4899-9843-52e75c84c1a1"
+      }
+    },
+    {
+      "id": 0,
+      "type": "CONTAINS",
+      "source_id": 0,
+      "target_id": 2,
+      "properties": {
+        "toGUID": "878cafb6-1341-4b8c-8a38-7915383c9427",
+        "fromGUID": "adf16aa2-4501-4b45-b9bc-a21631d4851f",
+        "GUID": "4f3436a4-4c21-453c-a7ba-5154d54a140a"
+      }
+    },
+    {
+      "id": 3,
+      "type": "CONTAINS",
+      "source_id": 4,
+      "target_id": 12,
+      "properties": {
+        "toGUID": "d09df8f0-2dc0-4f25-9f61-73fc919ec122",
+        "id": "rel_25",
+        "fromGUID": "36bcc622-c4cf-4b87-a772-3ae5dca63ad8",
+        "GUID": "b61a6fb1-7e74-4dbd-86b1-6574e3bea06a",
+        "endNodeId": "d09df8f0-2dc0-4f25-9f61-73fc919ec122",
+        "startNodeId": "36bcc622-c4cf-4b87-a772-3ae5dca63ad8"
+      }
+    },
+    {
+      "id": 5,
+      "type": "CONTAINS",
+      "source_id": 5,
+      "target_id": 6,
+      "properties": {
+        "toGUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+        "id": "rel_19",
+        "fromGUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+        "GUID": "d4f77e58-2013-42bb-82ba-edcf1cd1f70e",
+        "endNodeId": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+        "startNodeId": "35a2bcf6-140a-4b39-b506-c36f835e292a"
+      }
+    },
+    {
+      "id": 4,
+      "type": "CONTAINS",
+      "source_id": 5,
+      "target_id": 7,
+      "properties": {
+        "toGUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+        "id": "rel_20",
+        "fromGUID": "35a2bcf6-140a-4b39-b506-c36f835e292a",
+        "GUID": "6007d0e6-f2a5-4c01-9fe7-b0a1281a89ce",
+        "endNodeId": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+        "startNodeId": "35a2bcf6-140a-4b39-b506-c36f835e292a"
+      }
+    },
+    {
+      "id": 7,
+      "type": "CONTAINS",
+      "source_id": 6,
+      "target_id": 8,
+      "properties": {
+        "toGUID": "ff9377d6-4d13-478d-b3c4-7e626706a7c2",
+        "id": "rel_21",
+        "fromGUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+        "GUID": "fea4f764-943b-42f8-8b42-624b28b96ddb",
+        "endNodeId": "ff9377d6-4d13-478d-b3c4-7e626706a7c2",
+        "startNodeId": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65"
+      }
+    },
+    {
+      "id": 6,
+      "type": "CONTAINS",
+      "source_id": 6,
+      "target_id": 9,
+      "properties": {
+        "toGUID": "8d2e9392-ac29-4b5d-98c9-81be5de3d801",
+        "id": "rel_22",
+        "fromGUID": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65",
+        "GUID": "a31f70d6-7d7b-431d-a7a5-89dd4fecca97",
+        "endNodeId": "8d2e9392-ac29-4b5d-98c9-81be5de3d801",
+        "startNodeId": "c47b6356-2c6c-4a6a-a1f7-a8db3ab3ee65"
+      }
+    },
+    {
+      "id": 9,
+      "type": "CONTAINS",
+      "source_id": 7,
+      "target_id": 10,
+      "properties": {
+        "toGUID": "84b3acb1-45c0-4c19-8052-75288cff470f",
+        "id": "rel_23",
+        "fromGUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+        "GUID": "165a36ad-5cda-480a-9ea4-580f1544e526",
+        "endNodeId": "84b3acb1-45c0-4c19-8052-75288cff470f",
+        "startNodeId": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb"
+      }
+    },
+    {
+      "id": 8,
+      "type": "CONTAINS",
+      "source_id": 7,
+      "target_id": 11,
+      "properties": {
+        "toGUID": "23aa2270-7a09-48a2-8c35-c1a231b86a34",
+        "id": "rel_24",
+        "fromGUID": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb",
+        "GUID": "81677d75-87bb-49c8-9e92-8b596ad162e0",
+        "endNodeId": "23aa2270-7a09-48a2-8c35-c1a231b86a34",
+        "startNodeId": "e4b4fcec-ff7c-4f67-953f-264f0cee51eb"
+      }
+    },
+    {
+      "id": 11,
+      "type": "CONTAINS",
+      "source_id": 13,
+      "target_id": 14,
+      "properties": {
+        "toGUID": "parent-1",
+        "fromGUID": "test-modular-root",
+        "GUID": "contains-root-parent1"
+      }
+    },
+    {
+      "id": 10,
+      "type": "CONTAINS",
+      "source_id": 13,
+      "target_id": 15,
+      "properties": {
+        "toGUID": "parent-2",
+        "fromGUID": "test-modular-root",
+        "GUID": "contains-root-parent2"
+      }
+    },
+    {
+      "id": 12,
+      "type": "CONTAINS",
+      "source_id": 14,
+      "target_id": 16,
+      "properties": {
+        "toGUID": "child-1",
+        "fromGUID": "parent-1",
+        "GUID": "contains-parent1-child1"
+      }
+    },
+    {
+      "id": 14,
+      "type": "CONTAINS",
+      "source_id": 15,
+      "target_id": 17,
+      "properties": {
+        "toGUID": "child-2",
+        "fromGUID": "parent-2",
+        "GUID": "contains-parent2-child2"
+      }
+    },
+    {
+      "id": 13,
+      "type": "CONTAINS",
+      "source_id": 15,
+      "target_id": 20,
+      "properties": {
+        "toGUID": "child-3",
+        "fromGUID": "parent-2",
+        "GUID": "contains-parent2-child3"
+      }
+    },
+    {
+      "id": 15,
+      "type": "CONTAINS",
+      "source_id": 16,
+      "target_id": 18,
+      "properties": {
+        "toGUID": "grandchild-1",
+        "fromGUID": "child-1",
+        "GUID": "contains-child1-grandchild1"
+      }
+    },
+    {
+      "id": 16,
+      "type": "CONTAINS",
+      "source_id": 17,
+      "target_id": 19,
+      "properties": {
+        "toGUID": "grandchild-2",
+        "fromGUID": "child-2",
+        "GUID": "contains-child2-grandchild2"
+      }
+    },
+    {
+      "id": 17,
+      "type": "LINK",
+      "source_id": 18,
+      "target_id": 19,
+      "properties": {
+        "toGUID": "grandchild-2",
+        "fromGUID": "grandchild-1",
+        "GUID": "link-grandchild1-grandchild2",
+        "label": "Link 11",
+        "type": "LINK"
+      }
+    },
+    {
+      "id": 13943,
+      "type": "HAS_VIEWNODE",
+      "source_id": 23,
+      "target_id": 10288,
+      "properties": {}
+    },
+    {
+      "id": 28,
+      "type": "HAS_VIEWNODE",
+      "source_id": 23,
+      "target_id": 25,
+      "properties": {
+        "toGUID": "e65aca95-cc3c-4af0-acf4-c45e4bb29ce2",
+        "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+        "GUID": "904d68b0-b22f-4979-aca1-0a6b88a5a681"
+      }
+    },
+    {
+      "id": 27,
+      "type": "HAS_QUERYNODE",
+      "source_id": 23,
+      "target_id": 21,
+      "properties": {
+        "toGUID": "09b08571-1f6e-4792-ad87-f18401999e54",
+        "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+        "GUID": "fad3a0b7-5335-44aa-8e1c-f1215fb737b6"
+      }
+    },
+    {
+      "id": 26,
+      "type": "HAS_VIEWNODE",
+      "source_id": 23,
+      "target_id": 3,
+      "properties": {
+        "toGUID": "ac4c95e5-206b-47a9-a9fd-71ab11f437fa",
+        "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+        "GUID": "5e9799f2-2254-4e0e-afc0-451132d2ec2a"
+      }
+    },
+    {
+      "id": 25,
+      "type": "HAS_QUERYNODE",
+      "source_id": 23,
+      "target_id": 24,
+      "properties": {
+        "toGUID": "6df5d2a2-8068-4dc3-857a-470aef528be6",
+        "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+        "GUID": "357a056e-e974-4bb0-8128-c1ce5b8ec45b"
+      }
+    },
+    {
+      "id": 24,
+      "type": "HAS_VIEWNODE",
+      "source_id": 23,
+      "target_id": 26,
+      "properties": {
+        "toGUID": "ff144d84-d482-487d-b3bb-35359034ff03",
+        "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+        "GUID": "1f7d5871-e696-4c1f-a9cd-60aea97c89e1"
+      }
+    },
+    {
+      "id": 23,
+      "type": "HAS_VIEWNODE",
+      "source_id": 23,
+      "target_id": 25,
+      "properties": {
+        "toGUID": "e65aca95-cc3c-4af0-acf4-c45e4bb29ce2",
+        "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+        "GUID": "46c49b37-3db1-446a-9d10-de7418060dc2"
+      }
+    },
+    {
+      "id": 22,
+      "type": "HAS_QUERYNODE",
+      "source_id": 23,
+      "target_id": 27,
+      "properties": {
+        "toGUID": "3a18d264-1aab-451b-86ca-5ca8d8b5baa6",
+        "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+        "GUID": "4f34f4b3-75f0-423a-ae38-2e2d8810a786"
+      }
+    },
+    {
+      "id": 21,
+      "type": "HAS_QUERYNODE",
+      "source_id": 23,
+      "target_id": 21,
+      "properties": {
+        "toGUID": "09b08571-1f6e-4792-ad87-f18401999e54",
+        "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+        "GUID": "d0311f91-fee1-4e81-91da-95282d14643a"
+      }
+    },
+    {
+      "id": 20,
+      "type": "HAS_VIEWNODE",
+      "source_id": 23,
+      "target_id": 3,
+      "properties": {
+        "toGUID": "ac4c95e5-206b-47a9-a9fd-71ab11f437fa",
+        "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+        "GUID": "aad810d9-82f1-4227-b4aa-0fe659e0ae4d"
+      }
+    },
+    {
+      "id": 19,
+      "type": "HAS_QUERYNODE",
+      "source_id": 23,
+      "target_id": 24,
+      "properties": {
+        "toGUID": "6df5d2a2-8068-4dc3-857a-470aef528be6",
+        "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+        "GUID": "24921268-8ab5-4c35-8f63-aae4edc3f491"
+      }
+    },
+    {
+      "id": 18,
+      "type": "HAS_QUERYNODE",
+      "source_id": 23,
+      "target_id": 28,
+      "properties": {
+        "toGUID": "af907edb-997e-4d90-bdb8-255d5a210116",
+        "fromGUID": "ded4bb66-3bca-4231-99bc-65276ca5c927",
+        "GUID": "a3e630bd-dce6-4ca7-acf2-e012e98c3649"
+      }
+    },
+    {
+      "id": 31,
+      "type": "HAS_QUERY",
+      "source_id": 25,
+      "target_id": 24,
+      "properties": {
+        "toGUID": "6df5d2a2-8068-4dc3-857a-470aef528be6",
+        "fromGUID": "e65aca95-cc3c-4af0-acf4-c45e4bb29ce2",
+        "GUID": "8f0a6beb-8353-4d29-880d-e40f7de68f81"
+      }
+    },
+    {
+      "id": 30,
+      "type": "HAS_QUERY",
+      "source_id": 25,
+      "target_id": 24,
+      "properties": {
+        "toGUID": "6df5d2a2-8068-4dc3-857a-470aef528be6",
+        "fromGUID": "e65aca95-cc3c-4af0-acf4-c45e4bb29ce2",
+        "GUID": "8a07e445-abfb-4a88-9cf6-319d5b15b16c"
+      }
+    },
+    {
+      "id": 29,
+      "type": "HAS_QUERY",
+      "source_id": 25,
+      "target_id": 28,
+      "properties": {
+        "toGUID": "af907edb-997e-4d90-bdb8-255d5a210116",
+        "fromGUID": "e65aca95-cc3c-4af0-acf4-c45e4bb29ce2",
+        "GUID": "f54091aa-2ee3-48dc-b96e-1cc7fdcf671e"
+      }
+    },
+    {
+      "id": 33,
+      "type": "HAS_QUERYNODE",
+      "source_id": 8379,
+      "target_id": 8380,
+      "properties": {
+        "GUID": "7e4cae0c-4474-4981-a195-27e34780f719"
+      }
+    },
+    {
+      "id": 32,
+      "type": "HAS_VIEWNODE",
+      "source_id": 8379,
+      "target_id": 8381,
+      "properties": {
+        "GUID": "e90dabf6-d896-4782-82e5-bb8eb0049073"
+      }
+    }
+  ]
+}
