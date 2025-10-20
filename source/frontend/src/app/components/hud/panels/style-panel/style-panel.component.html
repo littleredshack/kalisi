@@ -1,0 +1,124 @@
+<div class="style-section" *ngIf="nodeSelection() && nodeSelection()!.kind === 'node'; else noSelection">
+  <!-- Node Info Header -->
+  <div class="node-info">
+    <span class="node-label">{{ nodeSelection()!.label }}</span>
+    <span class="node-type">{{ nodeSelection()!.type }}</span>
+  </div>
+
+  <!-- Scope Selector -->
+  <div class="form-row">
+    <label>APPLY TO</label>
+    <select [ngModel]="currentScope()" (ngModelChange)="onScopeChange($event)">
+      <option value="node">This node only</option>
+      <option value="type">All nodes of type {{ nodeSelection()!.type }}</option>
+    </select>
+  </div>
+
+  <!-- Fill Color -->
+  <div class="style-row">
+    <span class="style-label">Fill</span>
+    <div class="color-control">
+      <p-colorPicker
+        [ngModel]="fillColor()"
+        (ngModelChange)="onFillChange($event)"
+        format="hex"
+        [appendTo]="'body'">
+      </p-colorPicker>
+      <input type="text"
+             class="hex-input"
+             [ngModel]="fillColor()"
+             (ngModelChange)="onFillInputChange($event)"
+             pattern="^#[0-9A-Fa-f]{6}$"
+             placeholder="#1f2937">
+    </div>
+    <button class="reset-btn" (click)="resetFill()" title="Reset to default">
+      <i class="pi pi-refresh"></i>
+    </button>
+  </div>
+
+  <!-- Stroke Color -->
+  <div class="style-row">
+    <span class="style-label">Stroke</span>
+    <div class="color-control">
+      <p-colorPicker
+        [ngModel]="strokeColor()"
+        (ngModelChange)="onStrokeChange($event)"
+        format="hex"
+        [appendTo]="'body'">
+      </p-colorPicker>
+      <input type="text"
+             class="hex-input"
+             [ngModel]="strokeColor()"
+             (ngModelChange)="onStrokeInputChange($event)"
+             pattern="^#[0-9A-Fa-f]{6}$"
+             placeholder="#4b5563">
+    </div>
+    <button class="reset-btn" (click)="resetStroke()" title="Reset to default">
+      <i class="pi pi-refresh"></i>
+    </button>
+  </div>
+
+  <!-- Shape Selector -->
+  <div class="style-row">
+    <span class="style-label">Shape</span>
+    <select [ngModel]="shape()" (ngModelChange)="onShapeChange($event)">
+      <option value="rounded">Rounded Rectangle</option>
+      <option value="rectangle">Rectangle</option>
+      <option value="circle">Circle</option>
+      <option value="triangle">Triangle</option>
+    </select>
+    <button class="reset-btn" (click)="resetShape()" title="Reset to default">
+      <i class="pi pi-refresh"></i>
+    </button>
+  </div>
+
+  <!-- Corner Radius (conditional) -->
+  <div class="style-row" *ngIf="shape() === 'rounded'">
+    <span class="style-label">Radius</span>
+    <div class="range-control">
+      <input type="range"
+             min="0"
+             max="100"
+             [value]="cornerRadius()"
+             (input)="onCornerRadiusChange($any($event.target).value)">
+      <span class="range-value">{{ cornerRadius() }}</span>
+    </div>
+    <button class="reset-btn" (click)="resetCornerRadius()" title="Reset to default">
+      <i class="pi pi-refresh"></i>
+    </button>
+  </div>
+
+  <!-- Label Visibility -->
+  <div class="style-row">
+    <span class="style-label">Label</span>
+    <label class="toggle">
+      <input type="checkbox"
+             [checked]="labelVisible()"
+             (change)="onLabelToggle($any($event.target).checked)">
+      <span>Visible</span>
+    </label>
+    <button class="reset-btn" (click)="resetLabelVisibility()" title="Reset to default">
+      <i class="pi pi-refresh"></i>
+    </button>
+  </div>
+
+  <!-- Icon -->
+  <div class="style-row">
+    <span class="style-label">Icon</span>
+    <input type="text"
+           class="icon-input"
+           [ngModel]="icon()"
+           (blur)="onIconChange($any($event.target).value)"
+           placeholder="Emoji or glyph">
+    <button class="reset-btn" (click)="resetIcon()" title="Reset to default">
+      <i class="pi pi-refresh"></i>
+    </button>
+  </div>
+</div>
+
+<ng-template #noSelection>
+  <div class="empty-state">
+    <i class="pi pi-info-circle"></i>
+    <p>Select a node on the canvas to edit its style.</p>
+  </div>
+</ng-template>
