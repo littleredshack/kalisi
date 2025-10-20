@@ -54,6 +54,18 @@ export class StylePanelComponent extends HudPanelBaseComponent implements OnInit
 
     // Initialize nodeSelection signal after canvasControl is available
     this.nodeSelection = toSignal(this.canvasControl.selection$);
+
+    // React to selection changes - must be in constructor for injection context
+    effect(() => {
+      const selection = this.nodeSelection();
+      if (selection && selection.kind === 'node') {
+        this.syncFromSelection(selection);
+        // Auto-show panel when node selected
+        if (!this.hudPanel.isPanelVisible(this.panelId)) {
+          this.hudPanel.showPanel(this.panelId);
+        }
+      }
+    });
   }
 
   override ngOnInit(): void {
@@ -70,18 +82,6 @@ export class StylePanelComponent extends HudPanelBaseComponent implements OnInit
       defaultVisible: false
     });
     console.log('[StylePanel] Panel registered');
-
-    // React to selection changes
-    effect(() => {
-      const selection = this.nodeSelection();
-      if (selection && selection.kind === 'node') {
-        this.syncFromSelection(selection);
-        // Auto-show panel when node selected
-        if (!this.hudPanel.isPanelVisible(this.panelId)) {
-          this.hudPanel.showPanel(this.panelId);
-        }
-      }
-    });
   }
 
   private syncFromSelection(selection: NodeSelectionSnapshot): void {

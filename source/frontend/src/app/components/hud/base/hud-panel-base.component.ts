@@ -38,10 +38,21 @@ export abstract class HudPanelBaseComponent implements OnInit, OnDestroy {
   constructor(
     protected elementRef: ElementRef,
     protected hudPanel: HudPanelService
-  ) {}
+  ) {
+    // Watch for visibility changes - must be in constructor for injection context
+    effect(() => {
+      const currentState = this.hudPanel.getPanelState(this.panelId);
+      if (currentState) {
+        this.isVisible.set(currentState.visible);
+        this.position.set(currentState.position);
+        this.panelOpacity.set(currentState.opacity);
+        this.zIndex.set(currentState.zIndex);
+      }
+    });
+  }
 
   ngOnInit(): void {
-    // Load saved state
+    // Load initial state
     const state = this.hudPanel.getPanelState(this.panelId);
     if (state) {
       this.position.set(state.position);
@@ -49,15 +60,6 @@ export abstract class HudPanelBaseComponent implements OnInit, OnDestroy {
       this.zIndex.set(state.zIndex);
       this.isVisible.set(state.visible);
     }
-
-    // Watch for visibility changes
-    // We'll use effect to watch the panel state changes
-    effect(() => {
-      const currentState = this.hudPanel.getPanelState(this.panelId);
-      if (currentState) {
-        this.isVisible.set(currentState.visible);
-      }
-    });
   }
 
   ngOnDestroy(): void {
