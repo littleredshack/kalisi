@@ -8,6 +8,20 @@ Then tail -f
 
  # IMPLEMENTATION STATUS (2025-10-19)
 
+  curl -sk https://localhost:8443/v0/cypher/unified \
+    -X POST \
+    -H "Content-Type: application/json" \
+    -d '{
+      "query": "MATCH (n {GUID: \"parent-1\"}) SET n.name = \"Your New Name\" RETURN n",
+      "view_node_id": "containment-orthogonal-runtime"
+    }'
+
+  The node name will update instantly in the browser! 🎉
+
+  Committed as a136302 and pushed to feature/layout-architecture.
+
+
+
 Here's the complete flow from database update to UI:
 
   1. Neo4j Query Execution

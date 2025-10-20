@@ -1669,16 +1669,28 @@ export class LandingShellComponent implements OnInit, OnDestroy {
 
   @HostListener('window:keydown', ['$event'])
   handleKeyboardShortcut(event: KeyboardEvent): void {
+    console.log('[HUD Shortcuts] Key pressed:', {
+      key: event.key,
+      altKey: event.altKey,
+      metaKey: event.metaKey,
+      ctrlKey: event.ctrlKey
+    });
+
     if (event.altKey) {
+      console.log('[HUD Shortcuts] Alt key detected with:', event.key);
       switch (event.key.toLowerCase()) {
         case 's':
+          console.log('[HUD Shortcuts] Toggling style panel');
           event.preventDefault();
           this.hudPanelService.togglePanel('style-panel');
+          console.log('[HUD Shortcuts] Style panel visible:', this.hudPanelService.isPanelVisible('style-panel'));
           break;
         case 'h':
+          console.log('[HUD Shortcuts] Hiding all panels');
           event.preventDefault();
-          // Hide all HUD panels
-          this.hudPanelService.visiblePanels().forEach(panel => {
+          const visiblePanels = this.hudPanelService.visiblePanels();
+          console.log('[HUD Shortcuts] Visible panels before hide:', visiblePanels.length);
+          visiblePanels.forEach(panel => {
             this.hudPanelService.hidePanel(panel.id);
           });
           break;

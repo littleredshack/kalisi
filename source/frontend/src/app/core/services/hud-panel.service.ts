@@ -19,11 +19,16 @@ export class HudPanelService {
   }
 
   registerPanel(id: string, metadata: PanelMetadata): void {
+    console.log('[HudPanelService] Registering panel:', id, metadata);
     const existing = this._panels().get(id);
-    if (existing) return;
+    if (existing) {
+      console.log('[HudPanelService] Panel already registered:', id);
+      return;
+    }
 
     // Load from settings or use defaults
     const saved = this.hudSettings.getPanelSettings(id);
+    console.log('[HudPanelService] Saved settings for panel:', saved);
     const state: PanelState = {
       id,
       visible: saved?.visible ?? metadata.defaultVisible,
@@ -32,10 +37,12 @@ export class HudPanelService {
       zIndex: saved?.zIndex ?? this._nextZIndex++
     };
 
+    console.log('[HudPanelService] Panel state created:', state);
     this._panels.update(panels => {
       panels.set(id, state);
       return new Map(panels);
     });
+    console.log('[HudPanelService] Panel registered successfully, total panels:', this._panels().size);
   }
 
   unregisterPanel(id: string): void {
@@ -46,22 +53,32 @@ export class HudPanelService {
   }
 
   showPanel(id: string): void {
+    console.log('[HudPanelService] showPanel called for:', id);
     this._panels.update(panels => {
       const panel = panels.get(id);
+      console.log('[HudPanelService] Panel state before show:', panel);
       if (panel) {
         panels.set(id, { ...panel, visible: true });
         this.hudSettings.savePanelVisibility(id, true);
+        console.log('[HudPanelService] Panel set to visible');
+      } else {
+        console.warn('[HudPanelService] Panel not found:', id);
       }
       return new Map(panels);
     });
   }
 
   hidePanel(id: string): void {
+    console.log('[HudPanelService] hidePanel called for:', id);
     this._panels.update(panels => {
       const panel = panels.get(id);
+      console.log('[HudPanelService] Panel state before hide:', panel);
       if (panel) {
         panels.set(id, { ...panel, visible: false });
         this.hudSettings.savePanelVisibility(id, false);
+        console.log('[HudPanelService] Panel set to hidden');
+      } else {
+        console.warn('[HudPanelService] Panel not found:', id);
       }
       return new Map(panels);
     });
@@ -69,9 +86,12 @@ export class HudPanelService {
 
   togglePanel(id: string): void {
     const panel = this._panels().get(id);
+    console.log('[HudPanelService] Toggle panel:', id, 'current state:', panel);
     if (panel?.visible) {
+      console.log('[HudPanelService] Panel is visible, hiding');
       this.hidePanel(id);
     } else {
+      console.log('[HudPanelService] Panel is hidden, showing');
       this.showPanel(id);
     }
   }
