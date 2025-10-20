@@ -12,7 +12,10 @@ import {
   HierarchicalNode,
   Edge,
   CanvasData,
-  Camera
+  Camera,
+  NodeSelectionSnapshot,
+  NodeStyleSnapshot,
+  NodeStyleOverrides
 } from '../../shared/canvas/types';
 import { SelectEvent, DragStartEvent, DragUpdateEvent, DragStopEvent, HitTestResizeEvent, DoubleClickEvent } from '../../shared/canvas/interaction-events';
 import { ComponentFactory } from '../../shared/canvas/component-factory';
@@ -28,17 +31,22 @@ import { CanvasLayoutRuntime } from '../../shared/canvas/layout-runtime';
 import { layoutGraphToHierarchical } from '../../shared/layouts/core/layout-graph-utils';
 import { ContainmentRuntimeLayoutEngine } from '../../shared/layouts/engines/containment-runtime-layout.engine';
 import { LayoutOptions, RawDataInput } from '../../shared/layouts/core/layout-contract';
+import { HudPanelService } from '../../core/services/hud-panel.service';
+import { StylePanelComponent } from '../hud/panels/style-panel/style-panel.component';
 
 @Component({
   selector: 'app-runtime-canvas',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, StylePanelComponent],
   template: `
     <div class="canvas-interface">
       <canvas #canvas class="full-canvas"
               (mousedown)="onMouseDown($event)"
               (mousemove)="onMouseMove($event)"
               (mouseup)="onMouseUp($event)"></canvas>
+
+      <!-- HUD Panels -->
+      <app-style-panel *ngIf="hudPanelService.isPanelVisible('style-panel')"></app-style-panel>
     </div>
   `,
   styles: [`
@@ -103,7 +111,8 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     private canvasViewStateService: CanvasViewStateService,
     private canvasHistoryService: CanvasHistoryService,
     private canvasEventHubService: CanvasEventHubService,
-    private neo4jRealtimeService: Neo4jRealtimeService
+    private neo4jRealtimeService: Neo4jRealtimeService,
+    public readonly hudPanelService: HudPanelService
   ) {
     // Engine-only mode - no reactive effects
     this.availableLenses = GraphLensRegistry.list();
@@ -615,6 +624,12 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
         this.canvasHistoryService.record(this.canvasId, data);
       }
       this.canvasControlService.notifyStateChange();
+    });
+
+    // Setup selection change callback for HUD panels
+    this.engine.setOnSelectionChanged((node) => {
+      const snapshot = node ? this.convertNodeToSnapshot(node) : null;
+      this.canvasControlService.setSelectionSnapshot(snapshot);
     });
 
     this.canvasControlService.notifyStateChange();
@@ -1209,6 +1224,39 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       return;
     }
     this.currentLensId = lensId;
+  }
+
+  private convertNodeToSnapshot(node: HierarchicalNode): NodeSelectionSnapshot {
+    const styleOverrides = node.metadata?.['styleOverrides'] as NodeStyleOverrides | undefined;
+
+    const style: NodeStyleSnapshot = {
+      fill: node.style.fill,
+      stroke: node.style.stroke,
+      icon: node.style.icon,
+      shape: (node as any).shape ?? 'rounded',
+      cornerRadius: (node as any).cornerRadius ?? 12,
+      labelVisible: (node as any).labelVisible ?? true
+    };
+
+    const overrides: NodeStyleOverrides = {
+      fill: styleOverrides?.fill,
+      stroke: styleOverrides?.stroke,
+      icon: styleOverrides?.icon,
+      shape: styleOverrides?.shape,
+      cornerRadius: styleOverrides?.cornerRadius,
+      labelVisible: styleOverrides?.labelVisible,
+      badges: styleOverrides?.badges
+    };
+
+    return {
+      kind: 'node',
+      id: node.id,
+      guid: node.GUID,
+      label: node.text,
+      type: node.type,
+      style,
+      overrides
+    };
   }
 
   private refreshHistoryState(): void {

@@ -107,7 +107,7 @@
     <span class="style-label">Icon</span>
     <input type="text"
            class="icon-input"
-           [ngModel]="icon()"
+           [ngModel]="nodeIcon()"
            (blur)="onIconChange($any($event.target).value)"
            placeholder="Emoji or glyph">
     <button class="reset-btn" (click)="resetIcon()" title="Reset to default">

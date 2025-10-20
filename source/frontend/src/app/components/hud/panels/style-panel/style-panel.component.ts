@@ -3,6 +3,7 @@ import {
   OnInit,
   OnDestroy,
   signal,
+  Signal,
   effect,
   ChangeDetectionStrategy,
   ElementRef
@@ -32,13 +33,13 @@ import {
 })
 export class StylePanelComponent extends HudPanelBaseComponent implements OnInit, OnDestroy {
   // Signals for reactive state
-  protected readonly nodeSelection = toSignal(this.canvasControl.selection$);
+  protected readonly nodeSelection: Signal<NodeSelectionSnapshot | null | undefined>;
   protected readonly fillColor = signal<string>('#1f2937');
   protected readonly strokeColor = signal<string>('#4b5563');
   protected readonly shape = signal<NodeShape>('rounded');
   protected readonly cornerRadius = signal<number>(12);
   protected readonly labelVisible = signal<boolean>(true);
-  protected readonly icon = signal<string>('');
+  protected readonly nodeIcon = signal<string>('');
   protected readonly currentScope = signal<StyleApplicationScope>('node');
 
   constructor(
@@ -50,6 +51,9 @@ export class StylePanelComponent extends HudPanelBaseComponent implements OnInit
     this.panelId = 'style-panel';
     this.title = 'Style';
     this.icon = 'pi-palette';
+
+    // Initialize nodeSelection signal after canvasControl is available
+    this.nodeSelection = toSignal(this.canvasControl.selection$);
   }
 
   override ngOnInit(): void {
@@ -86,7 +90,7 @@ export class StylePanelComponent extends HudPanelBaseComponent implements OnInit
     this.shape.set(overrides.shape ?? base.shape);
     this.cornerRadius.set(overrides.cornerRadius ?? base.cornerRadius);
     this.labelVisible.set(overrides.labelVisible ?? base.labelVisible);
-    this.icon.set(overrides.icon ?? base.icon ?? '');
+    this.nodeIcon.set(overrides.icon ?? base.icon ?? '');
   }
 
   // Fill color handlers
@@ -165,7 +169,7 @@ export class StylePanelComponent extends HudPanelBaseComponent implements OnInit
   // Icon handlers
   onIconChange(icon: string): void {
     const trimmed = icon?.trim() ?? '';
-    this.icon.set(trimmed);
+    this.nodeIcon.set(trimmed);
     this.applyOverrides({ icon: trimmed.length > 0 ? trimmed : undefined });
   }
 
