@@ -1,0 +1,134 @@
+.hud-panel {
+  position: fixed;
+  z-index: 100;
+  pointer-events: auto;
+  min-width: 280px;
+  max-width: 400px;
+
+  // Military HUD styling
+  background: rgba(10, 15, 20, var(--panel-opacity, 0.9));
+  border: 1px solid rgba(0, 255, 255, 0.6);
+  box-shadow:
+    0 0 20px rgba(0, 255, 255, 0.3),
+    inset 0 0 20px rgba(0, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border-radius: 8px;
+
+  // Smooth transitions
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  will-change: transform, opacity;
+
+  &.dragging {
+    transition: none;
+    cursor: grabbing;
+  }
+
+  // Corner bracket accents
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(0, 255, 255, 0.8);
+  }
+
+  &::before {
+    top: -1px;
+    left: -1px;
+    border-right: none;
+    border-bottom: none;
+  }
+
+  &::after {
+    bottom: -1px;
+    right: -1px;
+    border-left: none;
+    border-top: none;
+  }
+}
+
+// Panel Header
+.hud-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: rgba(0, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(0, 255, 255, 0.3);
+  cursor: move;
+  user-select: none;
+
+  .header-icon {
+    color: rgba(0, 255, 255, 0.9);
+    font-size: 1.1rem;
+  }
+
+  .panel-title {
+    flex: 1;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: rgba(0, 255, 255, 0.95);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .close-btn {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0.25rem;
+    transition: color 0.2s ease;
+
+    &:hover {
+      color: rgba(0, 255, 255, 0.9);
+    }
+  }
+
+  &.dragging {
+    cursor: grabbing;
+  }
+}
+
+// Panel Content
+.hud-panel-content {
+  padding: 1rem;
+  overflow-y: auto;
+  max-height: 70vh;
+
+  // Custom scrollbar
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: rgba(0, 255, 255, 0.05);
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(0, 255, 255, 0.3);
+    border-radius: 4px;
+  }
+}
+
+// Panel Footer
+.hud-panel-footer {
+  padding: 0.75rem 1rem;
+  background: rgba(0, 255, 255, 0.05);
+  border-top: 1px solid rgba(0, 255, 255, 0.2);
+
+  label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 0.5rem;
+  }
+
+  input[type="range"] {
+    width: 100%;
+    accent-color: rgba(0, 255, 255, 0.9);
+  }
+}
