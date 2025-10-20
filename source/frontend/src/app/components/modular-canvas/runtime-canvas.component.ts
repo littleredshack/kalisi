@@ -45,8 +45,8 @@ import { StylePanelComponent } from '../hud/panels/style-panel/style-panel.compo
               (mousemove)="onMouseMove($event)"
               (mouseup)="onMouseUp($event)"></canvas>
 
-      <!-- HUD Panels -->
-      <app-style-panel *ngIf="hudPanelService.isPanelVisible('style-panel')"></app-style-panel>
+      <!-- HUD Panels - Always rendered, visibility controlled by panel itself -->
+      <app-style-panel></app-style-panel>
     </div>
   `,
   styles: [`

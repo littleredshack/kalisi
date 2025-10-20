@@ -1,4 +1,4 @@
-<div class="hud-panel"
+<div *ngIf="isVisible()" class="hud-panel"
      [style.opacity]="panelOpacity()"
      [style.left.px]="position().x"
      [style.top.px]="position().y"

@@ -5,6 +5,7 @@ import {
   OnInit,
   OnDestroy,
   signal,
+  effect,
   ChangeDetectionStrategy,
   Input
 } from '@angular/core';
@@ -29,6 +30,7 @@ export abstract class HudPanelBaseComponent implements OnInit, OnDestroy {
   protected readonly panelOpacity = signal(0.9);
   protected readonly zIndex = signal(100);
   protected readonly isDragging = signal(false);
+  protected readonly isVisible = signal(false);
 
   private dragOffset = { x: 0, y: 0 };
   private saveDebounceTimer: any;
@@ -45,7 +47,17 @@ export abstract class HudPanelBaseComponent implements OnInit, OnDestroy {
       this.position.set(state.position);
       this.panelOpacity.set(state.opacity);
       this.zIndex.set(state.zIndex);
+      this.isVisible.set(state.visible);
     }
+
+    // Watch for visibility changes
+    // We'll use effect to watch the panel state changes
+    effect(() => {
+      const currentState = this.hudPanel.getPanelState(this.panelId);
+      if (currentState) {
+        this.isVisible.set(currentState.visible);
+      }
+    });
   }
 
   ngOnDestroy(): void {
