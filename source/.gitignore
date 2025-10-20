@@ -90,7 +90,7 @@ web_modules/
 .yarn-integrity
 
 # dotenv environment variable files
-.env
+# .env  # Now tracked in git for deployment convenience
 .env.local
 
 # parcel-bundler cache (https://parceljs.org/)
