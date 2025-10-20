@@ -32,7 +32,6 @@ import { SettingsComponent } from './settings/settings.component';
 import { TreeTableComponent } from './shared/tree-table/tree-table.component';
 import { ViewPresetRegistry, ViewPresetDescriptor } from './shared/graph/view-presets';
 import { ResolvedViewPreset } from './shared/canvas/presets/preset-manager';
-import { HudPanelService } from './core/services/hud-panel.service';
 
 // Library Item Configuration
 interface LibraryItem {
@@ -1030,8 +1029,7 @@ export class LandingShellComponent implements OnInit, OnDestroy {
     private viewRegistry: ViewRegistryService,
     private viewStateService: ViewSpecificStateService,
     private viewNodeState: ViewNodeStateService,
-    private themeService: ThemeService,
-    private hudPanelService: HudPanelService
+    private themeService: ThemeService
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -1676,39 +1674,6 @@ export class LandingShellComponent implements OnInit, OnDestroy {
     // Add last section
     if (currentSection) {
       this.missionContent.sections.push(currentSection);
-    }
-  }
-
-  @HostListener('window:keydown', ['$event'])
-  handleKeyboardShortcut(event: KeyboardEvent): void {
-    console.log('[HUD Shortcuts] Key pressed:', {
-      key: event.key,
-      code: event.code,
-      altKey: event.altKey,
-      metaKey: event.metaKey,
-      ctrlKey: event.ctrlKey
-    });
-
-    if (event.altKey) {
-      console.log('[HUD Shortcuts] Alt key detected, code:', event.code);
-      // Use event.code instead of event.key to handle Mac Option key properly
-      switch (event.code) {
-        case 'KeyS':
-          console.log('[HUD Shortcuts] Toggling style panel');
-          event.preventDefault();
-          this.hudPanelService.togglePanel('style-panel');
-          console.log('[HUD Shortcuts] Style panel visible:', this.hudPanelService.isPanelVisible('style-panel'));
-          break;
-        case 'KeyH':
-          console.log('[HUD Shortcuts] Hiding all panels');
-          event.preventDefault();
-          const visiblePanels = this.hudPanelService.visiblePanels();
-          console.log('[HUD Shortcuts] Visible panels before hide:', visiblePanels.length);
-          visiblePanels.forEach(panel => {
-            this.hudPanelService.hidePanel(panel.id);
-          });
-          break;
-      }
     }
   }
 

@@ -31,22 +31,17 @@ import { CanvasLayoutRuntime } from '../../shared/canvas/layout-runtime';
 import { layoutGraphToHierarchical } from '../../shared/layouts/core/layout-graph-utils';
 import { ContainmentRuntimeLayoutEngine } from '../../shared/layouts/engines/containment-runtime-layout.engine';
 import { LayoutOptions, RawDataInput } from '../../shared/layouts/core/layout-contract';
-import { HudPanelService } from '../../core/services/hud-panel.service';
-import { StylePanelComponent } from '../hud/panels/style-panel/style-panel.component';
 
 @Component({
   selector: 'app-runtime-canvas',
   standalone: true,
-  imports: [CommonModule, StylePanelComponent],
+  imports: [CommonModule],
   template: `
     <div class="canvas-interface">
       <canvas #canvas class="full-canvas"
               (mousedown)="onMouseDown($event)"
               (mousemove)="onMouseMove($event)"
               (mouseup)="onMouseUp($event)"></canvas>
-
-      <!-- HUD Panels - Always rendered, visibility controlled by panel itself -->
-      <app-style-panel></app-style-panel>
     </div>
   `,
   styles: [`
@@ -111,8 +106,7 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     private canvasViewStateService: CanvasViewStateService,
     private canvasHistoryService: CanvasHistoryService,
     private canvasEventHubService: CanvasEventHubService,
-    private neo4jRealtimeService: Neo4jRealtimeService,
-    public readonly hudPanelService: HudPanelService
+    private neo4jRealtimeService: Neo4jRealtimeService
   ) {
     // Engine-only mode - no reactive effects
     this.availableLenses = GraphLensRegistry.list();
