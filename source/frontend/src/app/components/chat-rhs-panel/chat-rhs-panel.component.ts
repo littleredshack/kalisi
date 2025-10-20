@@ -76,17 +76,32 @@ export class ChatRhsPanelComponent implements OnInit, OnDestroy, OnChanges, Afte
   currentMessage = '';
   isTyping = false;
   isStreaming = false;
-  
+
   // Configuration from environment
   cypherReadOnly = true;
   enableWriteFlow = false;
   allowDestructive = false;
-  
-  // Panel sizing and dragging
-  panelWidth = 340; // Default width
-  private isResizing = false;
-  private startX = 0;
-  private startWidth = 0;
+
+  // Panel state - floating panel
+  panelWidth = 400;
+  panelHeight = 700;
+  panelX = window.innerWidth - 420;
+  panelY = 100;
+
+  dragging = false;
+  private dragStartX = 0;
+  private dragStartY = 0;
+  private dragOffsetX = 0;
+  private dragOffsetY = 0;
+
+  resizing = false;
+  private resizeStartX = 0;
+  private resizeStartY = 0;
+  private resizeStartWidth = 0;
+  private resizeStartHeight = 0;
+  private resizeHandle = '';
+
+  private readonly STORAGE_KEY = 'chat-panel-state';
 
   constructor(
     private safetyGuard: SafetyGuardService,
@@ -123,9 +138,16 @@ export class ChatRhsPanelComponent implements OnInit, OnDestroy, OnChanges, Afte
 
   ngOnInit(): void {
     // Load safety configuration from environment
-    // This will be populated from backend configuration
     this.loadSafetyConfig();
-    
+
+    // Load panel state from localStorage
+    this.loadPanelState();
+
+    // Add global mouse event listeners
+    document.addEventListener('mousemove', this.onGlobalMouseMove);
+    document.addEventListener('mouseup', this.onGlobalMouseUp);
+    document.addEventListener('keydown', this.onGlobalKeyDown);
+
     // Add welcome message
     this.addMessage({
       id: this.generateId(),
@@ -140,18 +162,12 @@ export class ChatRhsPanelComponent implements OnInit, OnDestroy, OnChanges, Afte
     if (this.isVisible) {
       this.focusInput();
     }
-    
-    // Load saved width from localStorage
-    this.loadPanelWidth();
-    
-    // Set up resize drag handlers
-    this.setupResizeHandlers();
   }
 
   ngOnDestroy(): void {
-    // Cleanup event listeners
-    document.removeEventListener('mousemove', this.onMouseMove);
-    document.removeEventListener('mouseup', this.onMouseUp);
+    document.removeEventListener('mousemove', this.onGlobalMouseMove);
+    document.removeEventListener('mouseup', this.onGlobalMouseUp);
+    document.removeEventListener('keydown', this.onGlobalKeyDown);
   }
 
   ngOnChanges(): void {
@@ -578,76 +594,106 @@ export class ChatRhsPanelComponent implements OnInit, OnDestroy, OnChanges, Afte
     return `${classification.riskLevel.toUpperCase()} risk query`;
   }
 
-  private setupResizeHandlers(): void {
-    // Add global mouse event listeners for dragging
-    document.addEventListener('mousemove', this.onMouseMove);
-    document.addEventListener('mouseup', this.onMouseUp);
-  }
-
-  onResizeStart(event: MouseEvent): void {
-    event.preventDefault();
-    this.isResizing = true;
-    this.startX = event.clientX;
-    this.startWidth = this.panelWidth;
-    
-    // Add resizing class for visual feedback
-    const panelElement = document.querySelector('.chat-rhs-panel') as HTMLElement;
-    if (panelElement) {
-      panelElement.classList.add('resizing');
+  private onGlobalKeyDown = (event: KeyboardEvent): void => {
+    // Option-C (Alt-C) to toggle the panel
+    if ((event.altKey || event.metaKey) && event.code === 'KeyC') {
+      event.preventDefault();
+      this.isVisible = !this.isVisible;
+      this.panelToggled.emit(this.isVisible);
     }
-  }
+  };
 
-  private onMouseMove = (event: MouseEvent) => {
-    if (!this.isResizing) return;
-    
-    event.preventDefault();
-    
-    // Calculate new width (drag left = wider, drag right = narrower)
-    const deltaX = this.startX - event.clientX;
-    let newWidth = this.startWidth + deltaX;
-    
-    // Constrain width
-    newWidth = Math.max(280, Math.min(600, newWidth));
-    
-    this.panelWidth = newWidth;
-    
-    // Apply new width
-    const panelElement = document.querySelector('.chat-rhs-panel') as HTMLElement;
-    if (panelElement) {
-      panelElement.style.width = this.panelWidth + 'px';
+  // Drag functionality
+  onHeaderDragStart(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+    if (target.closest('button') || target.closest('.control-btn')) {
+      return;
     }
+
+    this.dragging = true;
+    this.dragStartX = event.clientX;
+    this.dragStartY = event.clientY;
+    this.dragOffsetX = event.clientX - this.panelX;
+    this.dragOffsetY = event.clientY - this.panelY;
+    event.preventDefault();
   }
 
-  private onMouseUp = () => {
-    if (this.isResizing) {
-      this.isResizing = false;
-      
-      // Remove resizing class
-      const panelElement = document.querySelector('.chat-rhs-panel') as HTMLElement;
-      if (panelElement) {
-        panelElement.classList.remove('resizing');
+  // Resize functionality
+  onResizeStart(event: MouseEvent, handle: string): void {
+    this.resizing = true;
+    this.resizeHandle = handle;
+    this.resizeStartX = event.clientX;
+    this.resizeStartY = event.clientY;
+    this.resizeStartWidth = this.panelWidth;
+    this.resizeStartHeight = this.panelHeight;
+    event.preventDefault();
+  }
+
+  private onGlobalMouseMove = (event: MouseEvent): void => {
+    if (this.dragging) {
+      this.panelX = event.clientX - this.dragOffsetX;
+      this.panelY = event.clientY - this.dragOffsetY;
+
+      const maxX = window.innerWidth - 100;
+      const maxY = window.innerHeight - 60;
+      this.panelX = Math.max(0, Math.min(maxX, this.panelX));
+      this.panelY = Math.max(0, Math.min(maxY, this.panelY));
+    } else if (this.resizing) {
+      const deltaX = event.clientX - this.resizeStartX;
+      const deltaY = event.clientY - this.resizeStartY;
+
+      switch (this.resizeHandle) {
+        case 'right':
+          this.panelWidth = Math.max(320, Math.min(700, this.resizeStartWidth + deltaX));
+          break;
+        case 'bottom':
+          this.panelHeight = Math.max(400, Math.min(1000, this.resizeStartHeight + deltaY));
+          break;
+        case 'bottom-right':
+          this.panelWidth = Math.max(320, Math.min(700, this.resizeStartWidth + deltaX));
+          this.panelHeight = Math.max(400, Math.min(1000, this.resizeStartHeight + deltaY));
+          break;
       }
-      
-      // Save the new width
-      this.savePanelWidth();
     }
-  }
+  };
 
-  private loadPanelWidth(): void {
-    const savedWidth = localStorage.getItem('chat-rhs-panel-width');
-    if (savedWidth) {
-      this.panelWidth = parseInt(savedWidth, 10);
-      // Apply immediately if panel exists
-      setTimeout(() => {
-        const panelElement = document.querySelector('.chat-rhs-panel') as HTMLElement;
-        if (panelElement) {
-          panelElement.style.width = this.panelWidth + 'px';
+  private onGlobalMouseUp = (): void => {
+    if (this.resizing || this.dragging) {
+      this.savePanelState();
+    }
+    this.resizing = false;
+    this.dragging = false;
+    this.resizeHandle = '';
+  };
+
+  private loadPanelState(): void {
+    const savedState = localStorage.getItem(this.STORAGE_KEY);
+    if (savedState) {
+      try {
+        const state = JSON.parse(savedState);
+        if (state.width >= 320 && state.width <= 700) {
+          this.panelWidth = state.width;
         }
-      }, 0);
+        if (state.height >= 400 && state.height <= 1000) {
+          this.panelHeight = state.height;
+        }
+        if (state.x !== undefined && state.y !== undefined) {
+          this.panelX = Math.max(0, Math.min(window.innerWidth - 100, state.x));
+          this.panelY = Math.max(0, Math.min(window.innerHeight - 60, state.y));
+        }
+      } catch (e) {
+        console.warn('Failed to parse saved chat panel state', e);
+      }
     }
   }
 
-  private savePanelWidth(): void {
-    localStorage.setItem('chat-rhs-panel-width', this.panelWidth.toString());
+  private savePanelState(): void {
+    const state = {
+      x: this.panelX,
+      y: this.panelY,
+      width: this.panelWidth,
+      height: this.panelHeight
+    };
+    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
   }
 }

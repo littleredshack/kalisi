@@ -1,61 +1,129 @@
+// Floating chat panel with dynamic positioning
 .chat-rhs-panel {
   position: fixed;
-  right: -340px;
-  top: 0;
-  bottom: 0;
-  width: 340px;
-  min-width: 280px;
-  max-width: 600px;
-  background: var(--app-background);
-  border-left: 1px solid rgba(110, 168, 254, 0.2);
-  backdrop-filter: blur(10px);
-  transform: translateX(100%);
-  transition: transform 600ms ease, right 400ms cubic-bezier(0.23, 1, 0.32, 1);
+  width: 400px; // Default width, will be overridden
+  height: 700px; // Default height, will be overridden
+  background: rgba(11, 15, 20, 0.95); // Floating glass background
+  border: 1px solid rgba(110, 168, 254, 0.3);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(110, 168, 254, 0.1);
+  backdrop-filter: blur(12px);
   z-index: 90;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  opacity: 0;
+  transform: scale(0.95);
+  transition: opacity 300ms ease, transform 300ms ease;
+  pointer-events: none;
 
   &.visible {
-    transform: translateX(0);
-    right: 0;
+    opacity: 1;
+    transform: scale(1);
+    pointer-events: auto;
+  }
+
+  &.dragging {
+    user-select: none;
+    cursor: move;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.8), 0 0 0 2px rgba(110, 168, 254, 0.4);
   }
 
   &.resizing {
     user-select: none;
-    pointer-events: auto;
+    transition: none;
   }
 }
 
+// Resize Handles
 .resize-handle {
   position: absolute;
-  left: -5px;
-  top: 0;
-  bottom: 0;
-  width: 10px;
   background: transparent;
-  cursor: ew-resize;
   z-index: 100;
-  
-  &:hover {
-    background: rgba(110, 168, 254, 0.2);
+  transition: background 0.2s ease;
+
+  &.resize-right {
+    right: -5px;
+    top: 0;
+    bottom: 0;
+    width: 10px;
+    cursor: ew-resize;
+
+    &:hover {
+      background: rgba(110, 168, 254, 0.2);
+    }
+
+    &::after {
+      content: '';
+      position: absolute;
+      right: 4px;
+      top: 50%;
+      width: 2px;
+      height: 40px;
+      background: rgba(110, 168, 254, 0.3);
+      border-radius: 1px;
+      transform: translateY(-50%);
+    }
+
+    &:hover::after {
+      background: rgba(110, 168, 254, 0.6);
+    }
   }
-  &::after {
-    content: '';
-    position: absolute;
-    left: 4px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 2px;
-    height: 30px;
-    background: rgba(110, 168, 254, 0.3);
-    border-radius: 1px;
-    opacity: 0;
-    transition: opacity 0.2s ease;
+
+  &.resize-bottom {
+    left: 0;
+    right: 0;
+    bottom: -5px;
+    height: 10px;
+    cursor: ns-resize;
+
+    &:hover {
+      background: rgba(110, 168, 254, 0.2);
+    }
+
+    &::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      bottom: 4px;
+      width: 40px;
+      height: 2px;
+      background: rgba(110, 168, 254, 0.3);
+      border-radius: 1px;
+      transform: translateX(-50%);
+    }
+
+    &:hover::after {
+      background: rgba(110, 168, 254, 0.6);
+    }
   }
-  
-  &:hover::after {
-    opacity: 1;
+
+  &.resize-bottom-right {
+    right: -5px;
+    bottom: -5px;
+    width: 20px;
+    height: 20px;
+    cursor: nwse-resize;
+
+    &:hover {
+      background: rgba(110, 168, 254, 0.3);
+      border-radius: 0 0 8px 0;
+    }
+
+    &::after {
+      content: '';
+      position: absolute;
+      right: 6px;
+      bottom: 6px;
+      width: 8px;
+      height: 8px;
+      border-right: 2px solid rgba(110, 168, 254, 0.4);
+      border-bottom: 2px solid rgba(110, 168, 254, 0.4);
+    }
+
+    &:hover::after {
+      border-color: rgba(110, 168, 254, 0.8);
+    }
   }
 }
 
@@ -69,53 +137,73 @@
   z-index: 89;
 }
 
+// Panel Header - draggable
 .chat-header {
   padding: 16px 20px;
   border-bottom: 1px solid rgba(110, 168, 254, 0.2);
+  border-radius: 8px 8px 0 0;
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  
+  align-items: center;
+  min-height: 60px;
+  cursor: move;
+  user-select: none;
+
+  &:active {
+    cursor: grabbing;
+  }
+
   .header-title {
     display: flex;
     align-items: center;
-    gap: 8px;
-    
+    gap: 12px;
+
     h3.title-text {
       margin: 0;
       font-family: var(--font-heading);
       color: #6ea8fe;
       font-size: 1.1rem;
-      font-weight: normal;
+      font-weight: 600;
     }
-    
+
     .header-icon {
       color: #6ea8fe;
-      font-size: 1.1rem;
+      font-size: 1.2rem;
     }
   }
-  
+
   .header-controls {
     display: flex;
     gap: 8px;
-    
+
     .control-btn {
-      background: transparent;
-      border: 1px solid #30363d;
+      width: 32px;
+      height: 32px;
+      border: 1px solid rgba(110, 168, 254, 0.2);
+      background: rgba(110, 168, 254, 0.1);
       color: #e6edf3;
-      padding: 6px;
       border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       cursor: pointer;
       transition: all 0.2s ease;
-      
+
       &:hover {
-        background: #21262d;
-        color: #e6edf3;
+        background: rgba(110, 168, 254, 0.2);
+        border-color: rgba(110, 168, 254, 0.4);
       }
-      
-      &.close-btn:hover {
-        background: #da3633;
-        color: white;
+
+      i {
+        font-size: 14px;
+      }
+    }
+
+    .close-btn {
+      &:hover {
+        background: rgba(239, 68, 68, 0.2);
+        border-color: rgba(239, 68, 68, 0.4);
+        color: #f87171;
       }
     }
   }

@@ -63,7 +63,7 @@ export class ActivityBarComponent implements OnInit, OnChanges {
       id: 'chat',
       icon: 'comments',
       label: 'Chat',
-      tooltip: 'Chat Assistant',
+      tooltip: 'Chat (C)',
       isActive: false
     },
     {
