@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ViewChild, ViewChildren, QueryList, computed } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ViewChildren, QueryList, computed, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -31,6 +31,7 @@ import { SettingsComponent } from './settings/settings.component';
 import { TreeTableComponent } from './shared/tree-table/tree-table.component';
 import { ViewPresetRegistry, ViewPresetDescriptor } from './shared/graph/view-presets';
 import { ResolvedViewPreset } from './shared/canvas/presets/preset-manager';
+import { HudPanelService } from './core/services/hud-panel.service';
 
 // Library Item Configuration
 interface LibraryItem {
@@ -1020,7 +1021,8 @@ export class LandingShellComponent implements OnInit, OnDestroy {
     private viewRegistry: ViewRegistryService,
     private viewStateService: ViewSpecificStateService,
     private viewNodeState: ViewNodeStateService,
-    private themeService: ThemeService
+    private themeService: ThemeService,
+    private hudPanelService: HudPanelService
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -1662,6 +1664,25 @@ export class LandingShellComponent implements OnInit, OnDestroy {
     // Add last section
     if (currentSection) {
       this.missionContent.sections.push(currentSection);
+    }
+  }
+
+  @HostListener('window:keydown', ['$event'])
+  handleKeyboardShortcut(event: KeyboardEvent): void {
+    if (event.altKey) {
+      switch (event.key.toLowerCase()) {
+        case 's':
+          event.preventDefault();
+          this.hudPanelService.togglePanel('style-panel');
+          break;
+        case 'h':
+          event.preventDefault();
+          // Hide all HUD panels
+          this.hudPanelService.visiblePanels().forEach(panel => {
+            this.hudPanelService.hidePanel(panel.id);
+          });
+          break;
+      }
     }
   }
 
