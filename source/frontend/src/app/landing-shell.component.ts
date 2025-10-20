@@ -108,6 +108,7 @@ const LIBRARY_ITEMS: LibraryItem[] = [
         [propertiesPanelOpen]="propertiesPanelOpen"
         [chatPanelOpen]="chatPanelOpen"
         [debugPanelOpen]="debugPanelOpen"
+        [nodeStylePanelOpen]="nodeStylePanelOpen"
         (itemClicked)="onActivityBarItemClick($event)"
         (toggleRequested)="toggleActivityBar()">
       </app-activity-bar>
@@ -1347,6 +1348,9 @@ export class LandingShellComponent implements OnInit, OnDestroy {
         break;
       case 'chat':
         this.toggleChat();
+        break;
+      case 'style':
+        this.uiState.toggleNodeStylePanel();
         break;
       case 'admin':
         this.toggleSettings();

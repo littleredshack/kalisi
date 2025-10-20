@@ -27,6 +27,7 @@ export class ActivityBarComponent implements OnInit, OnChanges {
   @Input() propertiesPanelOpen = false;
   @Input() chatPanelOpen = false;
   @Input() debugPanelOpen = false;
+  @Input() nodeStylePanelOpen = false;
   @Output() itemClicked = new EventEmitter<string>();
   @Output() toggleRequested = new EventEmitter<void>();
   
@@ -66,10 +67,10 @@ export class ActivityBarComponent implements OnInit, OnChanges {
       isActive: false
     },
     {
-      id: 'debug',
-      icon: 'bug',
-      label: 'Debug',
-      tooltip: 'Debug Tools',
+      id: 'style',
+      icon: 'palette',
+      label: 'Style',
+      tooltip: 'Style (S)',
       isActive: false
     },
     {
@@ -120,8 +121,8 @@ export class ActivityBarComponent implements OnInit, OnChanges {
         case 'chat':
           item.isActive = this.chatPanelOpen;
           break;
-        case 'debug':
-          item.isActive = this.debugPanelOpen;
+        case 'style':
+          item.isActive = this.nodeStylePanelOpen;
           break;
         case 'admin': // Settings
           item.isActive = this.settingsPanelOpen;
