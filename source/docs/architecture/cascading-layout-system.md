@@ -6,6 +6,7 @@
 2. **Hierarchical Configuration**: Settings cascade down from parent to children
 3. **Node-Level Overrides**: Any node can override settings for its subtree
 4. **Performance**: Handle thousands of nodes efficiently
+5. **Runtime-First**: All layout/rendering modes must be configurations of the containment runtime engine stack—the single surviving code path for all canvas views
 
 ## Core Architectural Principles
 
@@ -144,9 +145,18 @@ interface LayoutStrategy {
 
 **Implementations:**
 - `GridLayoutStrategy` - Grid positioning
+  - Extracts grid algorithm from `containment-runtime-layout.engine.ts`
+  - Shares helpers from `LayoutPrimitives`
 - `ForceLayoutStrategy` - Physics simulation
+  - Delegates to shared force primitives from `force-layout.engine.ts`
 - `TreeLayoutStrategy` - Hierarchical tree
+  - Extracts tree algorithm from existing tree engine
 - `ManualLayoutStrategy` - Preserve user positions
+
+**Layout Primitives** (`LayoutPrimitives`):
+- Accept runtime config flags (containment vs flat)
+- Functions like `clampChildWithinParent` noop in flat mode
+- Share grid/force helpers across engines to avoid duplication
 
 #### 1.2 Renderer Interface
 
@@ -171,14 +181,16 @@ interface RenderConfig {
 ```
 
 **Implementations:**
-- `ContainerRenderer` - Renders boxes with children inside (containment ON)
+- `RuntimeContainmentRenderer` - Renders boxes with children inside (containment ON)
   - nodeMode: 'container'
   - Hides CONTAINS edges
   - Draws parent boundaries
-- `FlatRenderer` - Renders independent shapes (containment OFF)
+  - Located: `frontend/src/app/shared/composable/renderers/runtime-containment-renderer.ts`
+- `RuntimeFlatRenderer` - Renders independent shapes (containment OFF)
   - nodeMode: 'flat'
   - Shows ALL edges including CONTAINS
   - Ignores parent boundaries
+  - **Wraps existing `composable-flat-renderer.ts`** to preserve runtime metadata (badges, style overrides)
 - `CompactRenderer` - Minimal visual style
   - nodeMode: 'compact'
   - Configurable edge visibility
@@ -276,6 +288,119 @@ class RuntimeCanvasController {
     }
   }
 }
+```
+
+### Phase 2.5: Angular Service Integration
+
+The cascading system integrates with existing Angular services to ensure observable state management and worker/main thread communication.
+
+#### 2.5.1 CanvasControlService
+Declarative setters expose configuration with observable state:
+
+```typescript
+@Injectable()
+export class CanvasControlService {
+  // Observable state streams
+  readonly containmentMode$ = new BehaviorSubject<'containers' | 'flat'>('containers');
+  readonly layoutMode$ = new BehaviorSubject<'grid' | 'force'>('grid');
+  readonly edgeRouting$ = new BehaviorSubject<'orthogonal' | 'straight'>('orthogonal');
+
+  // Declarative setters
+  setContainmentMode(mode: 'containers' | 'flat'): void {
+    this.containmentMode$.next(mode);
+    this.publishConfigUpdate();
+  }
+
+  setLayoutMode(mode: 'grid' | 'force'): void {
+    this.layoutMode$.next(mode);
+    this.publishConfigUpdate();
+  }
+
+  setEdgeRouting(mode: 'orthogonal' | 'straight'): void {
+    this.edgeRouting$.next(mode);
+    this.publishConfigUpdate();
+  }
+
+  // Node-level configuration
+  setNodeLayoutConfig(nodeId: string, config: NodeLayoutConfig): void {
+    this.nodeConfigStore.set(nodeId, config);
+    this.eventHub.publish('node-config-changed', { nodeId, config });
+  }
+
+  private publishConfigUpdate(): void {
+    const config: RuntimeViewConfig = {
+      containmentMode: this.containmentMode$.value,
+      layoutMode: this.layoutMode$.value,
+      edgeRouting: this.edgeRouting$.value
+    };
+    this.eventHub.publish('runtime-config-changed', config);
+  }
+}
+```
+
+#### 2.5.2 CanvasEventHubService
+Ensures worker/main thread communication for runtime updates:
+
+```typescript
+@Injectable()
+export class CanvasEventHubService {
+  publish(event: string, payload: any): void {
+    // Send to worker thread if runtime is running there
+    if (this.workerRuntime) {
+      this.workerRuntime.postMessage({ event, payload });
+    }
+    // Also emit locally for main thread listeners
+    this.localEmitter.emit(event, payload);
+  }
+}
+```
+
+#### 2.5.3 PresentationFrame Metadata
+Renderer choice stored in PresentationFrame so canvas can redraw without re-running layout when only render style changes:
+
+```typescript
+interface PresentationFrame {
+  nodes: LayoutNode[];
+  edges: Edge[];
+  rendererId: string;  // 'runtime-containment-renderer' | 'runtime-flat-renderer'
+  renderConfig: RenderConfig;
+  timestamp: number;
+}
+
+class CanvasLayoutRuntime {
+  private lastFrame?: PresentationFrame;
+
+  // Only re-run layout if layout config changed
+  // Otherwise just update renderer
+  async updateConfig(config: RuntimeViewConfig): Promise<void> {
+    const layoutChanged = this.hasLayoutChanged(config);
+
+    if (layoutChanged) {
+      await this.runLayout(config);
+    } else {
+      // Just update renderer, reuse positioned nodes
+      this.updateRenderer(config);
+      this.requestRender();
+    }
+  }
+}
+```
+
+#### 2.5.4 LayoutModuleRegistry Updates
+Update module descriptors so `containment-runtime` advertises both renderer IDs:
+
+```typescript
+const containmentRuntimeModule: LayoutModuleDescriptor = {
+  id: 'containment-runtime',
+  label: 'Containment Runtime',
+  engineId: 'containment-runtime-layout',
+  rendererIds: [
+    'runtime-containment-renderer',  // Container mode
+    'runtime-flat-renderer'          // Flat mode
+  ],
+  supportsInteraction: true,
+  supportsIncremental: true
+};
 ```
 
 ### Phase 3: Performance Optimizations
@@ -504,29 +629,145 @@ SET n.layoutConfig = {
 }
 ```
 
-## Migration Path
+## Implementation Plan
 
-### Step 1: Add configuration infrastructure (no behavior change)
-- Add NodeConfigManager
-- Add config storage to nodes
-- Add resolution algorithm
+### Phase 1: Runtime Configuration Plumbing
+**Files:**
+- `frontend/src/app/shared/canvas/layout-runtime.ts`
+- `frontend/src/app/shared/layouts/layout-module-registry.ts`
 
-### Step 2: Refactor existing engines into strategies
-- Extract grid algorithm from containment-grid
-- Extract force algorithm from force-directed
-- Extract tree algorithm from tree engine
+**Tasks:**
+1. Extend `CanvasLayoutRuntime` to store `RuntimeViewConfig`
+2. Include config in `runLayout` calls
+3. Expose getters/observables for config state
+4. Update `LayoutModuleRegistry` descriptors:
+   - `containment-runtime` module advertises both renderer IDs
+   - Add metadata for supported config options
 
-### Step 3: Separate rendering from layout
-- Create ContainerRenderer (current rendering)
-- Create FlatRenderer (show CONTAINS edges)
+**Deliverable:** Runtime can receive and store config, but behavior unchanged
 
-### Step 4: Implement cascade system
-- Config resolution with inheritance
-- Apply to RuntimeCanvasController
+### Phase 2: Engine Configuration Support
+**Files:**
+- `frontend/src/app/shared/layouts/engines/containment-runtime-layout.engine.ts`
+- `frontend/src/app/shared/layouts/layout-primitives.ts`
 
-### Step 5: Build UI panel
-- ViewConfigPanel component
-- Per-node configuration UI
+**Tasks:**
+1. Accept `engineOptions` in `ContainmentRuntimeLayoutEngine.layout()`
+2. When `containmentMode === 'flat'`:
+   - Skip `LayoutPrimitives.resizeToFitChildren`
+   - Preserve CONTAINS edges in edge list
+   - Emit world coordinates for every node
+3. Respect `layoutMode` ('grid' vs 'force'):
+   - Extract grid positioning into reusable helper
+   - Delegate force layout to shared primitives
+4. Update `LayoutPrimitives` to accept config flags:
+   - `clampChildWithinParent` noops in flat mode
+   - Share grid/force helpers across engines
+
+**Deliverable:** Engine can operate in both container and flat modes
+
+### Phase 3: Flat Renderer Implementation
+**Files:**
+- `frontend/src/app/shared/composable/renderers/runtime-flat-renderer.ts` (NEW)
+- `frontend/src/app/shared/composable/renderers/composable-flat-renderer.ts` (existing)
+- `frontend/src/app/shared/composable/renderers/runtime-containment-renderer.ts` (update)
+
+**Tasks:**
+1. Create `RuntimeFlatRenderer`:
+   - Wrap existing `composable-flat-renderer.ts` primitives
+   - Preserve runtime metadata (badges, style overrides)
+   - Display CONTAINS edges with orthogonal routing
+   - When `edgeRouting === 'straight'`, bypass routing service
+2. Update `RuntimeContainmentRenderer` to read config for edge routing
+3. Register both renderers in module registry
+
+**Deliverable:** Both container and flat rendering modes available
+
+### Phase 4: Angular Service Integration
+**Files:**
+- `frontend/src/app/shared/services/canvas-control.service.ts`
+- `frontend/src/app/shared/services/canvas-event-hub.service.ts`
+- Properties panel component
+
+**Tasks:**
+1. Add to `CanvasControlService`:
+   - Observable state: `containmentMode$`, `layoutMode$`, `edgeRouting$`
+   - Setters: `setContainmentMode()`, `setLayoutMode()`, `setEdgeRouting()`
+   - Method: `setNodeLayoutConfig(nodeId, config)`
+2. Update `CanvasEventHubService`:
+   - Publish config changes to worker/main thread
+3. Add "Layout & Rendering" block in Properties panel:
+   - Bind toggles to service methods
+   - Show current effective config
+   - "Apply to descendants" toggle
+4. Update `PresentationFrame` to include renderer metadata
+
+**Deliverable:** UI controls wired to runtime config system
+
+### Phase 5: Cascading Configuration System
+**Files:**
+- `frontend/src/app/shared/canvas/node-config-manager.ts` (NEW)
+- `frontend/src/app/shared/canvas/layout-runtime.ts` (update)
+
+**Tasks:**
+1. Create `NodeConfigManager`:
+   - Store node-level config overrides (keyed by GUID)
+   - Implement resolution algorithm with inheritance
+   - Cache resolved configs per node
+   - Dirty tracking for invalidation
+2. Extend `HierarchicalNode` interface:
+   - Add `layoutConfig?: NodeLayoutConfig`
+   - Add `_resolvedConfig?: ResolvedConfig` (cache)
+   - Add `_configDirty?: boolean` (dirty flag)
+3. Update `CanvasLayoutRuntime`:
+   - Compute resolved config map before invoking engines
+   - Partition nodes by `layoutMode`
+   - Pass per-node `renderMode` to renderers
+4. Implement persistence:
+   - Store overrides alongside layouts (localStorage or Neo4j)
+   - Load on view initialization
+
+**Deliverable:** Node-level overrides with cascading inheritance
+
+### Phase 6: Engine Execution with Partitioning
+**Files:**
+- `frontend/src/app/shared/canvas/layout-runtime.ts`
+
+**Tasks:**
+1. Build partitions of nodes requiring same layout mode
+2. Execute layout strategies per partition:
+   - Run grid on top-level containment subtree
+   - Run force on nested subgraph with overrides
+3. Merge results:
+   - Translate child partition coordinates to parent coordinate system
+   - Preserve world metadata for renderer
+4. Renderers resolve per-node basis:
+   - Draw containers (padding/clamping) vs flat nodes (show CONTAINS edges)
+   - Use same geometry from layout
+
+**Deliverable:** Mixed layout modes in single graph
+
+### Phase 7: Testing & Validation
+**Tasks:**
+1. **Unit tests:**
+   - Engine outputs for both modes (containment edges present/absent)
+   - Node positions stable across mode switches
+   - Cascading resolution (inheritance, apply-to-descendants, reset)
+2. **Snapshot tests:**
+   - Edge routing correctness
+   - Node visibility in container vs flat mode
+   - Mixed-mode rendering boundaries
+3. **Manual smoke tests:**
+   - Flip containment on/off, verify visual changes
+   - Switch grid/force, confirm layout changes
+   - Check runtime logs show single engine ID
+   - Test node-level overrides cascade correctly
+4. **Performance tests:**
+   - Large graphs (1000+ nodes) with mode switches
+   - Incremental updates with dirty tracking
+   - Verify viewport culling works
+
+**Deliverable:** Fully tested cascading system
 
 ## Questions to Resolve
 
@@ -549,4 +790,14 @@ SET n.layoutConfig = {
 6. **CONTAINS Edge Visibility**: In flat mode, should we show CONTAINS edges with special styling?
    - Answer: Yes - distinct color/style to differentiate from other relationship types
 
-What would you like me to implement first?
+## Summary
+
+This cascading layout system provides:
+- **Runtime-first architecture**: Single code path (containment runtime) with configurable behavior
+- **Separation of concerns**: Layout (WHERE) and rendering (HOW) are independent
+- **CSS-like cascading**: Configuration flows from parent to children with node-level overrides
+- **Angular integration**: Observable state via CanvasControlService, worker communication via EventHub
+- **Performance**: Lazy evaluation, dirty tracking, incremental updates, viewport culling
+- **Persistence**: Overrides stored alongside layouts, surviving reload
+
+The implementation plan provides a phased approach, each phase delivering incremental value while maintaining system stability.
