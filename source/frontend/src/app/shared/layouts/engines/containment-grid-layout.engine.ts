@@ -90,12 +90,14 @@ export class ContainmentGridLayoutEngine implements LayoutEngine {
       child.height = child.metadata?.['defaultHeight'] ?? child.height ?? childDefaults.height;
     });
 
+    const headerOffset = LayoutPrimitives.computeHeaderOffset(node);
+
     LayoutPrimitives.calculateGridPositions(
       node.children,
       node.width - CONTAINER_PADDING,
       node.height - CONTAINER_PADDING,
       CONTAINER_PADDING / 2,
-      CONTAINER_PADDING / 2,
+      headerOffset + LayoutPrimitives.HEADER_GAP,
       CHILD_SPACING
     );
 

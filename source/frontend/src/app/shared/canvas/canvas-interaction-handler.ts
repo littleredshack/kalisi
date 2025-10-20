@@ -1,5 +1,6 @@
 import { HierarchicalNode, Point, Camera } from './types';
 import { ViewNodeStateService } from '../../core/services/view-node-state.service';
+import { LayoutPrimitives } from './layout-primitives';
 import {
   InteractionEvent,
   InteractionEventResult,
@@ -432,12 +433,12 @@ export class CanvasInteractionHandler {
     const padding = 10;
 
     const headerOffset = parent && parent.children && parent.children.length > 0
-      ? Math.max(20, Math.min(parent.height * 0.2, 80))
+      ? LayoutPrimitives.computeHeaderOffset(parent)
       : 0;
 
     // Calculate bounds within parent (in relative coordinates)
     const minX = padding;
-    const minY = headerOffset + padding;
+    const minY = headerOffset + LayoutPrimitives.HEADER_GAP;
     const maxX = parent.width - node.width - padding;
     const maxY = parent.height - node.height - padding;
 

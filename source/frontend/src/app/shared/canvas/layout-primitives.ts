@@ -5,6 +5,15 @@ import { HierarchicalNode } from './types';
  * Extracted from GridLayoutEngine to eliminate code duplication
  */
 export class LayoutPrimitives {
+  /**
+   * Fixed header height for containers - matches visual header (icon + text + type)
+   */
+  static readonly HEADER_HEIGHT = 50;
+
+  /**
+   * Vertical gap between header and first child
+   */
+  static readonly HEADER_GAP = 10;
   private static clampNumber(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) {
       return min;
@@ -138,18 +147,11 @@ export class LayoutPrimitives {
   }
 
   /**
-   * Estimate header offset for containment-style containers to avoid clamping children into the title bar.
+   * Fixed header offset for containment-style containers to avoid clamping children into the title bar.
+   * Uses a constant value to prevent jumping when parent is resized.
    */
   static computeHeaderOffset(node?: HierarchicalNode): number {
-    if (!node) {
-      return 32;
-    }
-    const defaults = this.getMinimumNodeSize(node.type);
-    const height = Number.isFinite(node.height) ? (node.height as number) : defaults.height;
-    const maxAllowed = Math.max(20, height - 50);
-    const proportional = height * 0.2;
-    const base = Math.max(32, Math.min(proportional, 80));
-    return Math.max(20, Math.min(base, maxAllowed));
+    return this.HEADER_HEIGHT;
   }
 
   /**

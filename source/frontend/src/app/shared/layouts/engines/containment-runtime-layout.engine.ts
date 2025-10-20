@@ -115,9 +115,10 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
 
     const padding = metrics.padding;
     const gap = metrics.gap;
+    const headerOffset = LayoutPrimitives.computeHeaderOffset(parent);
 
     // Simple vertical stack layout - don't resize children, just position them
-    let y = padding;
+    let y = headerOffset + LayoutPrimitives.HEADER_GAP;
 
     children.forEach((child, index) => {
       child.x = padding;
