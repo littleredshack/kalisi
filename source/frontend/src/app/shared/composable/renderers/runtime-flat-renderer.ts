@@ -135,36 +135,55 @@ export class RuntimeFlatRenderer extends BaseRenderer {
 
   /**
    * Recursively render all nodes as flat (not nested)
+   * Nodes must be rendered at their absolute world positions
    */
-  private renderFlatNodes(ctx: CanvasRenderingContext2D, nodes: HierarchicalNode[], camera: Camera): void {
+  private renderFlatNodes(ctx: CanvasRenderingContext2D, nodes: HierarchicalNode[], camera: Camera, offsetX: number = 0, offsetY: number = 0): void {
     nodes.forEach(node => {
       if (node.visible !== false) {
-        FlatNodePrimitive.draw(ctx, node, camera);
+        // Create a temporary node with absolute coordinates for rendering
+        const absoluteNode = {
+          ...node,
+          x: offsetX + node.x,
+          y: offsetY + node.y
+        };
+        FlatNodePrimitive.draw(ctx, absoluteNode, camera);
       }
-      // Recursively render children as independent nodes
+      // Recursively render children as independent nodes at absolute positions
       if (node.children && node.children.length > 0) {
-        this.renderFlatNodes(ctx, node.children, camera);
+        this.renderFlatNodes(ctx, node.children, camera, offsetX + node.x, offsetY + node.y);
       }
     });
   }
 
   /**
-   * Hit testing
+   * Hit testing - must use absolute coordinates
    */
   override hitTest(worldX: number, worldY: number, nodes: HierarchicalNode[]): NodeEvent | null {
-    // Flatten hierarchy for hit testing
-    const allNodes = this.flattenNodes(nodes);
+    // Build node index to get absolute positions
+    const nodeIndex = this.buildNodeIndex(nodes);
+    const indexedNodes = Array.from(nodeIndex.values());
 
     // Test nodes in reverse order (top to bottom)
-    for (let i = allNodes.length - 1; i >= 0; i--) {
-      const node = allNodes[i];
-      if (node.visible !== false && FlatNodePrimitive.hitTest(node, worldX, worldY)) {
-        return {
-          node,
-          worldPosition: { x: node.x, y: node.y },
-          screenPosition: { x: 0, y: 0 }, // Will be filled by caller
-          path: [node]
+    for (let i = indexedNodes.length - 1; i >= 0; i--) {
+      const indexed = indexedNodes[i];
+      const node = indexed.node;
+
+      if (node.visible !== false) {
+        // Create absolute node for hit testing
+        const absoluteNode = {
+          ...node,
+          x: indexed.absoluteX,
+          y: indexed.absoluteY
         };
+
+        if (FlatNodePrimitive.hitTest(absoluteNode, worldX, worldY)) {
+          return {
+            node,
+            worldPosition: { x: indexed.absoluteX, y: indexed.absoluteY },
+            screenPosition: { x: 0, y: 0 }, // Will be filled by caller
+            path: [node]
+          };
+        }
       }
     }
     return null;
@@ -195,11 +214,24 @@ export class RuntimeFlatRenderer extends BaseRenderer {
   }
 
   /**
-   * Render selection
+   * Render selection - receives node path for absolute position calculation
    */
-  override renderSelection(ctx: CanvasRenderingContext2D, node: HierarchicalNode, camera: Camera): void {
-    const screenX = (node.x - camera.x) * camera.zoom;
-    const screenY = (node.y - camera.y) * camera.zoom;
+  override renderSelection(ctx: CanvasRenderingContext2D, node: HierarchicalNode, camera: Camera, path?: HierarchicalNode[]): void {
+    // Calculate absolute position from path if provided
+    let absoluteX = node.x;
+    let absoluteY = node.y;
+
+    if (path && path.length > 0) {
+      absoluteX = 0;
+      absoluteY = 0;
+      path.forEach(pathNode => {
+        absoluteX += pathNode.x;
+        absoluteY += pathNode.y;
+      });
+    }
+
+    const screenX = (absoluteX - camera.x) * camera.zoom;
+    const screenY = (absoluteY - camera.y) * camera.zoom;
     const screenWidth = node.width * camera.zoom;
     const screenHeight = node.height * camera.zoom;
 
