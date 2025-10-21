@@ -31,22 +31,37 @@ export function flattenHierarchyWithEdges(
   const flatten = (node: HierarchicalNode, parent: HierarchicalNode | null) => {
     // Create flattened clone with empty children
     const clone: HierarchicalNode = {
-      ...node,
-      children: [], // All nodes at root level
+      id: node.id,
+      GUID: node.GUID,
+      type: node.type,
+      x: node.x,
+      y: node.y,
+      width: node.width,
+      height: node.height,
+      text: node.text,
+      children: [], // MUST be empty - all nodes at root level
       style: node.style ? { ...node.style } : node.style,
-      metadata: node.metadata ? { ...node.metadata } : undefined
+      metadata: node.metadata ? { ...node.metadata } : undefined,
+      selected: node.selected,
+      visible: node.visible,
+      collapsed: node.collapsed,
+      dragging: node.dragging
     };
 
+    console.log('[flattenHierarchy] Flattened node:', clone.text, 'id:', clone.GUID ?? clone.id, 'children.length:', clone.children.length);
     flatNodes.push(clone);
 
     // Generate CONTAINS edge from parent to this node
     if (parent) {
+      const parentGUID = parent.GUID!;
+      const childGUID = clone.GUID!;
+
       containsEdges.push({
-        id: `contains-${parent.GUID ?? parent.id}-${clone.GUID ?? clone.id}`,
-        from: parent.id,
-        to: clone.id,
-        fromGUID: parent.GUID,
-        toGUID: clone.GUID,
+        id: `contains-${parentGUID}-${childGUID}`,
+        from: parentGUID,  // MUST use GUID
+        to: childGUID,     // MUST use GUID
+        fromGUID: parentGUID,
+        toGUID: childGUID,
         label: 'CONTAINS',
         style: {
           stroke: '#6b7280',
@@ -118,7 +133,7 @@ export function setAbsoluteWorldPositions(nodes: HierarchicalNode[]): void {
     node.metadata = {
       ...(node.metadata ?? {}),
       worldPosition: { x: node.x, y: node.y },
-      displayMode: 'containment-flat'
+      displayMode: 'runtime-flat'
     };
   });
 }

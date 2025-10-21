@@ -1,5 +1,5 @@
 import { CanvasData, Camera, HierarchicalNode, Edge, NodeSelectionSnapshot, NodeStyleOverrides, NodeShape } from './types';
-import { CanvasLayoutRuntime } from './layout-runtime';
+import { CanvasLayoutRuntime, RuntimeViewConfig } from './layout-runtime';
 import { IRenderer } from './renderer';
 import { CameraSystem } from './camera';
 import { CanvasInteractionHandler } from './canvas-interaction-handler';
@@ -31,7 +31,8 @@ export class RuntimeCanvasController {
     renderer: IRenderer,
     initialData: CanvasData,
     canvasId: string,
-    engineId?: string
+    engineId?: string,
+    initialViewConfig?: Partial<RuntimeViewConfig>
   ) {
     this.canvasId = canvasId;
     this.canvas = canvas;
@@ -48,8 +49,12 @@ export class RuntimeCanvasController {
     this.layoutRuntime = new CanvasLayoutRuntime(canvasId, initialData, {
       defaultEngine: engineId ?? 'containment-runtime',
       runLayoutOnInit: !hasSavedLayout, // Only run layout if we don't have saved positions
-      useWorker: false
+      useWorker: false,
+      initialViewConfig
     });
+    if (initialViewConfig) {
+      this.layoutRuntime.setViewConfig(initialViewConfig);
+    }
 
     // Set initial camera from data
     if (initialData.camera) {

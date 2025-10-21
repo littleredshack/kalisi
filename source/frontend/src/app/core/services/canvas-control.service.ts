@@ -87,7 +87,7 @@ export class CanvasControlService {
   private readonly activePresetSubject = new BehaviorSubject<ResolvedViewPreset | null>(null);
 
   // Runtime view configuration observables
-  private readonly containmentModeSubject = new BehaviorSubject<'containers' | 'flat'>('containers');
+  private readonly containmentModeSubject = new BehaviorSubject<'containers' | 'flat'>('flat');
   private readonly layoutModeSubject = new BehaviorSubject<'grid' | 'force'>('grid');
   private readonly edgeRoutingSubject = new BehaviorSubject<'orthogonal' | 'straight'>('orthogonal');
 
@@ -335,6 +335,9 @@ export class CanvasControlService {
    */
   setContainmentMode(mode: 'containers' | 'flat'): void {
     console.log('[CanvasControlService] setContainmentMode called with:', mode);
+    if (this.containmentModeSubject.value === mode) {
+      return;
+    }
     this.containmentModeSubject.next(mode);
     console.log('[CanvasControlService] containmentModeSubject emitted:', mode);
     // Config changes propagate via observables - no event hub needed
@@ -345,6 +348,9 @@ export class CanvasControlService {
    */
   setLayoutMode(mode: 'grid' | 'force'): void {
     console.log('[CanvasControlService] setLayoutMode called with:', mode);
+    if (this.layoutModeSubject.value === mode) {
+      return;
+    }
     this.layoutModeSubject.next(mode);
     // Config changes propagate via observables - no event hub needed
   }
@@ -354,6 +360,9 @@ export class CanvasControlService {
    */
   setEdgeRouting(mode: 'orthogonal' | 'straight'): void {
     console.log('[CanvasControlService] setEdgeRouting called with:', mode);
+    if (this.edgeRoutingSubject.value === mode) {
+      return;
+    }
     this.edgeRoutingSubject.next(mode);
     // Config changes propagate via observables - no event hub needed
   }

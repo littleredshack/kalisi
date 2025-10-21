@@ -32,18 +32,25 @@ export interface PresentationDelta {
 }
 
 export function buildPresentationFrame(result: LayoutResult, previous?: PresentationFrame, lensId?: string): PresentationFrame {
+  console.log('[buildPresentationFrame] Input graph has', Object.keys(result.graph.nodes).length, 'nodes');
+
   Object.entries(result.graph.nodes).forEach(([id, node]) => {
     if (node.children.length > 0) {
+      console.log('[buildPresentationFrame] Node', id, 'has', node.children.length, 'children:', node.children);
     }
   });
 
   const snapshot = layoutGraphToHierarchical(result.graph);
+
+  console.log('[buildPresentationFrame] Snapshot has', snapshot.nodes.length, 'root nodes');
+  console.log('[buildPresentationFrame] Root node names:', snapshot.nodes.map(n => n.text));
 
   // Skip coordinate normalization for runtime engines that output correctly positioned nodes
   // Runtime engines set displayMode in metadata to indicate they handle positions internally
   const displayMode = result.graph.metadata['displayMode'] as string | undefined;
   const isRuntimeEngine = displayMode === 'containment-runtime' ||
                           displayMode === 'containment-grid' ||
+                          displayMode === 'runtime-flat' ||
                           displayMode === 'orthogonal';
 
   snapshot.nodes.forEach(root => {

@@ -52,6 +52,9 @@ export class RuntimeFlatRenderer extends BaseRenderer {
    * Main render method - renders all nodes flat with visible CONTAINS edges
    */
   render(ctx: CanvasRenderingContext2D, nodes: HierarchicalNode[], edges: Edge[], camera: Camera, frame?: PresentationFrame): void {
+    console.log('[RuntimeFlatRenderer] render() called with', nodes.length, 'root nodes and', edges.length, 'edges');
+    console.log('[RuntimeFlatRenderer] Root node names:', nodes.map(n => n.text));
+
     const frameVersion = frame?.version ?? -1;
     const lensId = frame?.lensId ?? null;
     const delta = frame?.delta;

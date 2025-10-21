@@ -2,6 +2,11 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Layout Panel - Containment Toggle', () => {
   test('should toggle containment mode and verify layout change', async ({ page }) => {
+    // Listen to browser console - capture ALL logs
+    page.on('console', msg => {
+      console.log('BROWSER:', msg.text());
+    });
+
     // Navigate to the application
     await page.goto('https://localhost:8443', {
       waitUntil: 'networkidle'

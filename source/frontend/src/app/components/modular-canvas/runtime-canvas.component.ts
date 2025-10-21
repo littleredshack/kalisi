@@ -615,8 +615,14 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       (this.flatRenderer as any).setViewNodeStateService(this.viewNodeState);
     }
 
-    // Start with containment renderer (default mode)
-    const initialRenderer = this.containmentRenderer;
+    const initialViewConfig = this.resolveInitialViewConfig(layoutComponents);
+    if (initialViewConfig.containmentMode) {
+      this.canvasControlService.setContainmentMode(initialViewConfig.containmentMode);
+    }
+
+    const initialRenderer = initialViewConfig.containmentMode === 'containers'
+      ? this.containmentRenderer
+      : this.flatRenderer;
 
     // If we have raw ViewNode data, process it with the selected layout engine
     if (this.rawViewNodeData && this.selectedViewNode) {
@@ -687,7 +693,8 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       initialRenderer,
       this.data!,
       this.canvasId,
-      this.runtimeEngineId
+      this.runtimeEngineId,
+      initialViewConfig
     );
 
     // Expose engine to window for debugging/testing
@@ -735,6 +742,52 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       this.resizeCanvas();
     });
     resizeObserver.observe(canvas.parentElement!);
+  }
+
+  private resolveInitialViewConfig(layoutComponents: ComponentFactoryResult): Partial<RuntimeViewConfig> {
+    const usesContainmentRuntime = layoutComponents.runtimeEngine === 'containment-runtime';
+    let containmentMode: 'containers' | 'flat' = usesContainmentRuntime ? 'flat' : 'containers';
+
+    const viewNodeMode = this.readContainmentModeFromSelectedViewNode();
+    if (viewNodeMode) {
+      containmentMode = viewNodeMode;
+    }
+
+    const currentConfig = this.canvasControlService.getRuntimeViewConfig();
+    return {
+      containmentMode,
+      layoutMode: currentConfig.layoutMode,
+      edgeRouting: currentConfig.edgeRouting
+    };
+  }
+
+  private readContainmentModeFromSelectedViewNode(): 'containers' | 'flat' | null {
+    if (!this.selectedViewNode) {
+      return null;
+    }
+
+    const candidate =
+      this.selectedViewNode.properties?.defaultContainmentMode ??
+      this.selectedViewNode.properties?.containmentMode ??
+      this.selectedViewNode.defaultContainmentMode ??
+      this.selectedViewNode.containmentMode ??
+      null;
+
+    if (typeof candidate === 'string') {
+      const value = candidate.trim().toLowerCase();
+      if (value === 'containers' || value === 'flat') {
+        return value as 'containers' | 'flat';
+      }
+    }
+
+    if (typeof this.selectedViewNode.name === 'string') {
+      const name = this.selectedViewNode.name.toLowerCase();
+      if (name.includes('merge')) {
+        return 'containers';
+      }
+    }
+
+    return null;
   }
 
   /**

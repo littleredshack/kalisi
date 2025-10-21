@@ -1,7 +1,7 @@
 import { CanvasData } from './types';
 import { LayoutOrchestrator, LayoutPriority, LayoutRunOptions } from '../layouts/core/layout-orchestrator';
 import { registerDefaultLayoutEngines } from '../layouts/engine-registry';
-import { canvasDataToLayoutGraph } from '../layouts/core/layout-graph-utils';
+import { canvasDataToLayoutGraph, layoutGraphToHierarchical } from '../layouts/core/layout-graph-utils';
 import { LayoutGraph, RawDataInput } from '../layouts/core/layout-contract';
 import { GraphStore, GraphPresentationSnapshot } from '../graph/graph-store';
 import { ViewPresetDescriptor } from '../graph/view-presets';
@@ -15,6 +15,7 @@ export interface CanvasLayoutRuntimeConfig {
   readonly defaultEngine?: string;
   readonly runLayoutOnInit?: boolean;
   readonly useWorker?: boolean;
+  readonly initialViewConfig?: Partial<RuntimeViewConfig>;
 }
 
 /**
@@ -32,6 +33,7 @@ export class CanvasLayoutRuntime {
   private readonly canvasId: string;
   private readonly store: GraphStore;
   private canvasData: CanvasData;
+  private modelData: CanvasData;
   private readonly eventBus: CanvasEventBus;
   private frame: PresentationFrame | null = null;
   private readonly workerBridge: LayoutWorkerBridge;
@@ -49,11 +51,15 @@ export class CanvasLayoutRuntime {
     // Store default engine to check if coordinate normalization should be skipped
     this.defaultEngine = config.defaultEngine ?? this.inferEngineFromData(initialData);
 
-    // Initialize view config with defaults
-    this.viewConfig = {
+    // Initialize view config with defaults and optional overrides
+    const defaultViewConfig: RuntimeViewConfig = {
       containmentMode: 'containers',
       layoutMode: 'grid',
       edgeRouting: 'orthogonal'
+    };
+    this.viewConfig = {
+      ...defaultViewConfig,
+      ...(config.initialViewConfig ?? {})
     };
 
     // Skip coordinate normalization for runtime engines that output correctly positioned nodes
@@ -62,7 +68,8 @@ export class CanvasLayoutRuntime {
       ensureRelativeNodeCoordinates(initialData.nodes, 0, 0);
     }
 
-    // Store reference directly - no deep copying to avoid stale reference issues
+    // Store canonical model reference directly
+    this.modelData = initialData;
     this.canvasData = initialData;
 
     const initialEngine = this.normaliseEngineName(this.defaultEngine);
@@ -132,21 +139,18 @@ export class CanvasLayoutRuntime {
   }
 
   setCanvasData(data: CanvasData, runLayout = false, source: CanvasEventSource = 'system'): void {
-    // Store reference directly - no deep copying to avoid stale reference issues
+    // Treat incoming data as canonical model (no deep copies)
+    this.modelData = data;
     this.canvasData = data;
 
-    // Skip coordinate normalization for runtime engines that output correctly positioned nodes
-    if (!this.isRuntimeEngine(this.defaultEngine)) {
-      ensureRelativeNodeCoordinates(this.canvasData.nodes, 0, 0);
-    }
-    const graph = canvasDataToLayoutGraph(this.canvasData, this.store.current.version + 1);
-    this.store.replace(graph);
+    const baseGraph = canvasDataToLayoutGraph(this.modelData, this.store.current.version + 1);
+    this.store.replace(baseGraph);
     this.frame = {
       version: this.store.current.version,
       camera: this.canvasData.camera,
       canvasData: this.canvasData,
       lastResult: {
-        graph,
+        graph: baseGraph,
         camera: this.canvasData.camera,
         diagnostics: undefined
       },
@@ -191,23 +195,25 @@ export class CanvasLayoutRuntime {
       graph = processRawDataToGraph(input);
     }
 
-    // Update store with processed graph
-    this.store.replace({
-      ...graph,
-      metadata: {
-        ...graph.metadata,
-        layoutVersion: this.store.current.version + 1
-      }
-    });
+    const snapshot = layoutGraphToHierarchical(graph);
+    this.modelData = {
+      nodes: snapshot.nodes,
+      edges: snapshot.edges,
+      originalEdges: snapshot.edges,
+      camera: this.canvasData?.camera ?? undefined,
+      metadata: snapshot.metadata
+    };
+    this.canvasData = this.modelData;
 
-    // Build initial presentation frame
+    this.store.replace(graph);
+
     this.frame = {
       version: this.store.current.version,
-      camera: undefined,
+      camera: this.canvasData.camera,
       canvasData: this.canvasData,
       lastResult: {
-        graph: this.store.current.graph,
-        camera: undefined,
+        graph,
+        camera: this.canvasData.camera,
         diagnostics: undefined
       },
       delta: {
@@ -250,7 +256,10 @@ export class CanvasLayoutRuntime {
       ...(options.engineOptions ?? {})
     };
 
-    const result = await this.workerBridge.run(this.canvasId, this.store.current.graph, {
+    const nextVersion = this.store.current.version + 1;
+    const baseGraph = canvasDataToLayoutGraph(this.modelData, nextVersion);
+    this.store.replace(baseGraph);
+    const result = await this.workerBridge.run(this.canvasId, baseGraph, {
       ...options,
       engineName: normalisedEngine,
       engineOptions,
@@ -280,6 +289,12 @@ export class CanvasLayoutRuntime {
         ...this.frame,
         rendererId
       };
+
+      if (this.viewConfig.containmentMode === 'containers') {
+        // In containers mode, promote the hierarchical frame to be the canonical model
+        // so future layouts (including flat toggles) always start from the latest constrained structure.
+        this.modelData = this.frame.canvasData;
+      }
     }
 
     this.canvasData = this.frame.canvasData;

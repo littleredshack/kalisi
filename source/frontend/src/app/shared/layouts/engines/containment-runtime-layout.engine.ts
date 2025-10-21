@@ -17,6 +17,11 @@ interface EngineRuntimeConfig {
   readonly edgeRouting: 'orthogonal' | 'straight';
 }
 
+interface FlatLayoutFrame {
+  readonly nodes: HierarchicalNode[];
+  readonly rootIds: string[];
+}
+
 const DEFAULT_PADDING = 48;
 const DEFAULT_GAP = 24;
 
@@ -44,30 +49,44 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     };
 
     let processedNodes: HierarchicalNode[];
-    let containsEdges: Edge[] = [];
+    let rootIds: string[] | undefined;
 
     if (runtimeConfig.containmentMode === 'flat') {
-      // FLAT MODE: Flatten hierarchy and create CONTAINS edges
-      const flatResult = this.layoutFlat(snapshot.nodes, layoutMetrics, runtimeConfig);
-      processedNodes = flatResult.nodes;
-      containsEdges = flatResult.containsEdges;
+      // FLAT MODE: Flatten hierarchy (CONTAINS edges already exist in snapshot.edges from backend)
+      console.log('[ContainmentRuntime] Entering FLAT mode');
+      const flatFrame = this.layoutFlatFromHierarchy(snapshot.nodes, layoutMetrics, runtimeConfig);
+      processedNodes = flatFrame.nodes;
+      rootIds = flatFrame.rootIds;
+      console.log('[ContainmentRuntime] FLAT mode complete: processedNodes.length =', processedNodes.length);
     } else {
       // CONTAINERS MODE: Process hierarchically
       processedNodes = snapshot.nodes.map(node => this.layoutContainer(node, layoutMetrics, runtimeConfig));
       processedNodes.forEach(root => this.updateWorldMetadata(root));
+      rootIds = processedNodes
+        .map(node => node.GUID ?? node.id)
+        .filter((value): value is string => Boolean(value));
     }
 
     // Filter containment edges based on containmentMode
     // In 'containers' mode: hide CONTAINS edges (visual hierarchy replaces them)
-    // In 'flat' mode: show CONTAINS edges as visible lines
+    // In 'flat' mode: show ALL edges including CONTAINS (they come from original backend data)
     const edgesToRender = runtimeConfig.containmentMode === 'containers'
       ? snapshot.edges.filter(edge => {
           const edgeType = (edge.metadata?.['relationType'] as string)?.toUpperCase() || '';
           return !CONTAINMENT_EDGE_TYPES.has(edgeType);
         })
-      : [...snapshot.edges, ...containsEdges]; // In flat mode, add generated CONTAINS edges
+      : snapshot.edges; // In flat mode, use ALL edges from backend (includes CONTAINS)
 
     const routedEdges = this.computeEdgeWaypoints(processedNodes, edgesToRender, runtimeConfig);
+
+    console.log('[ContainmentRuntime] Before hierarchicalToLayoutGraph: processedNodes.length =', processedNodes.length);
+    console.log('[ContainmentRuntime] processedNodes structure:', processedNodes.map(n => ({ name: n.text, childCount: n.children.length })));
+
+    const resolvedRootIds = rootIds && rootIds.length > 0
+      ? Array.from(new Set(rootIds))
+      : processedNodes
+          .map(node => node.GUID ?? node.id)
+          .filter((value): value is string => Boolean(value));
 
     const updatedGraph = hierarchicalToLayoutGraph({
       nodes: processedNodes,
@@ -75,9 +94,18 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
       metadata: {
         ...snapshot.metadata,
         layoutVersion: (graph.metadata.layoutVersion ?? 0) + 1,
-        displayMode: 'containment-runtime'
+        displayMode: runtimeConfig.containmentMode === 'flat' ? 'runtime-flat' : 'containment-runtime',
+        rootIds: resolvedRootIds
       }
     });
+    console.log('[ContainmentRuntime] Resolved rootIds:', resolvedRootIds);
+
+    console.log('[ContainmentRuntime] After hierarchicalToLayoutGraph: nodes count =', Object.keys(updatedGraph.nodes).length);
+    console.log('[ContainmentRuntime] LayoutGraph nodes with children:',
+      Object.entries(updatedGraph.nodes)
+        .filter(([_, node]) => node.children.length > 0)
+        .map(([id, node]) => ({ id, childCount: node.children.length, children: node.children }))
+    );
 
     const diagnosticMetrics: Record<string, number> = {
       nodeCount: processedNodes.length,
@@ -314,15 +342,21 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
   }
 
   /**
-   * Layout in FLAT mode: Delegate to helper functions
+   * Layout in FLAT mode: Flatten hierarchy and layout as grid
+   * NOTE: CONTAINS edges come from original backend data in snapshot.edges, not generated here
    */
-  private layoutFlat(
+  private layoutFlatFromHierarchy(
     hierarchyRoots: HierarchicalNode[],
     metrics: ContainmentMetrics,
     config: EngineRuntimeConfig
-  ): { nodes: HierarchicalNode[]; containsEdges: Edge[] } {
-    // Flatten hierarchy and generate CONTAINS edges
+  ): FlatLayoutFrame {
+    console.log('[ContainmentRuntime] FLAT MODE: Starting with', hierarchyRoots.length, 'root nodes');
+
+    // Flatten hierarchy (but don't generate edges - they already exist in original data)
     const flatResult = flattenHierarchyWithEdges(hierarchyRoots);
+
+    console.log('[ContainmentRuntime] FLAT MODE: Flattened to', flatResult.nodes.length, 'nodes');
+    console.log('[ContainmentRuntime] FLAT MODE: Node names:', flatResult.nodes.map(n => n.text));
 
     // Ensure all nodes have proper defaults
     flatResult.nodes.forEach(node => this.ensureDefaults(node));
@@ -333,6 +367,15 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     // Set absolute world positions
     setAbsoluteWorldPositions(flatResult.nodes);
 
-    return flatResult;
+    console.log('[ContainmentRuntime] FLAT MODE: Final positions:', flatResult.nodes.map(n => ({ name: n.text, x: n.x, y: n.y })));
+
+    const rootIds = flatResult.nodes
+      .map(node => node.GUID ?? node.id)
+      .filter((value): value is string => Boolean(value));
+
+    return {
+      nodes: flatResult.nodes,
+      rootIds: Array.from(new Set(rootIds))
+    };
   }
 }
