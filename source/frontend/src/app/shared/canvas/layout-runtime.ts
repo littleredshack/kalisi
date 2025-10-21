@@ -244,9 +244,16 @@ export class CanvasLayoutRuntime {
       this.orchestrator.setActiveEngine(this.canvasId, normalisedEngine, options.source ?? 'system');
     }
 
+    // Pass viewConfig as engineOptions so layout engine can respond to config
+    const engineOptions = {
+      ...this.viewConfig,
+      ...(options.engineOptions ?? {})
+    };
+
     const result = await this.workerBridge.run(this.canvasId, this.store.current.graph, {
       ...options,
       engineName: normalisedEngine,
+      engineOptions,
       priority: this.resolvePriority(options)
     });
 
@@ -263,6 +270,18 @@ export class CanvasLayoutRuntime {
     });
 
     this.frame = buildPresentationFrame(result, this.frame ?? undefined, this.lensId);
+
+    // Set rendererId based on containmentMode
+    if (this.frame) {
+      const rendererId = this.viewConfig.containmentMode === 'containers'
+        ? 'runtime-containment-renderer'
+        : 'runtime-flat-renderer';
+      this.frame = {
+        ...this.frame,
+        rendererId
+      };
+    }
+
     this.canvasData = this.frame.canvasData;
     return this.canvasData;
   }
