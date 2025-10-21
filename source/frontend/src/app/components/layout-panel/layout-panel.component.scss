@@ -3,10 +3,10 @@
   position: fixed;
   width: 360px;
   height: 400px;
-  background: rgba(11, 15, 20, 0.95);
-  border: 1px solid rgba(110, 168, 254, 0.3);
+  background: var(--panel-background);
+  border: 1px solid var(--panel-border);
   border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(110, 168, 254, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--panel-border-subtle);
   backdrop-filter: blur(12px);
   z-index: 91; // Above properties panel
   display: flex;
@@ -26,7 +26,7 @@
   &.dragging {
     user-select: none;
     cursor: move;
-    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.8), 0 0 0 2px rgba(110, 168, 254, 0.4);
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.8), 0 0 0 2px var(--panel-border-hover);
   }
 
   &.resizing {
@@ -50,7 +50,7 @@
     cursor: ew-resize;
 
     &:hover {
-      background: rgba(110, 168, 254, 0.2);
+      background: var(--panel-hover-background);
     }
 
     &::after {
@@ -60,13 +60,13 @@
       top: 50%;
       width: 2px;
       height: 40px;
-      background: rgba(110, 168, 254, 0.3);
+      background: var(--panel-border-subtle);
       border-radius: 1px;
       transform: translateY(-50%);
     }
 
     &:hover::after {
-      background: rgba(110, 168, 254, 0.6);
+      background: var(--panel-border-hover);
     }
   }
 
@@ -78,7 +78,7 @@
     cursor: ns-resize;
 
     &:hover {
-      background: rgba(110, 168, 254, 0.2);
+      background: var(--panel-hover-background);
     }
 
     &::after {
@@ -88,13 +88,13 @@
       bottom: 4px;
       width: 40px;
       height: 2px;
-      background: rgba(110, 168, 254, 0.3);
+      background: var(--panel-border-subtle);
       border-radius: 1px;
       transform: translateX(-50%);
     }
 
     &:hover::after {
-      background: rgba(110, 168, 254, 0.6);
+      background: var(--panel-border-hover);
     }
   }
 
@@ -106,7 +106,7 @@
     cursor: nwse-resize;
 
     &:hover {
-      background: rgba(110, 168, 254, 0.3);
+      background: var(--panel-hover-background);
       border-radius: 0 0 8px 0;
     }
 
@@ -117,12 +117,12 @@
       bottom: 6px;
       width: 8px;
       height: 8px;
-      border-right: 2px solid rgba(110, 168, 254, 0.4);
-      border-bottom: 2px solid rgba(110, 168, 254, 0.4);
+      border-right: 2px solid var(--panel-border-subtle);
+      border-bottom: 2px solid var(--panel-border-subtle);
     }
 
     &:hover::after {
-      border-color: rgba(110, 168, 254, 0.8);
+      border-color: var(--panel-border-hover);
     }
   }
 }
@@ -130,7 +130,7 @@
 // Panel Header - draggable
 .panel-header {
   padding: 16px 20px;
-  border-bottom: 1px solid rgba(110, 168, 254, 0.2);
+  border-bottom: 1px solid var(--panel-border-subtle);
   border-radius: 8px 8px 0 0;
   display: flex;
   justify-content: space-between;
@@ -171,8 +171,8 @@
 .control-btn {
   width: 32px;
   height: 32px;
-  border: 1px solid rgba(110, 168, 254, 0.2);
-  background: rgba(110, 168, 254, 0.1);
+  border: 1px solid var(--panel-border-subtle);
+  background: var(--panel-surface);
   color: #e6edf3;
   border-radius: 4px;
   display: flex;
@@ -182,8 +182,8 @@
   transition: all 0.2s ease;
 
   &:hover {
-    background: rgba(110, 168, 254, 0.2);
-    border-color: rgba(110, 168, 254, 0.4);
+    background: var(--panel-hover-background);
+    border-color: var(--panel-border-hover);
   }
 
   i {
@@ -215,8 +215,8 @@
   flex-direction: column;
   gap: 0.75rem;
   padding: 1rem;
-  background: rgba(15, 23, 42, 0.5);
-  border: 1px solid rgba(110, 168, 254, 0.25);
+  background: var(--panel-background-alpha-55);
+  border: 1px solid var(--panel-border-alpha-30);
   border-radius: 8px;
 }
 
@@ -263,8 +263,8 @@
 .control-select {
   padding: 0.5rem 0.75rem;
   border-radius: 6px;
-  background: rgba(15, 23, 42, 0.75);
-  border: 1px solid rgba(110, 168, 254, 0.35);
+  background: var(--panel-background-alpha-75);
+  border: 1px solid var(--panel-border-alpha-35);
   color: var(--text-primary, #e6edf3);
   font-size: 0.9rem;
   min-width: 150px;
@@ -272,13 +272,13 @@
   transition: all 0.2s ease;
 
   &:hover {
-    border-color: rgba(110, 168, 254, 0.5);
+    border-color: var(--panel-border-alpha-50);
   }
 
   &:focus {
     outline: none;
-    border-color: rgba(110, 168, 254, 0.6);
-    box-shadow: 0 0 0 2px rgba(110, 168, 254, 0.15);
+    border-color: var(--panel-border-alpha-60);
+    box-shadow: 0 0 0 2px var(--panel-border-alpha-20);
   }
 
   option:disabled {
@@ -307,7 +307,7 @@
     }
 
     &:focus + .toggle-slider {
-      box-shadow: 0 0 0 2px rgba(110, 168, 254, 0.2);
+      box-shadow: 0 0 0 2px var(--panel-border-alpha-20);
     }
   }
 }
@@ -319,8 +319,8 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(15, 23, 42, 0.75);
-  border: 1px solid rgba(110, 168, 254, 0.35);
+  background-color: var(--panel-background-alpha-75);
+  border: 1px solid var(--panel-border-alpha-35);
   border-radius: 13px;
   transition: all 0.3s ease;
 
@@ -337,6 +337,6 @@
   }
 
   &:hover {
-    border-color: rgba(110, 168, 254, 0.5);
+    border-color: var(--panel-border-alpha-50);
   }
 }

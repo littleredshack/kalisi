@@ -170,12 +170,14 @@ const LIBRARY_ITEMS: LibraryItem[] = [
 
       <!-- Node Style Panel (Floating) -->
       <app-node-style-panel
-        [isOpen]="nodeStylePanelOpen">
+        [isOpen]="nodeStylePanelOpen"
+        (panelToggled)="onNodeStylePanelToggled($event)">
       </app-node-style-panel>
 
       <!-- Layout Panel (Floating) -->
       <app-layout-panel
-        [isOpen]="layoutPanelOpen">
+        [isOpen]="layoutPanelOpen"
+        (panelToggled)="onLayoutPanelToggled($event)">
       </app-layout-panel>
 
       <!-- Main Workspace Area -->
@@ -1567,6 +1569,14 @@ export class LandingShellComponent implements OnInit, OnDestroy {
 
   onPropertiesPanelToggled(isVisible: boolean) {
     this.uiState.setPropertiesPanel(isVisible);
+  }
+
+  onLayoutPanelToggled(isVisible: boolean) {
+    this.uiState.setLayoutPanel(isVisible);
+  }
+
+  onNodeStylePanelToggled(isVisible: boolean) {
+    this.uiState.setNodeStylePanel(isVisible);
   }
 
   // Library data now loaded via ViewNodeStateService

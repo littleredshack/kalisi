@@ -223,8 +223,8 @@ import { NodeSelectionSnapshot } from '../../shared/canvas/types';
       gap: 0.6rem;
       padding: 0.4rem 0.55rem;
       border-radius: 6px;
-      background: rgba(15, 23, 42, calc(var(--panel-opacity) * 0.6));
-      border: 1px solid rgba(110, 168, 254, calc(var(--panel-opacity) * 0.35));
+      background: var(--panel-background-soft);
+      border: 1px solid var(--panel-border-muted);
       transition: background 0.2s ease, border-color 0.2s ease;
     }
 
@@ -233,8 +233,8 @@ import { NodeSelectionSnapshot } from '../../shared/canvas/types';
       flex-direction: column;
       gap: 1rem;
       padding: 1rem;
-      background: rgba(15, 23, 42, calc(var(--panel-opacity) * 0.85));
-      border: 1px solid rgba(110, 168, 254, calc(var(--panel-opacity) * 0.35));
+      background: var(--panel-background-alpha-85);
+      border: 1px solid var(--panel-border-muted);
       border-radius: 8px;
       transition: background 0.2s ease, border-color 0.2s ease;
     }
@@ -267,8 +267,8 @@ import { NodeSelectionSnapshot } from '../../shared/canvas/types';
     .form-row input[type="text"] {
       padding: 0.5rem 0.65rem;
       border-radius: 6px;
-      background: rgba(15, 23, 42, calc(var(--panel-opacity) * 0.55));
-      border: 1px solid rgba(110, 168, 254, calc(var(--panel-opacity) * 0.35));
+      background: var(--panel-background-soft);
+      border: 1px solid var(--panel-border-muted);
       color: var(--text-primary);
       font-size: 0.9rem;
       transition: background 0.2s ease, border-color 0.2s ease;
@@ -304,8 +304,8 @@ import { NodeSelectionSnapshot } from '../../shared/canvas/types';
       align-items: center;
       padding: 0.15rem 0.6rem;
       border-radius: 999px;
-      background: rgba(110, 168, 254, 0.18);
-      border: 1px solid rgba(110, 168, 254, 0.35);
+      background: var(--panel-border-alpha-30);
+      border: 1px solid var(--panel-border-alpha-35);
       text-transform: capitalize;
     }
 
@@ -313,7 +313,7 @@ import { NodeSelectionSnapshot } from '../../shared/canvas/types';
       font-family: 'IBM Plex Mono', 'Fira Code', monospace;
       font-size: 0.78rem;
       color: var(--text-secondary);
-      background: rgba(15, 23, 42, calc(var(--panel-opacity) * 0.45));
+      background: var(--panel-background-subtle);
       padding: 0.4rem 0.6rem;
       border-radius: 6px;
     }
@@ -335,7 +335,7 @@ import { NodeSelectionSnapshot } from '../../shared/canvas/types';
       gap: 0.75rem;
       margin-top: 1rem;
       padding-top: 1rem;
-      border-top: 1px solid rgba(110, 168, 254, 0.12);
+      border-top: 1px solid var(--panel-border-faint);
     }
 
     .preset-header {
@@ -353,7 +353,7 @@ import { NodeSelectionSnapshot } from '../../shared/canvas/types';
     .link-button {
       background: none;
       border: none;
-      color: rgba(110, 168, 254, 0.9);
+      color: var(--panel-border-alpha-60);
       cursor: pointer;
       font-size: 0.78rem;
       text-decoration: underline;
@@ -369,8 +369,8 @@ import { NodeSelectionSnapshot } from '../../shared/canvas/types';
       padding: 0.75rem;
       border-radius: 8px;
       transition: background 0.2s ease, border-color 0.2s ease;
-      background: rgba(15, 23, 42, calc(var(--panel-opacity) * 0.55));
-      border: 1px solid rgba(110, 168, 254, calc(var(--panel-opacity) * 0.3));
+      background: var(--panel-background-soft);
+      border: 1px solid var(--panel-border-faint);
       display: flex;
       flex-direction: column;
       gap: 0.5rem;
@@ -400,8 +400,8 @@ import { NodeSelectionSnapshot } from '../../shared/canvas/types';
     .scope-group select {
       padding: 0.45rem 0.6rem;
       border-radius: 6px;
-      background: rgba(15, 23, 42, calc(var(--panel-opacity) * 0.55));
-      border: 1px solid rgba(110, 168, 254, calc(var(--panel-opacity) * 0.35));
+      background: var(--panel-background-soft);
+      border: 1px solid var(--panel-border-muted);
       color: var(--text-primary);
       font-size: 0.9rem;
       transition: background 0.2s ease, border-color 0.2s ease;
@@ -453,8 +453,8 @@ import { NodeSelectionSnapshot } from '../../shared/canvas/types';
       gap: 0.5rem;
       padding: 0.75rem;
       border-radius: 6px;
-      background: rgba(15, 23, 42, calc(var(--panel-opacity) * 0.55));
-      border: 1px solid rgba(110, 168, 254, calc(var(--panel-opacity) * 0.3));
+      background: var(--panel-background-soft);
+      border: 1px solid var(--panel-border-faint);
       color: var(--text-secondary);
       font-size: 0.9rem;
     }
@@ -481,7 +481,7 @@ import { NodeSelectionSnapshot } from '../../shared/canvas/types';
     .color-control p-colorpicker {
       border-radius: 6px;
       overflow: hidden;
-      border: 1px solid rgba(110, 168, 254, 0.4);
+      border: 1px solid var(--panel-border-alpha-40);
     }
 
     .color-swatch-button {
@@ -500,9 +500,9 @@ import { NodeSelectionSnapshot } from '../../shared/canvas/types';
       min-width: 120px;
       padding: 0.45rem 0.55rem;
       border-radius: 6px;
-      border: 1px solid rgba(110, 168, 254, 0.25);
-      background: rgba(15, 23, 42, calc(var(--panel-opacity) * 0.55));
-      border: 1px solid rgba(110, 168, 254, calc(var(--panel-opacity) * 0.35));
+      border: 1px solid var(--panel-border-faint);
+      background: var(--panel-background-soft);
+      border: 1px solid var(--panel-border-muted);
       color: var(--text-primary);
       font-family: 'IBM Plex Mono', 'Fira Code', monospace;
       font-size: 0.85rem;
@@ -510,8 +510,8 @@ import { NodeSelectionSnapshot } from '../../shared/canvas/types';
 
     .hex-input:focus {
       outline: none;
-      border-color: rgba(110, 168, 254, 0.6);
-      box-shadow: 0 0 0 2px rgba(110, 168, 254, 0.15);
+      border-color: var(--panel-border-alpha-60);
+      box-shadow: 0 0 0 2px var(--panel-border-alpha-20);
     }
 
     .color-preview {
@@ -607,8 +607,8 @@ import { NodeSelectionSnapshot } from '../../shared/canvas/types';
     .info-item {
       padding: 0.65rem;
       border-radius: 6px;
-      background: rgba(15, 23, 42, calc(var(--panel-opacity) * 0.55));
-      border: 1px solid rgba(110, 168, 254, calc(var(--panel-opacity) * 0.3));
+      background: var(--panel-background-soft);
+      border: 1px solid var(--panel-border-faint);
       display: flex;
       flex-direction: column;
       gap: 0.25rem;
@@ -638,8 +638,8 @@ import { NodeSelectionSnapshot } from '../../shared/canvas/types';
       gap: 0.5rem;
       padding: 0.75rem 1rem;
       margin-top: auto;
-      background: rgba(15, 23, 42, calc(var(--panel-opacity) * 0.6));
-      border: 1px solid rgba(110, 168, 254, calc(var(--panel-opacity) * 0.3));
+      background: var(--panel-background-soft);
+      border: 1px solid var(--panel-border-faint);
       border-radius: 8px;
       transition: background 0.2s ease, border-color 0.2s ease;
     }

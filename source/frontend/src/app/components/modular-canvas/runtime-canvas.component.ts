@@ -262,37 +262,19 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   }
 
   private updateRuntimeConfig(configPatch: Partial<RuntimeViewConfig>): void {
-    if (typeof window !== 'undefined' && (window as any).__DEV__ && (console.debug || console.log)) {
-      (console.debug || console.log).call(console, '[RuntimeCanvas] updateRuntimeConfig called with:', configPatch);
-    }
 
     if (!this.engine) {
-      if (typeof window !== 'undefined' && (window as any).__DEV__ && (console.debug || console.log)) {
-        (console.debug || console.log).call(console, '[RuntimeCanvas] Engine not ready yet, skipping config update');
-      }
       return;
     }
 
     // Get the layoutRuntime from the engine
     const runtime = (this.engine as any).layoutRuntime as CanvasLayoutRuntime;
     if (!runtime) {
-      if (typeof window !== 'undefined' && (window as any).__DEV__ && (console.debug || console.log)) {
-        (console.debug || console.log).call(console, '[RuntimeCanvas] Runtime not found in engine, skipping config update');
-      }
       return;
-    }
-
-    if (typeof window !== 'undefined' && (window as any).__DEV__ && (console.debug || console.log)) {
-      (console.debug || console.log).call(console, '[RuntimeCanvas] Applying config to runtime:', configPatch);
-      (console.debug || console.log).call(console, '[RuntimeCanvas] Current runtime config:', runtime.getViewConfig());
     }
 
     // Update the view config
     runtime.setViewConfig(configPatch);
-
-    if (typeof window !== 'undefined' && (window as any).__DEV__ && (console.debug || console.log)) {
-      (console.debug || console.log).call(console, '[RuntimeCanvas] Updated runtime config:', runtime.getViewConfig());
-    }
 
     // Switch renderer if containmentMode changed
     if ('containmentMode' in configPatch) {
@@ -300,24 +282,14 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       const newRenderer = newMode === 'containers' ? this.containmentRenderer : this.flatRenderer;
 
       if (newRenderer) {
-        if (typeof window !== 'undefined' && (window as any).__DEV__ && (console.debug || console.log)) {
-          (console.debug || console.log).call(console, '[RuntimeCanvas] Switching to renderer for mode:', newMode);
-        }
         this.engine.setRenderer(newRenderer);
       } else {
         console.warn('[RuntimeCanvas] Renderer not available for mode:', newMode);
       }
     }
 
-    if (typeof window !== 'undefined' && (window as any).__DEV__ && (console.debug || console.log)) {
-      (console.debug || console.log).call(console, '[RuntimeCanvas] Triggering layout re-run...');
-    }
-
     // Re-run layout to apply the new configuration
     this.engine.runLayout().then(() => {
-      if (typeof window !== 'undefined' && (window as any).__DEV__ && (console.debug || console.log)) {
-        (console.debug || console.log).call(console, '[RuntimeCanvas] Layout re-run complete');
-      }
       this.data = this.engine?.getData() ?? this.data;
       this.updateCameraInfo();
       this.engineDataChanged.emit();
@@ -884,18 +856,11 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       return;
     }
 
-    if (typeof window !== 'undefined' && (window as any).__DEV__ && (console.debug || console.log)) {
-      (console.debug || console.log).call(console, `[RuntimeCanvas] Setting up realtime subscription for ViewNode: ${this.selectedViewNode.id}`);
-    }
-
     // Connect to the WebSocket and subscribe to graph changes
     this.neo4jRealtimeService.connect(this.selectedViewNode.id);
 
     // Subscribe to delta updates
     this.realtimeDeltaSubscription = this.neo4jRealtimeService.getDelta$().subscribe(delta => {
-      if (typeof window !== 'undefined' && (window as any).__DEV__ && (console.debug || console.log)) {
-        (console.debug || console.log).call(console, '[RuntimeCanvas] Received graph delta:', delta);
-      }
 
       if (!this.engine) {
         console.warn('[RuntimeCanvas] Engine not available, cannot apply delta');
@@ -905,9 +870,6 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       try {
         // Apply the delta to the engine without recording in history (system change)
         this.engine.applyDelta(delta, { recordHistory: false });
-        if (typeof window !== 'undefined' && (window as any).__DEV__ && (console.debug || console.log)) {
-          (console.debug || console.log).call(console, '[RuntimeCanvas] Successfully applied graph delta');
-        }
       } catch (error) {
         console.error('[RuntimeCanvas] Error applying graph delta:', error);
       }

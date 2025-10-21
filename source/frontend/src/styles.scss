@@ -25,6 +25,31 @@ html, body {
   --app-background-dark: #060809;
   --app-border-strong: #484f58;
 
+  /* Panel surfaces */
+  --panel-background: rgba(11, 15, 20, 0.95);
+  --panel-surface: rgba(11, 15, 20, 0.9);
+  --panel-header-background: rgba(11, 15, 20, 0.92);
+  --panel-hover-background: rgba(11, 15, 20, 0.98);
+  --panel-border: rgba(48, 54, 61, 0.7);
+  --panel-border-subtle: rgba(48, 54, 61, 0.45);
+  --panel-border-hover: rgba(48, 54, 61, 0.65);
+  --panel-border-strong: rgba(48, 54, 61, 0.8);
+  --panel-background-alpha-45: rgba(11, 15, 20, 0.45);
+  --panel-background-alpha-55: rgba(11, 15, 20, 0.55);
+  --panel-background-alpha-60: rgba(11, 15, 20, 0.6);
+  --panel-background-alpha-75: rgba(11, 15, 20, 0.75);
+  --panel-background-alpha-85: rgba(11, 15, 20, 0.85);
+  --panel-border-alpha-20: rgba(48, 54, 61, 0.2);
+  --panel-border-alpha-30: rgba(48, 54, 61, 0.3);
+  --panel-border-alpha-35: rgba(48, 54, 61, 0.35);
+  --panel-border-alpha-40: rgba(48, 54, 61, 0.4);
+  --panel-border-alpha-50: rgba(48, 54, 61, 0.5);
+  --panel-border-alpha-60: rgba(48, 54, 61, 0.6);
+  --panel-border-muted: rgba(48, 54, 61, 0.35);
+  --panel-border-faint: rgba(48, 54, 61, 0.25);
+  --panel-background-soft: rgba(11, 15, 20, 0.65);
+  --panel-background-subtle: rgba(11, 15, 20, 0.45);
+
   /* Color tokens for futuristic HUD look */
   --surface-ground: var(--app-background);
   --primary-color: #6ea8fe;

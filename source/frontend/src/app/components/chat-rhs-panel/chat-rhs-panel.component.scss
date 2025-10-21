@@ -2,10 +2,10 @@
   position: fixed;
   width: 400px;
   height: 700px;
-  background: rgba(11, 15, 20, 0.95);
-  border: 1px solid rgba(110, 168, 254, 0.3);
+  background: var(--panel-background);
+  border: 1px solid var(--panel-border);
   border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(110, 168, 254, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--panel-border-subtle);
   backdrop-filter: blur(12px);
   z-index: 90;
   display: flex;
@@ -25,7 +25,7 @@
   &.dragging {
     user-select: none;
     cursor: move;
-    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.8), 0 0 0 2px rgba(110, 168, 254, 0.4);
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.8), 0 0 0 2px var(--panel-border-hover);
   }
 
   &.resizing {
@@ -47,7 +47,7 @@
     width: 10px;
     cursor: ew-resize;
 
-    &:hover {background: rgba(110, 168, 254, 0.2);}
+    &:hover {background: var(--panel-hover-background);}
 
     &::after {
       content: '';
@@ -56,12 +56,12 @@
       top: 50%;
       width: 2px;
       height: 40px;
-      background: rgba(110, 168, 254, 0.3);
+      background: var(--panel-hover-background);
       border-radius: 1px;
       transform: translateY(-50%);
     }
 
-    &:hover::after {background: rgba(110, 168, 254, 0.6);}
+    &:hover::after {background: var(--panel-border-hover);}
   }
 
   &.resize-bottom {
@@ -71,7 +71,7 @@
     height: 10px;
     cursor: ns-resize;
 
-    &:hover {background: rgba(110, 168, 254, 0.2);}
+    &:hover {background: var(--panel-hover-background);}
 
     &::after {
       content: '';
@@ -80,12 +80,12 @@
       bottom: 4px;
       width: 40px;
       height: 2px;
-      background: rgba(110, 168, 254, 0.3);
+      background: var(--panel-hover-background);
       border-radius: 1px;
       transform: translateX(-50%);
     }
 
-    &:hover::after {background: rgba(110, 168, 254, 0.6);}
+    &:hover::after {background: var(--panel-border-hover);}
   }
 
   &.resize-bottom-right {
@@ -96,7 +96,7 @@
     cursor: nwse-resize;
 
     &:hover {
-      background: rgba(110, 168, 254, 0.3);
+      background: var(--panel-hover-background);
       border-radius: 0 0 8px 0;
     }
 
@@ -107,17 +107,17 @@
       bottom: 6px;
       width: 8px;
       height: 8px;
-      border-right: 2px solid rgba(110, 168, 254, 0.4);
-      border-bottom: 2px solid rgba(110, 168, 254, 0.4);
+      border-right: 2px solid var(--panel-border-subtle);
+      border-bottom: 2px solid var(--panel-border-subtle);
     }
 
-    &:hover::after {border-color: rgba(110, 168, 254, 0.8);}
+    &:hover::after {border-color: var(--panel-border-hover);}
   }
 }
 
 .chat-header {
   padding: 16px 20px;
-  border-bottom: 1px solid rgba(110, 168, 254, 0.2);
+  border-bottom: 1px solid var(--panel-border-subtle);
   border-radius: 8px 8px 0 0;
   display: flex;
   justify-content: space-between;
@@ -155,8 +155,8 @@
   .control-btn {
     width: 32px;
     height: 32px;
-    border: 1px solid rgba(110, 168, 254, 0.2);
-    background: rgba(110, 168, 254, 0.1);
+    border: 1px solid var(--panel-border-alpha-30);
+    background: var(--panel-background-alpha-55);
     color: #e6edf3;
     border-radius: 4px;
     display: flex;
@@ -166,8 +166,8 @@
     transition: all 0.2s;
 
     &:hover {
-      background: rgba(110, 168, 254, 0.2);
-      border-color: rgba(110, 168, 254, 0.4);
+      background: var(--panel-hover-background);
+      border-color: var(--panel-border-alpha-40);
     }
 
     i {font-size: 14px;}
@@ -183,7 +183,7 @@
 .status-line {
   padding: 8px 20px;
   background: var(--app-background);
-  border-bottom: 1px solid rgba(110, 168, 254, 0.2);
+  border-bottom: 1px solid var(--panel-border-subtle);
 }
 
 .status-info {
@@ -210,7 +210,7 @@
 
 .canvas-context {
   padding: 16px 20px;
-  border-bottom: 1px solid rgba(110, 168, 254, 0.2);
+  border-bottom: 1px solid var(--panel-border-subtle);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -248,7 +248,7 @@
 
 .quick-action {
   background: rgba(30, 41, 59, 0.4);
-  border: 1px solid rgba(110, 168, 254, 0.25);
+  border: 1px solid var(--panel-border-alpha-30);
   color: #cbd5f5;
   padding: 6px 12px;
   border-radius: 999px;
@@ -257,13 +257,13 @@
   transition: all 0.2s;
 
   &:hover {
-    background: rgba(110, 168, 254, 0.2);
-    border-color: rgba(110, 168, 254, 0.4);
+    background: var(--panel-hover-background);
+    border-color: var(--panel-border-alpha-40);
   }
 
   &.active {
-    background: rgba(110, 168, 254, 0.35);
-    border-color: rgba(110, 168, 254, 0.6);
+    background: var(--panel-border-alpha-35);
+    border-color: var(--panel-border-alpha-60);
     color: #f8fbff;
   }
 }
@@ -325,9 +325,9 @@
   }
 
   .message-text {
-    background: rgba(110, 168, 254, 0.15);
+    background: var(--panel-border-alpha-20);
     color: #6ea8fe;
-    border: 1px solid rgba(110, 168, 254, 0.4);
+    border: 1px solid var(--panel-border-alpha-40);
   }
 }
 
@@ -355,7 +355,7 @@
     justify-content: space-between;
     padding: 8px 12px;
     background: var(--app-background);
-    border-bottom: 1px solid rgba(110, 168, 254, 0.2);
+    border-bottom: 1px solid var(--panel-border-subtle);
     
     .cypher-label {
       font-size: 0.85em;
@@ -386,7 +386,7 @@
     color: #e6edf3;
     font-size: 0.85em;
     font-style: italic;
-    border-bottom: 1px solid rgba(110, 168, 254, 0.1);
+    border-bottom: 1px solid var(--panel-border-subtle);
   }
   
   .cypher-content {
@@ -495,7 +495,7 @@
 
 .input-area {
   padding: 16px 20px;
-  border-top: 1px solid rgba(110, 168, 254, 0.2);
+  border-top: 1px solid var(--panel-border-alpha-30);
   background: var(--app-background);
 }
 
@@ -521,7 +521,7 @@
   &:focus {
     outline: none;
     border-color: #6ea8fe;
-    box-shadow: 0 0 0 2px rgba(110, 168, 254, 0.25);
+    box-shadow: 0 0 0 2px var(--panel-border-alpha-20);
   }
 
   &:disabled {opacity: 0.5; cursor: not-allowed;}
@@ -531,7 +531,7 @@
 .send-button {
   padding: 8px 12px;
   border: 1px solid #6ea8fe;
-  background: rgba(110, 168, 254, 0.15);
+  background: var(--panel-border-alpha-20);
   color: #6ea8fe;
   border-radius: 6px;
   cursor: pointer;
@@ -541,8 +541,8 @@
   justify-content: center;
 
   &:hover:not(:disabled) {
-    background: rgba(110, 168, 254, 0.25);
-    border-color: rgba(110, 168, 254, 0.6);
+    background: var(--panel-border-alpha-30);
+    border-color: var(--panel-border-alpha-60);
   }
 
   &:disabled {opacity: 0.5; cursor: not-allowed;}

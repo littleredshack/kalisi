@@ -1,4 +1,4 @@
-import { Component, Input, OnInit, OnDestroy, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ColorPickerModule } from 'primeng/colorpicker';
@@ -30,6 +30,7 @@ interface EditableNodeStyle {
 })
 export class NodeStylePanelComponent implements OnInit, OnDestroy, OnChanges {
   @Input() isOpen = false;
+  @Output() panelToggled = new EventEmitter<boolean>();
 
   // Panel state
   isVisible = false;
@@ -96,6 +97,7 @@ export class NodeStylePanelComponent implements OnInit, OnDestroy, OnChanges {
         if (this.isVisible) {
           this.isVisible = false;
           this.isOpen = false;
+          this.panelToggled.emit(false);
         }
       }
     });
@@ -115,6 +117,7 @@ export class NodeStylePanelComponent implements OnInit, OnDestroy, OnChanges {
         event.preventDefault();
         this.isVisible = !this.isVisible;
         this.isOpen = this.isVisible;
+        this.panelToggled.emit(this.isVisible);
       }
     }
   };
@@ -132,6 +135,7 @@ export class NodeStylePanelComponent implements OnInit, OnDestroy, OnChanges {
   closePanel(): void {
     this.isVisible = false;
     this.isOpen = false;
+    this.panelToggled.emit(false);
   }
 
   // Drag functionality

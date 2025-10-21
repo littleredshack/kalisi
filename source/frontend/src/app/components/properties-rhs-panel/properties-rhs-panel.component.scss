@@ -3,10 +3,10 @@
   position: fixed;
   width: 340px; // Default width, will be overridden
   height: 600px; // Default height, will be overridden
-  background: var(--properties-panel-bg, rgba(11, 15, 20, 0.95)); // Floating glass background
-  border: 1px solid rgba(110, 168, 254, 0.3);
+  background: var(--panel-background); // Floating glass background
+  border: 1px solid var(--panel-border);
   border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(110, 168, 254, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--panel-border-subtle);
   backdrop-filter: blur(12px);
   z-index: 90;
   display: flex;
@@ -26,7 +26,7 @@
   &.dragging {
     user-select: none;
     cursor: move;
-    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.8), 0 0 0 2px rgba(110, 168, 254, 0.4);
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.8), 0 0 0 2px var(--panel-border-hover);
   }
 
   &.resizing {
@@ -50,7 +50,7 @@
     cursor: ew-resize;
 
     &:hover {
-      background: rgba(110, 168, 254, 0.2);
+      background: var(--panel-hover-background);
     }
 
     &::after {
@@ -60,13 +60,13 @@
       top: 50%;
       width: 2px;
       height: 40px;
-      background: rgba(110, 168, 254, 0.3);
+      background: var(--panel-border-alpha-30);
       border-radius: 1px;
       transform: translateY(-50%);
     }
 
     &:hover::after {
-      background: rgba(110, 168, 254, 0.6);
+      background: var(--panel-border-alpha-60);
     }
   }
 
@@ -78,7 +78,7 @@
     cursor: ns-resize;
 
     &:hover {
-      background: rgba(110, 168, 254, 0.2);
+      background: var(--panel-hover-background);
     }
 
     &::after {
@@ -88,13 +88,13 @@
       bottom: 4px;
       width: 40px;
       height: 2px;
-      background: rgba(110, 168, 254, 0.3);
+      background: var(--panel-border-alpha-30);
       border-radius: 1px;
       transform: translateX(-50%);
     }
 
     &:hover::after {
-      background: rgba(110, 168, 254, 0.6);
+      background: var(--panel-border-alpha-60);
     }
   }
 
@@ -106,7 +106,7 @@
     cursor: nwse-resize;
 
     &:hover {
-      background: rgba(110, 168, 254, 0.3);
+      background: var(--panel-border-alpha-30);
       border-radius: 0 0 8px 0;
     }
 
@@ -117,12 +117,12 @@
       bottom: 6px;
       width: 8px;
       height: 8px;
-      border-right: 2px solid rgba(110, 168, 254, 0.4);
-      border-bottom: 2px solid rgba(110, 168, 254, 0.4);
+      border-right: 2px solid var(--panel-border-subtle);
+      border-bottom: 2px solid var(--panel-border-subtle);
     }
 
     &:hover::after {
-      border-color: rgba(110, 168, 254, 0.8);
+      border-color: var(--panel-border-hover);
     }
   }
 }
@@ -130,7 +130,7 @@
 // Panel Header - draggable
 .properties-header {
   padding: 16px 20px;
-  border-bottom: 1px solid rgba(110, 168, 254, 0.2);
+  border-bottom: 1px solid var(--panel-border-subtle);
   border-radius: 8px 8px 0 0;
   display: flex;
   justify-content: space-between;
@@ -171,8 +171,8 @@
 .control-btn {
   width: 32px;
   height: 32px;
-  border: 1px solid rgba(110, 168, 254, 0.2);
-  background: rgba(110, 168, 254, 0.1);
+  border: 1px solid var(--panel-border-alpha-30);
+  background: var(--panel-border-alpha-20);
   color: #e6edf3;
   border-radius: 4px;
   display: flex;
@@ -182,8 +182,8 @@
   transition: all 0.2s ease;
   
   &:hover {
-    background: rgba(110, 168, 254, 0.2);
-    border-color: rgba(110, 168, 254, 0.4);
+    background: var(--panel-hover-background);
+    border-color: var(--panel-border-alpha-40);
   }
   
   i {
@@ -215,7 +215,7 @@
   align-items: center;
   padding: 0.65rem 0.75rem;
   background: rgba(15, 23, 42, 0.35);
-  border: 1px solid rgba(110, 168, 254, 0.25);
+  border: 1px solid var(--panel-border-alpha-30);
   border-radius: 6px;
   font-family: 'IBM Plex Mono', 'Fira Code', monospace;
   font-size: 0.85rem;

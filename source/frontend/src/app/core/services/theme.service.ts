@@ -183,16 +183,62 @@ export class ThemeService {
   private updateCssVariables(background: string, border: string, panelOpacity: number): void {
     const root = document.documentElement;
 
+    const panelBackground = this.adjustAlpha(background, panelOpacity);
+    const panelSurface = this.adjustAlpha(background, Math.min(1, panelOpacity + 0.08));
+    const panelHeader = this.adjustAlpha(background, Math.min(1, panelOpacity + 0.12));
+    const panelHover = this.adjustAlpha(background, Math.min(1, panelOpacity + 0.16));
+    const borderSubtle = this.adjustAlpha(border, 0.35);
+    const borderHover = this.adjustAlpha(border, 0.55);
+    const borderStrong = this.adjustAlpha(border, 0.75);
+
     // Primary colors
     root.style.setProperty('--app-background', background);
     root.style.setProperty('--app-border', border);
     root.style.setProperty('--properties-panel-opacity', panelOpacity.toString());
-    root.style.setProperty('--properties-panel-bg', this.adjustAlpha(background, panelOpacity));
+    root.style.setProperty('--properties-panel-bg', panelBackground);
 
     // Derived colors
     root.style.setProperty('--app-border-light', this.adjustAlpha(border, 0.5));
     root.style.setProperty('--app-border-hover', this.adjustAlpha(border, 0.8));
     root.style.setProperty('--app-background-overlay', this.adjustAlpha(background, 0.95));
+
+    // Panel-specific tokens
+    root.style.setProperty('--panel-background', panelBackground);
+    root.style.setProperty('--panel-surface', panelSurface);
+    root.style.setProperty('--panel-header-background', panelHeader);
+    root.style.setProperty('--panel-hover-background', panelHover);
+    root.style.setProperty('--panel-border', border);
+    root.style.setProperty('--panel-border-subtle', borderSubtle);
+    root.style.setProperty('--panel-border-hover', borderHover);
+    root.style.setProperty('--panel-border-strong', borderStrong);
+
+    const backgroundAlphaMap: Array<[string, number]> = [
+      ['--panel-background-alpha-45', 0.45],
+      ['--panel-background-alpha-55', 0.55],
+      ['--panel-background-alpha-60', 0.6],
+      ['--panel-background-alpha-75', 0.75],
+      ['--panel-background-alpha-85', 0.85]
+    ];
+    backgroundAlphaMap.forEach(([name, alpha]) => {
+      root.style.setProperty(name, this.adjustAlpha(background, alpha));
+    });
+
+    const borderAlphaMap: Array<[string, number]> = [
+      ['--panel-border-alpha-20', 0.2],
+      ['--panel-border-alpha-30', 0.3],
+      ['--panel-border-alpha-35', 0.35],
+      ['--panel-border-alpha-40', 0.4],
+      ['--panel-border-alpha-50', 0.5],
+      ['--panel-border-alpha-60', 0.6]
+    ];
+    borderAlphaMap.forEach(([name, alpha]) => {
+      root.style.setProperty(name, this.adjustAlpha(border, alpha));
+    });
+
+    root.style.setProperty('--panel-border-muted', this.adjustAlpha(border, Math.min(1, panelOpacity * 0.35)));
+    root.style.setProperty('--panel-border-faint', this.adjustAlpha(border, Math.min(1, panelOpacity * 0.25)));
+    root.style.setProperty('--panel-background-soft', this.adjustAlpha(background, Math.min(1, panelOpacity * 0.65)));
+    root.style.setProperty('--panel-background-subtle', this.adjustAlpha(background, Math.min(1, panelOpacity * 0.45)));
 
     // Calculate lighter/darker variants
     root.style.setProperty('--app-background-light', this.lighten(background, 10));

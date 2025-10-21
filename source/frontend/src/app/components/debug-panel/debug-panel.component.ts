@@ -43,8 +43,8 @@ import { CommonModule } from '@angular/common';
   styles: [`
     .debug-panel {
       position: fixed;
-      background: #1a1a1a;
-      border: 1px solid #3a3a3a;
+      background: var(--panel-background);
+      border: 1px solid var(--panel-border);
       border-radius: 8px;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
       z-index: 1000;
@@ -63,8 +63,8 @@ import { CommonModule } from '@angular/common';
     }
 
     .panel-header {
-      background: #2a2a2a;
-      border-bottom: 1px solid #3a3a3a;
+      background: var(--panel-header-background);
+      border-bottom: 1px solid var(--panel-border-subtle);
       padding: 8px 12px;
       display: flex;
       justify-content: space-between;
@@ -101,7 +101,7 @@ import { CommonModule } from '@angular/common';
     }
 
     .minimize-btn:hover {
-      background: #3a3a3a;
+      background: var(--panel-hover-background);
       color: #ccc;
     }
 
@@ -119,7 +119,7 @@ import { CommonModule } from '@angular/common';
       width: 100%;
       height: 100%;
       background: #0d1117;
-      border: 1px solid #3a3a3a;
+      border: 1px solid var(--panel-border);
       border-radius: 4px;
       padding: 12px;
       color: #e6edf3;
