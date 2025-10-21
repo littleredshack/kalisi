@@ -26,6 +26,7 @@ import { RuntimeCanvasComponent } from './components/modular-canvas/runtime-canv
 import { ChatRhsPanelComponent } from './components/chat-rhs-panel/chat-rhs-panel.component';
 import { PropertiesRhsPanelComponent } from './components/properties-rhs-panel/properties-rhs-panel.component';
 import { NodeStylePanelComponent } from './components/node-style-panel/node-style-panel.component';
+import { LayoutPanelComponent } from './components/layout-panel/layout-panel.component';
 import { DebugPanelComponent } from './components/debug-panel/debug-panel.component';
 import { ViewType } from './core/models/view.models';
 import { SettingsComponent } from './settings/settings.component';
@@ -80,6 +81,7 @@ const LIBRARY_ITEMS: LibraryItem[] = [
     ChatRhsPanelComponent,
     PropertiesRhsPanelComponent,
     NodeStylePanelComponent,
+    LayoutPanelComponent,
     DebugPanelComponent,
     SettingsComponent,
     TreeTableComponent
@@ -108,6 +110,7 @@ const LIBRARY_ITEMS: LibraryItem[] = [
         [chatPanelOpen]="chatPanelOpen"
         [debugPanelOpen]="debugPanelOpen"
         [nodeStylePanelOpen]="nodeStylePanelOpen"
+        [layoutPanelOpen]="layoutPanelOpen"
         (itemClicked)="onActivityBarItemClick($event)"
         (toggleRequested)="toggleActivityBar()">
       </app-activity-bar>
@@ -169,6 +172,11 @@ const LIBRARY_ITEMS: LibraryItem[] = [
       <app-node-style-panel
         [isOpen]="nodeStylePanelOpen">
       </app-node-style-panel>
+
+      <!-- Layout Panel (Floating) -->
+      <app-layout-panel
+        [isOpen]="layoutPanelOpen">
+      </app-layout-panel>
 
       <!-- Main Workspace Area -->
       <div class="main-workspace"
@@ -944,6 +952,7 @@ export class LandingShellComponent implements OnInit, OnDestroy {
   get settingsPanelOpen() { return this.uiState.settingsPanelOpen(); }
   get propertiesPanelOpen() { return this.uiState.propertiesPanelOpen(); }
   get nodeStylePanelOpen() { return this.uiState.nodeStylePanelOpen(); }
+  get layoutPanelOpen() { return this.uiState.layoutPanelOpen(); }
   get chatPanelOpen() { return this.uiState.chatPanelOpen(); }
   get debugPanelOpen() { return this.uiState.debugPanelOpen(); }
 
@@ -1349,6 +1358,9 @@ export class LandingShellComponent implements OnInit, OnDestroy {
         break;
       case 'style':
         this.uiState.toggleNodeStylePanel();
+        break;
+      case 'layout':
+        this.uiState.toggleLayoutPanel();
         break;
       case 'admin':
         this.toggleSettings();

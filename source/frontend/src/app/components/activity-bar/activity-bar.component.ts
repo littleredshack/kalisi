@@ -28,6 +28,7 @@ export class ActivityBarComponent implements OnInit, OnChanges {
   @Input() chatPanelOpen = false;
   @Input() debugPanelOpen = false;
   @Input() nodeStylePanelOpen = false;
+  @Input() layoutPanelOpen = false;
   @Output() itemClicked = new EventEmitter<string>();
   @Output() toggleRequested = new EventEmitter<void>();
   
@@ -71,6 +72,13 @@ export class ActivityBarComponent implements OnInit, OnChanges {
       icon: 'palette',
       label: 'Style',
       tooltip: 'Style (S)',
+      isActive: false
+    },
+    {
+      id: 'layout',
+      icon: 'th-large',
+      label: 'Layout',
+      tooltip: 'Layout (L)',
       isActive: false
     },
     {
@@ -123,6 +131,9 @@ export class ActivityBarComponent implements OnInit, OnChanges {
           break;
         case 'style':
           item.isActive = this.nodeStylePanelOpen;
+          break;
+        case 'layout':
+          item.isActive = this.layoutPanelOpen;
           break;
         case 'admin': // Settings
           item.isActive = this.settingsPanelOpen;

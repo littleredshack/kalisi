@@ -27,7 +27,7 @@ import { LayoutModuleDescriptor, LayoutModuleRegistry } from '../../shared/layou
 import { ComponentFactoryResult } from '../../shared/canvas/component-factory';
 import { GraphLensRegistry, GraphLensDescriptor } from '../../shared/graph/lens-registry';
 import { ensureRelativeNodeCoordinates } from '../../shared/canvas/utils/relative-coordinates';
-import { CanvasLayoutRuntime } from '../../shared/canvas/layout-runtime';
+import { CanvasLayoutRuntime, RuntimeViewConfig } from '../../shared/canvas/layout-runtime';
 import { layoutGraphToHierarchical } from '../../shared/layouts/core/layout-graph-utils';
 import { ContainmentRuntimeLayoutEngine } from '../../shared/layouts/engines/containment-runtime-layout.engine';
 import { LayoutOptions, RawDataInput } from '../../shared/layouts/core/layout-contract';
@@ -153,6 +153,40 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
         this.selectedViewNode = viewNode;
         this.loadViewNodeData(viewNode.id);
       }
+    });
+
+    // Subscribe to runtime view configuration changes
+    this.canvasControlService.containmentMode$.subscribe(mode => {
+      this.updateRuntimeConfig({ containmentMode: mode });
+    });
+
+    this.canvasControlService.layoutMode$.subscribe(mode => {
+      this.updateRuntimeConfig({ layoutMode: mode });
+    });
+
+    this.canvasControlService.edgeRouting$.subscribe(mode => {
+      this.updateRuntimeConfig({ edgeRouting: mode });
+    });
+  }
+
+  private updateRuntimeConfig(configPatch: Partial<RuntimeViewConfig>): void {
+    if (!this.engine) {
+      return;
+    }
+
+    // Get the layoutRuntime from the engine
+    const runtime = (this.engine as any).layoutRuntime as CanvasLayoutRuntime;
+    if (!runtime) {
+      return;
+    }
+
+    // Update the view config
+    runtime.setViewConfig(configPatch);
+
+    // Re-run layout to apply the new configuration
+    this.engine.runLayout().then(() => {
+      this.updateCameraInfo();
+      this.engineDataChanged.emit();
     });
   }
   

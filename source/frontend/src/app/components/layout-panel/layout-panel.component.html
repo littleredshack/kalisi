@@ -1,0 +1,96 @@
+<div class="layout-panel"
+     [class.visible]="isVisible"
+     [class.dragging]="dragging"
+     [class.resizing]="resizing"
+     [style.left.px]="panelX"
+     [style.top.px]="panelY"
+     [style.width.px]="panelWidth"
+     [style.height.px]="panelHeight">
+
+  <!-- Resize Handles -->
+  <div class="resize-handle resize-right" (mousedown)="onResizeStart($event, 'right')"></div>
+  <div class="resize-handle resize-bottom" (mousedown)="onResizeStart($event, 'bottom')"></div>
+  <div class="resize-handle resize-bottom-right" (mousedown)="onResizeStart($event, 'bottom-right')"></div>
+
+  <!-- Panel Header - Draggable -->
+  <div class="panel-header" (mousedown)="onHeaderDragStart($event)">
+    <div class="header-title">
+      <i class="pi pi-th header-icon"></i>
+      <h3 class="title-text">Layout</h3>
+    </div>
+    <div class="header-controls">
+      <button
+        class="control-btn close-btn"
+        (click)="closePanel()"
+        pTooltip="Close layout panel"
+        tooltipPosition="left">
+        <i class="pi pi-times"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Panel Content -->
+  <div class="panel-content">
+    <div class="section">
+      <div class="section-title">
+        <span>Rendering Mode</span>
+      </div>
+
+      <div class="control-group">
+        <div class="control-row">
+          <label class="control-label">
+            <span>Containment</span>
+            <span class="control-description">Show nodes as nested containers</span>
+          </label>
+          <div class="toggle-switch">
+            <input
+              type="checkbox"
+              id="containment-toggle"
+              [checked]="containmentEnabled"
+              (change)="onContainmentToggle($any($event.target).checked)">
+            <label for="containment-toggle" class="toggle-slider"></label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">
+        <span>Layout Strategy</span>
+      </div>
+
+      <div class="control-group">
+        <div class="control-row">
+          <label class="control-label">Algorithm</label>
+          <select
+            class="control-select"
+            [value]="layoutMode"
+            (change)="onLayoutModeChange($any($event.target).value)">
+            <option value="grid">Grid</option>
+            <option value="force" disabled>Force (coming soon)</option>
+            <option value="tree" disabled>Tree (coming soon)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">
+        <span>Edge Routing</span>
+      </div>
+
+      <div class="control-group">
+        <div class="control-row">
+          <label class="control-label">Style</label>
+          <select
+            class="control-select"
+            [value]="edgeRouting"
+            (change)="onEdgeRoutingChange($any($event.target).value)">
+            <option value="orthogonal">Orthogonal</option>
+            <option value="straight" disabled>Straight (coming soon)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
