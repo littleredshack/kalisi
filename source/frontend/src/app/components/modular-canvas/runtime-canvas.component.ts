@@ -35,6 +35,7 @@ import { RawDataInput } from '../../shared/layouts/core/layout-contract';
 import { ContainmentRuntimeLayoutEngine } from '../../shared/layouts/engines/containment-runtime-layout.engine';
 import { RuntimeContainmentRenderer } from '../../shared/composable/renderers/runtime-containment-renderer';
 import { RuntimeFlatRenderer } from '../../shared/composable/renderers/runtime-flat-renderer';
+import { OverlayService } from '../../shared/canvas/overlay/overlay.service';
 
 @Component({
   selector: 'app-runtime-canvas',
@@ -116,7 +117,8 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     private canvasViewStateService: CanvasViewStateService,
     private canvasHistoryService: CanvasHistoryService,
     private canvasEventHubService: CanvasEventHubService,
-    private neo4jRealtimeService: Neo4jRealtimeService
+    private neo4jRealtimeService: Neo4jRealtimeService,
+    private overlayService: OverlayService
   ) {
     // Engine-only mode - no reactive effects
     this.availableLenses = GraphLensRegistry.list();
@@ -201,13 +203,6 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   }
 
   private async applyRuntimeConfigPatch(configPatch: Partial<RuntimeViewConfig>): Promise<void> {
-    if (configPatch.containmentMode && this.selectedViewNode && this.engine) {
-      const rawData = await this.fetchCanonicalViewData(this.selectedViewNode);
-      if (rawData) {
-        await this.engine.setRawData(rawData, false);
-      }
-    }
-
     this.updateRuntimeConfig(configPatch);
   }
 
@@ -362,6 +357,9 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       // Store the viewNode for createEngineWithData to use
       this.selectedViewNode = viewNode;
       this.canvasId = viewNode.id || 'modular-canvas';
+
+      // Reset overlay state when switching to a new ViewNode
+      this.overlayService.clear();
 
       // Re-register canvas with control service using new ID
       this.canvasControlService.registerCanvas(this);
@@ -748,7 +746,8 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       this.data!,
       this.canvasId,
       this.runtimeEngineId,
-      initialViewConfig
+      initialViewConfig,
+      this.overlayService
     );
 
     // Expose engine to window for debugging/testing

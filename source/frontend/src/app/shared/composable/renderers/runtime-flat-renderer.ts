@@ -56,6 +56,8 @@ export class RuntimeFlatRenderer extends BaseRenderer {
     const lensId = frame?.lensId ?? null;
     const delta = frame?.delta;
 
+    const renderableEdges = edges.filter(edge => edge.metadata?.['visible'] !== false);
+
     const dirtyNodeIds = new Set<string>();
     const dirtyEdgeIds = new Set<string>();
 
@@ -81,7 +83,7 @@ export class RuntimeFlatRenderer extends BaseRenderer {
     }
 
     // Clean up stale cache entries
-    const currentEdgeIds = new Set(edges.map(edge => edge.id));
+    const currentEdgeIds = new Set(renderableEdges.map(edge => edge.id));
     for (const cachedId of Array.from(this.edgeWaypointCache.keys())) {
       if (!currentEdgeIds.has(cachedId)) {
         this.edgeWaypointCache.delete(cachedId);
@@ -92,7 +94,7 @@ export class RuntimeFlatRenderer extends BaseRenderer {
     const indexedNodes = Array.from(nodeIndex.values());
 
     // Update edge waypoints
-    edges.forEach(edge => {
+    renderableEdges.forEach(edge => {
       const fromId = this.getEdgeNodeIdentifier(edge.fromGUID, edge.from);
       const toId = this.getEdgeNodeIdentifier(edge.toGUID, edge.to);
 
@@ -121,7 +123,7 @@ export class RuntimeFlatRenderer extends BaseRenderer {
     }
 
     // Render edges first (behind nodes)
-    edges.forEach(edge => {
+    renderableEdges.forEach(edge => {
       const fromNode = this.findNodeByIdentifier(this.getEdgeNodeIdentifier(edge.fromGUID, edge.from), nodeIndex);
       const toNode = this.findNodeByIdentifier(this.getEdgeNodeIdentifier(edge.toGUID, edge.to), nodeIndex);
       const cachedWaypoints = this.edgeWaypointCache.get(edge.id);

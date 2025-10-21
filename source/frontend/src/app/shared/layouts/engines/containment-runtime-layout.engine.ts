@@ -65,15 +65,37 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
         .filter((value): value is string => Boolean(value));
     }
 
-    // Filter containment edges based on containmentMode
-    // In 'containers' mode: hide CONTAINS edges (visual hierarchy replaces them)
-    // In 'flat' mode: show ALL edges including CONTAINS (they come from original backend data)
-    const edgesToRender = runtimeConfig.containmentMode === 'containers'
-      ? snapshot.edges.filter(edge => {
-          const edgeType = (edge.metadata?.['relationType'] as string)?.toUpperCase() || '';
-          return !CONTAINMENT_EDGE_TYPES.has(edgeType);
-        })
-      : snapshot.edges; // In flat mode, use ALL edges from backend (includes CONTAINS)
+    // Preserve all edges but toggle visibility via metadata so canonical data stays intact
+    const edgesToRender = snapshot.edges.map(edge => {
+      const existingMetadata = edge.metadata ?? {};
+      const relationTypeSource =
+        typeof existingMetadata['relationType'] === 'string'
+          ? existingMetadata['relationType']
+          : typeof edge.label === 'string' && edge.label.length > 0
+            ? edge.label
+            : '';
+      const normalisedType = relationTypeSource.toUpperCase();
+      const isContainmentEdge = normalisedType ? CONTAINMENT_EDGE_TYPES.has(normalisedType) : false;
+
+      const metadata: Record<string, unknown> = {
+        ...existingMetadata
+      };
+
+      if (!metadata['relationType'] && relationTypeSource) {
+        metadata['relationType'] = relationTypeSource;
+      }
+
+      if (isContainmentEdge) {
+        metadata['visible'] = runtimeConfig.containmentMode !== 'containers';
+      } else if (metadata['visible'] === undefined) {
+        metadata['visible'] = true;
+      }
+
+      return {
+        ...edge,
+        metadata
+      };
+    });
 
     const routedEdges = this.computeEdgeWaypoints(processedNodes, edgesToRender, runtimeConfig);
 

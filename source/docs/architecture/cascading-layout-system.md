@@ -1,201 +1,148 @@
-# Cascading Layout & Rendering System
+# Cascading Layout & Rendering System (Overlay Architecture)
 
-## Requirements
+This document supersedes earlier drafts. The runtime must guarantee that Neo4j graph data stays canonical, while view-specific configuration and styling are managed through explicit overlays that can cascade across the hierarchy.
 
-1. **Mix & Match**: Independent choice of layout algorithm and rendering style
-2. **Hierarchical Configuration**: Settings cascade down from parent to children
-3. **Node-Level Overrides**: Any node can override settings for its subtree
-4. **Performance**: Handle thousands of nodes efficiently
-5. **Runtime-First**: All layout/rendering modes must be configurations of the containment runtime engine stack—the single surviving code path for all canvas views
+## Core Requirements
 
-## Core Architectural Principles
+1. **Canonical Data Integrity** – Snapshot fetched from Neo4j (and realtime deltas) lives in the layout runtime store untouched by UI mutations.
+2. **Overlay-Driven Customisation** – All user and system overrides (layout mode, containment, styling, visibility) are represented as overlays instead of modifying the base graph.
+3. **Cascading Configuration** – Overlays cascade through the graph (global → subtree → node) with inheritance/stop rules similar to CSS.
+4. **Runtime-First Stack** – Every layout/rendering mode runs through the containment runtime engine, consuming overlays to determine behaviour.
+5. **Realtime Friendly** – Incoming deltas update only canonical data; overlays persist until explicitly changed.
 
-### 1. Separation of Concerns
+## Runtime Data Flow
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                    Node Data                        │
-│  (positions, relationships, properties)             │
-└─────────────────────────────────────────────────────┘
-                        ▼
-┌─────────────────────────────────────────────────────┐
-│              Layout Strategy                        │
-│  WHERE to position nodes (algorithm only)           │
-│  - Grid, Force, Tree, Manual                        │
-└─────────────────────────────────────────────────────┘
-                        ▼
-┌─────────────────────────────────────────────────────┐
-│              Rendering Style                        │
-│  HOW to draw nodes and edges (visual only)          │
-│  - Container mode (nested boxes, hide CONTAINS)     │
-│  - Flat mode (show all edges including CONTAINS)    │
-│  - Edge routing (orthogonal, straight, curved)      │
-└─────────────────────────────────────────────────────┘
+ Neo4j Snapshot / Realtime Delta
+            │
+            ▼
+   Canonical Graph Store (immutable)
+    - CanvasLayoutRuntime.modelData
+    - GraphStore (layout-runtime)
+            │
+   Overlay Store (user/system overrides)
+    - Style, layout, containment, visibility
+    - Cascade-aware resolution
+            │
+            ▼
+ Layout + Presentation Pipeline
+    1. Resolve effective config for each node/edge
+    2. Run layout engine with resolved config
+    3. Build presentation frame
+    4. Apply overlay styling metadata
+            │
+            ▼
+   Renderers draw final scene
 ```
 
-**Key Point**: These are TWO separate concerns that can be mixed independently.
+## Overlay Model
 
-**Containment is a rendering option**, not a separate concern. When enabled, it:
-- Renders parents as boxes containing children
-- Hides CONTAINS edges (visual nesting replaces them)
-- Requires layout to respect parent bounds
-
-When disabled (flat mode), it:
-- Renders all nodes as independent shapes
-- Shows CONTAINS edges as visible lines
-- Layout can treat graph as flat structure
-
-### 2. Cascading Configuration Model
-
-Like CSS, configuration cascades from parent to children:
+Overlays describe how the view should differ from the canonical graph.
 
 ```typescript
-interface NodeLayoutConfig {
-  // Layout Strategy: WHERE to position nodes
-  layoutStrategy?: 'grid' | 'force' | 'tree' | 'manual' | 'inherit';
-  layoutOptions?: {
-    gridSpacing?: number;
-    forceStrength?: number;
-    treeOrientation?: 'vertical' | 'horizontal';
-  };
+type OverlayScope = 'global' | 'subtree' | 'node';
 
-  // Rendering Style: HOW to draw nodes and edges
-  renderStyle?: {
-    nodeMode?: 'container' | 'flat' | 'compact' | 'inherit';  // container = containment ON
-    edgeRouting?: 'orthogonal' | 'straight' | 'curved' | 'inherit';
-    showContainsEdges?: boolean;  // Auto-set based on nodeMode (false for container, true for flat)
-  };
-
-  // Controls cascade behavior
-  applyToDescendants?: boolean; // true = override all children
-  stopCascade?: boolean;         // true = children don't inherit beyond this
+interface OverlayPatch {
+  id: string;                     // GUID for node or edge (or 'global')
+  scope: OverlayScope;
+  style?: Partial<NodeStyleOverrides>;
+  edgeStyle?: Partial<EdgeStyleOverrides>;
+  layout?: Partial<NodeLayoutConfig>;  // layout strategy, options, etc.
+  containmentMode?: 'containers' | 'flat' | 'inherit';
+  visibility?: 'visible' | 'hidden' | 'inherit';
+  stopCascade?: boolean;          // stop inheritance below this patch
+  updatedAt: number;
+  author: 'user' | 'system';
 }
 ```
 
-**Example Hierarchy:**
+### Overlay Store
 
-```
-Root Node (render: container, layout: grid)
-  ├─ Module A (inherits: container + grid)
-  │   ├─ Class 1 (inherits: container + grid)
-  │   └─ Class 2 (inherits: container + grid)
-  │
-  └─ Module B (OVERRIDE: layout: tree)  ← Override layout here
-      ├─ Class 3 (inherits: container + tree)  ← Gets tree layout, container rendering
-      └─ Class 4 (inherits: container + tree)  ← Gets tree layout, container rendering
-```
+`OverlayStore` maintains three collections:
+- `globalPatch` – optional default for entire view.
+- `nodePatches` – map keyed by GUID for node-specific overlays.
+- `edgePatches` – map keyed by edge GUID.
 
-### 3. Configuration Resolution Algorithm
+Patches are immutable record objects. New changes produce new patches (no in-place mutations) to enable time-travel/history if required.
 
-When rendering a node, resolve its effective configuration:
+### Overlay Resolution
+
+`OverlayResolver` computes the effective configuration for a node/edge.
 
 ```typescript
-function resolveNodeConfig(node: HierarchicalNode, parentConfig?: ResolvedConfig): ResolvedConfig {
-  const nodeConfig = node.layoutConfig || {};
-  const renderStyle = nodeConfig.renderStyle || {};
-
-  // Resolve layout strategy
-  const layoutStrategy = nodeConfig.layoutStrategy === 'inherit'
-    ? parentConfig?.layoutStrategy || DEFAULT_LAYOUT
-    : nodeConfig.layoutStrategy || parentConfig?.layoutStrategy || DEFAULT_LAYOUT;
-
-  // Resolve rendering style
-  const nodeMode = renderStyle.nodeMode === 'inherit'
-    ? parentConfig?.renderStyle?.nodeMode || DEFAULT_NODE_MODE
-    : renderStyle.nodeMode || parentConfig?.renderStyle?.nodeMode || DEFAULT_NODE_MODE;
-
-  const edgeRouting = renderStyle.edgeRouting === 'inherit'
-    ? parentConfig?.renderStyle?.edgeRouting || DEFAULT_EDGE_ROUTING
-    : renderStyle.edgeRouting || parentConfig?.renderStyle?.edgeRouting || DEFAULT_EDGE_ROUTING;
-
-  // Auto-determine showContainsEdges based on nodeMode
-  const showContainsEdges = nodeMode === 'flat'; // flat mode shows CONTAINS edges
-
-  return {
-    layoutStrategy,
-    layoutOptions: nodeConfig.layoutOptions || parentConfig?.layoutOptions || {},
-    renderStyle: {
-      nodeMode,
-      edgeRouting,
-      showContainsEdges
-    }
-  };
+interface ResolvedNodeProfile {
+  layout: ResolvedLayoutConfig;        // strategy + options
+  containmentMode: 'containers' | 'flat';
+  style: NodeStyleSnapshot;            // fill, stroke, icon, etc.
+  visibility: 'visible' | 'hidden';
 }
 ```
 
-## Implementation Architecture
+Resolution steps:
+1. Start with global defaults.
+2. Apply ancestor subtree patches in order, respecting `stopCascade`.
+3. Apply node patch (scope `node`).
+4. Produce final profile; flags with `inherit` fall back to previous value.
 
-### Phase 1: Core Infrastructure
+For edges, the resolver determines `style`, `visibility`, and other metadata.
 
-#### 1.1 Layout Strategy Interface
+Overlay resolution happens twice:
+- **Layout Phase** – engine receives per-node layout/containment configuration (`layout`, `containmentMode`).
+- **Presentation Phase** – node/edge styling and visibility applied to rendered `canvasData`.
 
-```typescript
-// Pure layout algorithm - no rendering
-interface LayoutStrategy {
-  id: string;
-  label: string;
+## Updated Layout + Presentation Pipeline
 
-  // Position nodes within given bounds
-  layout(nodes: LayoutNode[], bounds: Bounds, options?: any): LayoutNode[];
+1. **Canonical snapshot** – retrieved from `CanvasLayoutRuntime.modelData` (clone).
+2. **Resolve configs** – `OverlayResolver` builds `ResolvedNodeProfile` per GUID.
+3. **Run layout** – `ContainmentRuntimeLayoutEngine` (and future strategies) use resolved profiles:
+   - If node’s containment is `containers`, enforce parent bounds.
+   - If `flat`, treat node as independent.
+   - Layout strategy/parameters derived from overlay.
+4. **Build presentation frame** – `buildPresentationFrame` constructs `CanvasData` from layout result.
+5. **Apply styling overlay** – final pass merges `ResolvedNodeProfile.style`, `visibility`, and edge overlays.
+6. **Render** – `RuntimeContainmentRenderer` / `RuntimeFlatRenderer` respect metadata without mutating canonical data.
 
-  // Incremental update for real-time changes
-  updateLayout(nodes: LayoutNode[], changed: Set<string>): LayoutNode[];
-}
-```
+## Editor Integration
 
-**Implementations:**
-- `GridLayoutStrategy` - Grid positioning
-  - Extracts grid algorithm from `containment-runtime-layout.engine.ts`
-  - Shares helpers from `LayoutPrimitives`
-- `ForceLayoutStrategy` - Physics simulation
-  - Delegates to shared force primitives from `force-layout.engine.ts`
-- `TreeLayoutStrategy` - Hierarchical tree
-  - Extracts tree algorithm from existing tree engine
-- `ManualLayoutStrategy` - Preserve user positions
+- **Node Style Panel** – calls `OverlayService.applyNodeStyle(guid, overrides)`. Service writes a `node` patch and emits overlay change event.
+- **Containment Toggle** – updates `globalPatch` (`containmentMode`) or targeted node patch. Triggers re-layout because layout resolver sees new configuration.
+- **Preset/Save** – overlay state serialised with view presets and persisted with `CanvasViewStateService`.
+- **History/Undo** – overlay change feed can be recorded by `canvasHistoryService`, enabling undo without touching canonical graph.
 
-**Layout Primitives** (`LayoutPrimitives`):
-- Accept runtime config flags (containment vs flat)
-- Functions like `clampChildWithinParent` noop in flat mode
-- Share grid/force helpers across engines to avoid duplication
+## Realtime Updates
 
-#### 1.2 Renderer Interface
+1. Delta updates canonical store only (add/remove nodes, edges).
+2. After delta applied, overlay resolver recomputes profiles. New nodes inherit overlays from nearest ancestor (subtree patch) or global defaults.
+3. Removed nodes automatically drop overlay patches (garbage-collect entries with missing GUID to keep store clean).
 
-```typescript
-// Pure visual rendering - receives positioned nodes
-interface LayoutRenderer {
-  id: string;
-  label: string;
+## Implementation Plan
 
-  // Render nodes at their positions
-  render(ctx: CanvasRenderingContext2D, nodes: LayoutNode[], config: RenderConfig): void;
+### Phase 1 – Overlay Infrastructure
+1. Introduce `OverlayStore`, `OverlayPatch`, `ResolvedNodeProfile`, `ResolvedEdgeProfile` types under `frontend/src/app/shared/canvas/overlay`.
+2. Implement `OverlayResolver` with cascade logic and memoisation for performance.
+3. Add `OverlayService` (Angular injectable) to manage overlay state, persistence hooks, and change observables.
 
-  // Render edges between nodes
-  renderEdges(ctx: CanvasRenderingContext2D, edges: Edge[], config: RenderConfig): void;
-}
+### Phase 2 – Layout Runtime Integration
+1. Extend `CanvasLayoutRuntime` to accept an overlay reference (`setOverlayStore`). Store remains immutable; runtime queries it during layout/presentation.
+2. Modify `runLayout` to pass resolved node config to engines (containment mode, layout strategy).
+3. Update `buildPresentationFrame` to call overlay resolver for styling/visibility application.
 
-interface RenderConfig {
-  nodeMode: 'container' | 'flat' | 'compact';
-  edgeRouting: 'orthogonal' | 'straight' | 'curved';
-  showContainsEdges: boolean;  // Derived from nodeMode
-}
-```
+### Phase 3 – Renderer + Controller Updates
+1. Update `RuntimeContainmentRenderer` and `RuntimeFlatRenderer` to assume incoming `CanvasData` already contains overlay-applied metadata. Remove mutation hooks.
+2. Refactor `RuntimeCanvasController.applyNodeStyleOverride` to call `OverlayService` instead of mutating nodes.
+3. Adjust containment toggle and layout panel controls to use overlay updates.
 
-**Implementations:**
-- `RuntimeContainmentRenderer` - Renders boxes with children inside (containment ON)
-  - nodeMode: 'container'
-  - Hides CONTAINS edges
-  - Draws parent boundaries
-  - Located: `frontend/src/app/shared/composable/renderers/runtime-containment-renderer.ts`
-- `RuntimeFlatRenderer` - Renders independent shapes (containment OFF)
-  - nodeMode: 'flat'
-  - Shows ALL edges including CONTAINS
-  - Ignores parent boundaries
-  - **Wraps existing `composable-flat-renderer.ts`** to preserve runtime metadata (badges, style overrides)
-- `CompactRenderer` - Minimal visual style
-  - nodeMode: 'compact'
-  - Configurable edge visibility
+### Phase 4 – Persistence & Realtime
+1. Update `CanvasViewStateService` and preset manager to serialize overlay snapshots.
+2. Wire realtime delta handler to drop overlay patches for removed GUIDs and inherit defaults for newly added nodes.
+3. Ensure undo/redo captures overlay changes.
 
-#### 1.3 Configuration Manager
+### Phase 5 – Testing & Validation
+1. Unit tests for overlay resolution (inheritance, stopCascade, performance).
+2. Integration tests verifying layout/resolution interplay (containment vs flat, layout overrides).
+3. End-to-end tests: user styles node, toggles containment, style persists; realtime delta doesn’t remove custom styling.
+
+This architecture ensures the canonical graph remains pristine, user customisations cascade predictably, and the containment system scales to complex, mixed-mode layouts.
 
 ```typescript
 class NodeConfigManager {

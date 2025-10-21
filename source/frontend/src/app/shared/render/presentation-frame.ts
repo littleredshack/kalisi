@@ -1,7 +1,10 @@
 import { LayoutResult } from '../layouts/core/layout-contract';
 import { layoutGraphToHierarchical } from '../layouts/core/layout-graph-utils';
-import { Camera, CanvasData, HierarchicalNode, Edge } from '../canvas/types';
+import { Camera, CanvasData, HierarchicalNode, Edge, NodeStyleSnapshot, EdgeStyleOverrides, NodeStyleOverrides } from '../canvas/types';
 import { ensureRelativeNodeCoordinates } from '../canvas/utils/relative-coordinates';
+import { OverlayResolver } from '../canvas/overlay/overlay-resolver';
+import { ResolvedNodeProfile, ResolvedEdgeProfile } from '../canvas/overlay/overlay-types';
+import { ResolvedConfig } from '../canvas/node-config-manager';
 
 export interface PresentationFrame {
   readonly version: number;
@@ -31,7 +34,18 @@ export interface PresentationDelta {
   readonly edges: ReadonlyArray<EdgeDelta>;
 }
 
-export function buildPresentationFrame(result: LayoutResult, previous?: PresentationFrame, lensId?: string): PresentationFrame {
+interface PresentationFrameOptions {
+  readonly overlayResolver?: OverlayResolver | null;
+  readonly baseLayoutConfig?: ResolvedConfig;
+  readonly baseContainmentMode?: 'containers' | 'flat';
+}
+
+export function buildPresentationFrame(
+  result: LayoutResult,
+  previous?: PresentationFrame,
+  lensId?: string,
+  options?: PresentationFrameOptions
+): PresentationFrame {
   const snapshot = layoutGraphToHierarchical(result.graph);
 
   // Skip coordinate normalization for runtime engines that output correctly positioned nodes
@@ -42,19 +56,19 @@ export function buildPresentationFrame(result: LayoutResult, previous?: Presenta
                           displayMode === 'runtime-flat' ||
                           displayMode === 'orthogonal';
 
-  snapshot.nodes.forEach(root => {
-    root.children.forEach(child => {
-    });
-  });
-
   if (!isRuntimeEngine) {
     ensureRelativeNodeCoordinates(snapshot.nodes, 0, 0);
   }
 
-  snapshot.nodes.forEach(root => {
-    root.children.forEach(child => {
-    });
-  });
+  if (options?.overlayResolver) {
+    applyOverlayToSnapshot(
+      snapshot.nodes,
+      snapshot.edges,
+      options.overlayResolver,
+      options.baseLayoutConfig,
+      options.baseContainmentMode ?? 'containers'
+    );
+  }
 
 
   const camera = result.camera ?? previous?.camera;
@@ -77,6 +91,160 @@ export function buildPresentationFrame(result: LayoutResult, previous?: Presenta
     delta,
     lensId: lensId ?? previous?.lensId,
     metadata: result.graph.metadata
+  };
+}
+
+const DEFAULT_BASE_LAYOUT: ResolvedConfig = {
+  layoutStrategy: 'grid',
+  layoutOptions: {},
+  renderStyle: {
+    nodeMode: 'container',
+    edgeRouting: 'orthogonal',
+    showContainsEdges: false
+  }
+};
+
+function applyOverlayToSnapshot(
+  nodes: HierarchicalNode[],
+  edges: Edge[],
+  resolver: OverlayResolver,
+  baseLayoutConfig?: ResolvedConfig,
+  baseContainmentMode: 'containers' | 'flat' = 'containers'
+): void {
+  const resolvedBaseLayout = baseLayoutConfig ? cloneResolvedConfig(baseLayoutConfig) : cloneResolvedConfig(DEFAULT_BASE_LAYOUT);
+
+  const traverse = (node: HierarchicalNode, ancestors: string[]): void => {
+    const nodeId = node.GUID ?? node.id;
+    if (!nodeId) {
+      return;
+    }
+
+    const baseStyle = createNodeStyleSnapshot(node);
+    const profile = resolver.resolveNode({
+      nodeId,
+      ancestorIds: ancestors,
+      baseStyle,
+      baseLayout: cloneResolvedConfig(resolvedBaseLayout),
+      baseContainmentMode,
+      baseVisibility: node.visible === false ? 'hidden' : 'visible'
+    });
+
+    applyResolvedNodeProfile(node, profile);
+
+    const nextAncestors = ancestors.concat(nodeId);
+    if (node.children && node.children.length > 0) {
+      node.children.forEach(child => traverse(child, nextAncestors));
+    }
+  };
+
+  nodes.forEach(node => traverse(node, []));
+
+  edges.forEach(edge => {
+    const baseStyle = createEdgeStyleSnapshot(edge);
+    const profile = resolver.resolveEdge({
+      edgeId: edge.id,
+      baseStyle,
+      baseVisibility: edge.metadata?.['visible'] === false ? 'hidden' : 'visible'
+    });
+    applyResolvedEdgeProfile(edge, profile);
+  });
+}
+
+function cloneResolvedConfig(config: ResolvedConfig): ResolvedConfig {
+  return {
+    layoutStrategy: config.layoutStrategy,
+    layoutOptions: { ...(config.layoutOptions ?? {}) },
+    renderStyle: {
+      nodeMode: config.renderStyle.nodeMode,
+      edgeRouting: config.renderStyle.edgeRouting,
+      showContainsEdges: config.renderStyle.showContainsEdges
+    }
+  };
+}
+
+function createNodeStyleSnapshot(node: HierarchicalNode): NodeStyleSnapshot {
+  const metadata = node.metadata ?? {};
+  const overrides = (metadata['styleOverrides'] as Record<string, unknown> | undefined) ?? {};
+  const shape = (overrides['shape'] as NodeStyleSnapshot['shape']) ?? (metadata['shape'] as NodeStyleSnapshot['shape']) ?? 'rounded';
+  const cornerRadius = (overrides['cornerRadius'] as number | undefined) ?? (metadata['cornerRadius'] as number | undefined) ?? 12;
+  const labelVisible = (overrides['labelVisible'] as boolean | undefined) ?? (metadata['labelVisible'] as boolean | undefined) ?? true;
+
+  return {
+    fill: node.style.fill,
+    stroke: node.style.stroke,
+    icon: node.style.icon,
+    shape,
+    cornerRadius,
+    labelVisible
+  };
+}
+
+function createEdgeStyleSnapshot(edge: Edge): EdgeStyleOverrides {
+  const stroke = edge.style?.stroke ?? '#6b7280';
+  const strokeWidth = edge.style?.strokeWidth ?? 2;
+  const dashArray = edge.style?.strokeDashArray ?? null;
+  const metadata = edge.metadata ?? {};
+  const labelVisible = metadata['labelVisible'] === undefined ? true : Boolean(metadata['labelVisible']);
+
+  return {
+    stroke,
+    strokeWidth,
+    strokeDashArray: Array.isArray(dashArray) ? [...dashArray] : dashArray ?? undefined,
+    label: edge.label,
+    labelVisible
+  };
+}
+
+function applyResolvedNodeProfile(node: HierarchicalNode, profile: ResolvedNodeProfile): void {
+  node.style = {
+    ...node.style,
+    fill: profile.style.fill,
+    stroke: profile.style.stroke,
+    icon: profile.style.icon
+  };
+
+  node.visible = profile.visibility !== 'hidden';
+
+  const metadata: Record<string, unknown> = { ...(node.metadata ?? {}) };
+  metadata['visible'] = node.visible;
+  metadata['containmentMode'] = profile.containmentMode;
+  metadata['labelVisible'] = profile.style.labelVisible;
+  metadata['shape'] = profile.style.shape;
+  metadata['cornerRadius'] = profile.style.cornerRadius;
+
+  const existingOverrides = (metadata['styleOverrides'] as NodeStyleOverrides | undefined) ?? {};
+  const nextOverrides: NodeStyleOverrides = {
+    ...existingOverrides,
+    fill: profile.style.fill,
+    stroke: profile.style.stroke,
+    icon: profile.style.icon,
+    labelVisible: profile.style.labelVisible,
+    shape: profile.style.shape,
+    cornerRadius: profile.style.cornerRadius
+  };
+  metadata['styleOverrides'] = nextOverrides;
+
+  node.metadata = metadata;
+}
+
+function applyResolvedEdgeProfile(edge: Edge, profile: ResolvedEdgeProfile): void {
+  edge.style = {
+    ...edge.style,
+    stroke: profile.style.stroke ?? edge.style?.stroke ?? '#6b7280',
+    strokeWidth: profile.style.strokeWidth ?? edge.style?.strokeWidth ?? 2,
+    strokeDashArray: profile.style.strokeDashArray !== undefined
+      ? profile.style.strokeDashArray
+      : edge.style?.strokeDashArray ?? null
+  };
+
+  if (profile.style.label !== undefined) {
+    edge.label = profile.style.label ?? '';
+  }
+
+  edge.metadata = {
+    ...(edge.metadata ?? {}),
+    visible: profile.visibility !== 'hidden',
+    labelVisible: profile.style.labelVisible !== undefined ? profile.style.labelVisible : edge.metadata?.['labelVisible']
   };
 }
 

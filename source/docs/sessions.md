@@ -16,6 +16,89 @@ Cehck the logs until you see it has started. Run your playworght test. Show me t
 
 --------------
 
+THE LATEST THING WE ARE WORKING ON
+
+• Runtime Architecture
+
+  - Canonical Graph Store (CanvasLayoutRuntime.modelData, GraphStore): holds the exact Neo4j snapshot; never mutated by UI or layout
+    systems. Realtime deltas (neo4j-realtime.service) update this store only.
+  - View Overlay Store (new module): layered, immutable overlays keyed by node/edge GUID. Holds user preferences (styles, containment
+    mode, layout overrides). Supports cascading: each overlay entry can mark inheritance rules or subtree stops. Stored per canvas
+    instance, saved alongside presets.
+  - Runtime Layout Pipeline (CanvasLayoutRuntime.runLayout):
+      - Fetch canonical graph snapshot.
+      - Resolve cascade effective config via new OverlayResolver, combining global defaults, ancestor overlays, per-node overrides.
+      - Feed resolved config into engine (ContainmentRuntimeLayoutEngine, future strategies). Engine reads overlay-provided flags
+        (containment mode, layout/renderer selections) but positions nodes based only on canonical geometry + resolved config.
+  - Presentation Pipeline (buildPresentationFrame):
+      - Start with layout result.
+      - Apply overlay styling to nodes/edges (fill, stroke, badges, visibility).
+      - Attach renderer hints (e.g. visibility flags) without touching canonical data. RuntimeContainmentRenderer / RuntimeFlatRenderer
+        render according to these hints.
+
+  Overlay Model
+
+  interface OverlayPatch {
+    scope: 'node' | 'subtree' | 'global';
+    style?: Partial<NodeStyleOverrides>;
+    layout?: Partial<NodeLayoutConfig>;
+    containment?: 'containers' | 'flat' | 'inherit';
+    edgeVisibility?: Record<string, boolean>;
+    updatedAt: number;
+    author: 'user' | 'system';
+  }
+
+  - Stored in ViewOverlay with maps for nodes, edges, and global defaults.
+  - Supports cascade: subtree overlays apply to descendants until a stop flag. inherit values defer to parent chain.
+
+  Editor Integration
+
+  - Node Style Panel updates overlay via OverlayService.applyNodeStyle(guid, overrides). Service emits overlay change event so runtime
+    schedule layout/render refresh.
+  - Future per-node containment: overlay entry on node sets containment mode for subtree.
+
+  Realtime Compatibility
+
+  - Deltas mutate canonical store. Overlay untouched.
+  - When nodes/edges added, overlay can auto-inherit parent settings (via resolver default). Removed nodes drop overlay entries
+  Implementation Plan
+
+  Phase 1: Overlay Infrastructure
+
+  1. Introduce OverlayStore (types + service) under frontend/src/app/shared/canvas.
+      - Track overlays, cascade resolution helpers, serialization.
+  2. Extend CanvasLayoutRuntime to hold overlay reference (inject via constructor setter). Add setOverlay/ getOverlay.
+  3. Implement OverlayResolver used inside runLayout and presentation to get effective config/styling per node/edge.
+
+  Phase 2: Layout/Rendering Integration
+
+  1. Update ContainmentRuntimeLayoutEngine (and other engines) to accept resolved config per node (containment mode, layout strategy). No
+     more mutating edges; visibility from overlay.
+  2. Adjust buildPresentationFrame to clone canonical result, then apply overlay styling before returning canvasData.
+  3. Update renderers to rely on overlay-provided metadata (already filtered via presentation pipeline). Remove direct style mutations
+     and the setCanvasData hack in RuntimeCanvasController.applyNodeStyleOverride.
+
+  Phase 3: Editor + Control Wiring
+
+  1. Create OverlayService to expose Rx stream of overlay snapshots. Canvas controllers subscribe to re-render after overlay changes.
+  2. Refactor node style HUD: on change, call OverlayService.applyStyle. Remove direct node mutation.
+  3. Containment toggle: call OverlayService.applyGlobalContainment. No refetching raw data.
+
+  Phase 4: Migration & Cleanup
+
+  1. Remove mutations to canonical data across renderers/controllers (setCanvasData calls inserted earlier).
+  2. Update realtime delta handler to respect overlay (new nodes inherit via resolver, overlays removed when GUID disappears).
+  3. Persist overlay with view presets / layout saves (serialize overlay snapshots).
+
+  Phase 5: Verification
+
+  1. Unit tests for overlay resolver (cascading, inheritance, stop points).
+  2. Integration tests: apply style, toggle containment, ensure layout/resolution stable.
+  3. End-to-end Playwright: style node, switch containment modes, confirm colors persist and containment layout reinstates.
+
+  _________________
+
+
 > I want a new floating panel like the Styles panel. IT should be called the layout panel and be avaialble on the activity bar. It should be activiated with the keystroke Option-L and havea tooltip 
 "Layout (L)". . Secondly, we are working only with the Containment Runtime-Merge View. When I open that View it should display EXACTLY as it does currently. When I open the Layout Panel I should see
  that 'Containment' is enabled. If Containment is not enabled then the graph should draw as a regular flat graph with all nodes connected by lines. We can start by applying this to the top level 

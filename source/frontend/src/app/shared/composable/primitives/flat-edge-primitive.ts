@@ -23,6 +23,7 @@ export class FlatEdgePrimitive {
     camera: Camera
   ): void {
     if (!fromNode || !toNode) return;
+    if (edge.metadata?.['visible'] === false) return;
 
     const edgeType = (edge as any).type;
     const strokeColor = edge.style?.stroke ?? '#6b7280';

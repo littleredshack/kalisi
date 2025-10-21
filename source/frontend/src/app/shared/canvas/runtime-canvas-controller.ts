@@ -5,6 +5,8 @@ import { CameraSystem } from './camera';
 import { CanvasInteractionHandler } from './canvas-interaction-handler';
 import { GraphDelta } from '../../core/services/neo4j-realtime.service';
 import { RawDataInput } from '../layouts/core/layout-contract';
+import { OverlayService } from './overlay/overlay.service';
+import { Subscription } from 'rxjs';
 
 /**
  * Clean controller for runtime-based layouts.
@@ -26,6 +28,9 @@ export class RuntimeCanvasController {
   private animationFrameId: number | null = null;
   private onDataChangedCallback?: (data: CanvasData) => void;
   private onSelectionChanged?: (node: HierarchicalNode | null) => void;
+  private readonly overlayService?: OverlayService;
+  private overlaySubscription?: Subscription;
+  private overlayUpdateQueue: Promise<void> = Promise.resolve();
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -33,7 +38,8 @@ export class RuntimeCanvasController {
     initialData: CanvasData,
     canvasId: string,
     engineId?: string,
-    initialViewConfig?: Partial<RuntimeViewConfig>
+    initialViewConfig?: Partial<RuntimeViewConfig>,
+    overlayService?: OverlayService
   ) {
     this.canvasId = canvasId;
     this.canvas = canvas;
@@ -55,6 +61,14 @@ export class RuntimeCanvasController {
     });
     if (initialViewConfig) {
       this.layoutRuntime.setViewConfig(initialViewConfig);
+    }
+
+    if (overlayService) {
+      this.overlayService = overlayService;
+      this.layoutRuntime.setOverlayStore(this.overlayService.getStore());
+      this.overlaySubscription = this.overlayService.changes$.subscribe(() => {
+        this.scheduleOverlayRefresh();
+      });
     }
 
     // Set initial camera from data
@@ -475,6 +489,25 @@ export class RuntimeCanvasController {
       return;
     }
 
+    if (this.overlayService) {
+      const overlay = this.overlayService;
+      if (scope === 'type') {
+        const nodesToUpdate = this.collectNodesByType(targetNode.type, data.nodes);
+        nodesToUpdate.forEach(node => {
+          const targetId = node.GUID ?? node.id;
+          if (targetId) {
+            overlay.applyNodeStyle(targetId, overrides, 'node');
+          }
+        });
+      } else {
+        const targetGuid = targetNode.GUID ?? targetNode.id;
+        if (targetGuid) {
+          overlay.applyNodeStyle(targetGuid, overrides, 'node');
+        }
+      }
+      return;
+    }
+
     const nodesToUpdate = scope === 'type'
       ? this.collectNodesByType(targetNode.type, data.nodes)
       : [targetNode];
@@ -523,6 +556,29 @@ export class RuntimeCanvasController {
     };
     visit(nodes);
     return results;
+  }
+
+  private scheduleOverlayRefresh(): void {
+    this.overlayUpdateQueue = this.overlayUpdateQueue
+      .then(async () => {
+        try {
+          const result = await this.layoutRuntime.runLayout({
+            reason: 'user-command',
+            source: 'system'
+          });
+          if (result.camera) {
+            this.cameraSystem.setCamera(result.camera);
+          }
+          if (this.onDataChangedCallback) {
+            this.onDataChangedCallback(result);
+          }
+        } catch (error) {
+          console.error('[RuntimeCanvas] Failed to apply overlay update', error);
+        }
+      })
+      .catch(error => {
+        console.error('[RuntimeCanvas] Overlay refresh queue error', error);
+      });
   }
 
   private mergeNodeStyleOverrides(node: HierarchicalNode, overrides: Partial<NodeStyleOverrides>): void {
@@ -1330,6 +1386,8 @@ export class RuntimeCanvasController {
    * Clean up resources
    */
   destroy(): void {
+    this.overlaySubscription?.unsubscribe();
+    this.overlayUpdateQueue = Promise.resolve();
     if (this.animationFrameId !== null) {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;

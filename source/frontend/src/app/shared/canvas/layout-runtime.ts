@@ -9,6 +9,9 @@ import { PresentationFrame, buildPresentationFrame } from '../render/presentatio
 import { CanvasEventBus, CanvasEventSource } from '../layouts/core/layout-events';
 import { LayoutWorkerBridge } from '../layouts/async/layout-worker-bridge';
 import { ensureRelativeNodeCoordinates } from './utils/relative-coordinates';
+import { OverlayStore } from './overlay/overlay-store';
+import { OverlayResolver } from './overlay/overlay-resolver';
+import { ResolvedConfig } from './node-config-manager';
 import { processRawDataToGraph, validateRawData } from '../layouts/utils/raw-data-processor';
 
 export interface CanvasLayoutRuntimeConfig {
@@ -52,6 +55,8 @@ export class CanvasLayoutRuntime {
   private readonly workerBridge: LayoutWorkerBridge;
   private lensId: string | undefined;
   private readonly defaultEngine: string;
+  private overlayStore: OverlayStore | null = null;
+  private overlayResolver: OverlayResolver | null = null;
 
   constructor(canvasId: string, initialData: CanvasData, config: CanvasLayoutRuntimeConfig = {}) {
     this.canvasId = canvasId;
@@ -199,6 +204,36 @@ export class CanvasLayoutRuntime {
   }
 
   /**
+   * Apply a mutation function to nodes in the canonical model by GUID
+   * Used to keep modelData in sync with runtime overrides without replacing hierarchy.
+   */
+  updateModelNodesById(nodeIds: ReadonlyArray<string>, mutator: (node: HierarchicalNode) => void): void {
+    if (!nodeIds || nodeIds.length === 0) {
+      return;
+    }
+    const targetIds = new Set(
+      nodeIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
+    );
+    if (targetIds.size === 0) {
+      return;
+    }
+
+    const applyMutator = (nodes: HierarchicalNode[]): void => {
+      nodes.forEach(node => {
+        const guid = node.GUID ?? node.id;
+        if (guid && targetIds.has(guid)) {
+          mutator(node);
+        }
+        if (node.children && node.children.length > 0) {
+          applyMutator(node.children);
+        }
+      });
+    };
+
+    applyMutator(this.modelData.nodes);
+  }
+
+  /**
    * Set data from raw entities and relationships
    * Uses the current engine's processRawData() if available,
    * otherwise falls back to default transformation
@@ -313,7 +348,13 @@ export class CanvasLayoutRuntime {
       }
     });
 
-    this.frame = buildPresentationFrame(result, this.frame ?? undefined, this.lensId);
+    const presentationOptions = this.overlayResolver ? {
+      overlayResolver: this.overlayResolver,
+      baseLayoutConfig: this.resolveBaseLayoutProfile(),
+      baseContainmentMode: this.viewOverlay.global.containmentMode
+    } : undefined;
+
+    this.frame = buildPresentationFrame(result, this.frame ?? undefined, this.lensId, presentationOptions);
 
     if (this.frame) {
       const rendererId = this.viewOverlay.global.containmentMode === 'containers'
@@ -450,6 +491,31 @@ export class CanvasLayoutRuntime {
     return {
       global: { ...this.viewOverlay.global },
       overrides
+    };
+  }
+
+  setOverlayStore(store: OverlayStore | null): void {
+    this.overlayStore = store;
+    this.overlayResolver = store ? new OverlayResolver(store) : null;
+  }
+
+  getOverlayResolver(): OverlayResolver | null {
+    return this.overlayResolver;
+  }
+
+  private resolveBaseLayoutProfile(): ResolvedConfig {
+    const layoutMode = this.viewOverlay.global.layoutMode;
+    const containmentMode = this.viewOverlay.global.containmentMode;
+    const edgeRouting = this.viewOverlay.global.edgeRouting;
+
+    return {
+      layoutStrategy: layoutMode === 'force' ? 'force' : 'grid',
+      layoutOptions: {},
+      renderStyle: {
+        nodeMode: containmentMode === 'flat' ? 'flat' : 'container',
+        edgeRouting: edgeRouting === 'straight' ? 'straight' : 'orthogonal',
+        showContainsEdges: containmentMode === 'flat'
+      }
     };
   }
 }

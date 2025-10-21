@@ -68,6 +68,8 @@ export class RuntimeContainmentRenderer extends BaseRenderer {
     const lensId = frame?.lensId ?? null;
     const delta = frame?.delta;
 
+    const renderableEdges = edges.filter(edge => edge.metadata?.['visible'] !== false);
+
     const dirtyNodeIds = new Set<string>();
     const dirtyEdgeIds = new Set<string>();
 
@@ -92,14 +94,14 @@ export class RuntimeContainmentRenderer extends BaseRenderer {
       this.rebuildNodeBounds(nodes);
     }
 
-    const currentEdgeIds = new Set(edges.map(edge => edge.id));
+    const currentEdgeIds = new Set(renderableEdges.map(edge => edge.id));
     for (const cachedId of Array.from(this.edgeWaypointCache.keys())) {
       if (!currentEdgeIds.has(cachedId)) {
         this.edgeWaypointCache.delete(cachedId);
       }
     }
 
-    edges.forEach(edge => {
+    renderableEdges.forEach(edge => {
       const fromId = this.getEdgeNodeIdentifier(edge.fromGUID, edge.from);
       const toId = this.getEdgeNodeIdentifier(edge.toGUID, edge.to);
       const requiresUpdate =
@@ -113,7 +115,7 @@ export class RuntimeContainmentRenderer extends BaseRenderer {
         return;
       }
 
-      const waypoints = this.calculateEdgeWaypoints(edge, edges.length);
+      const waypoints = this.calculateEdgeWaypoints(edge, renderableEdges.length);
       if (waypoints) {
         this.edgeWaypointCache.set(edge.id, waypoints);
       } else {
@@ -133,7 +135,7 @@ export class RuntimeContainmentRenderer extends BaseRenderer {
     });
 
     // 2. Draw all edges with orthogonal routing (includes inherited edges from collapsed nodes)
-    edges.forEach(edge => {
+    renderableEdges.forEach(edge => {
       const renderEdge = this.edgeWaypointCache.has(edge.id)
         ? { ...edge, waypoints: this.edgeWaypointCache.get(edge.id)! }
         : edge;
