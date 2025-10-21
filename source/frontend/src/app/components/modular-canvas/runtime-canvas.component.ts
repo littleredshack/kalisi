@@ -91,6 +91,7 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
 
   private historySubscription?: Subscription;
   private realtimeDeltaSubscription?: Subscription;
+  private configSubscriptions: Subscription[] = [];
   private restoringHistory = false;
   private canUndoState = false;
   private canRedoState = false;
@@ -140,6 +141,10 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     this.canvasControlService.unregisterCanvas();
     this.historySubscription?.unsubscribe();
     this.canvasHistoryService.unregisterCanvas(this.canvasId);
+
+    // Unsubscribe from config changes
+    this.configSubscriptions.forEach(sub => sub.unsubscribe());
+
     this.canvasRef.nativeElement.removeEventListener('wheel', this.onWheel.bind(this));
     this.engine?.destroy();
   }
@@ -156,35 +161,52 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     });
 
     // Subscribe to runtime view configuration changes
-    this.canvasControlService.containmentMode$.subscribe(mode => {
+    const containmentSub = this.canvasControlService.containmentMode$.subscribe(mode => {
+      console.log('[RuntimeCanvas] Containment mode changed to:', mode);
       this.updateRuntimeConfig({ containmentMode: mode });
     });
+    this.configSubscriptions.push(containmentSub);
 
-    this.canvasControlService.layoutMode$.subscribe(mode => {
+    const layoutSub = this.canvasControlService.layoutMode$.subscribe(mode => {
+      console.log('[RuntimeCanvas] Layout mode changed to:', mode);
       this.updateRuntimeConfig({ layoutMode: mode });
     });
+    this.configSubscriptions.push(layoutSub);
 
-    this.canvasControlService.edgeRouting$.subscribe(mode => {
+    const edgeSub = this.canvasControlService.edgeRouting$.subscribe(mode => {
+      console.log('[RuntimeCanvas] Edge routing changed to:', mode);
       this.updateRuntimeConfig({ edgeRouting: mode });
     });
+    this.configSubscriptions.push(edgeSub);
   }
 
   private updateRuntimeConfig(configPatch: Partial<RuntimeViewConfig>): void {
+    console.log('[RuntimeCanvas] updateRuntimeConfig called with:', configPatch);
+
     if (!this.engine) {
+      console.log('[RuntimeCanvas] Engine not ready yet, skipping config update');
       return;
     }
 
     // Get the layoutRuntime from the engine
     const runtime = (this.engine as any).layoutRuntime as CanvasLayoutRuntime;
     if (!runtime) {
+      console.log('[RuntimeCanvas] Runtime not found in engine, skipping config update');
       return;
     }
+
+    console.log('[RuntimeCanvas] Applying config to runtime:', configPatch);
+    console.log('[RuntimeCanvas] Current runtime config:', runtime.getViewConfig());
 
     // Update the view config
     runtime.setViewConfig(configPatch);
 
+    console.log('[RuntimeCanvas] Updated runtime config:', runtime.getViewConfig());
+    console.log('[RuntimeCanvas] Triggering layout re-run...');
+
     // Re-run layout to apply the new configuration
     this.engine.runLayout().then(() => {
+      console.log('[RuntimeCanvas] Layout re-run complete');
       this.updateCameraInfo();
       this.engineDataChanged.emit();
     });

@@ -334,7 +334,9 @@ export class CanvasControlService {
    * Set containment mode: 'containers' (nested) or 'flat' (independent nodes)
    */
   setContainmentMode(mode: 'containers' | 'flat'): void {
+    console.log('[CanvasControlService] setContainmentMode called with:', mode);
     this.containmentModeSubject.next(mode);
+    console.log('[CanvasControlService] containmentModeSubject emitted:', mode);
     // Config changes propagate via observables - no event hub needed
   }
 
@@ -342,6 +344,7 @@ export class CanvasControlService {
    * Set layout mode: 'grid' or 'force'
    */
   setLayoutMode(mode: 'grid' | 'force'): void {
+    console.log('[CanvasControlService] setLayoutMode called with:', mode);
     this.layoutModeSubject.next(mode);
     // Config changes propagate via observables - no event hub needed
   }
@@ -350,6 +353,7 @@ export class CanvasControlService {
    * Set edge routing: 'orthogonal' or 'straight'
    */
   setEdgeRouting(mode: 'orthogonal' | 'straight'): void {
+    console.log('[CanvasControlService] setEdgeRouting called with:', mode);
     this.edgeRoutingSubject.next(mode);
     // Config changes propagate via observables - no event hub needed
   }
