@@ -17,6 +17,16 @@ export interface CanvasLayoutRuntimeConfig {
   readonly useWorker?: boolean;
 }
 
+/**
+ * Runtime view configuration for layout and rendering modes
+ * Supports independent choice of layout algorithm and rendering style
+ */
+export interface RuntimeViewConfig {
+  readonly containmentMode: 'containers' | 'flat';
+  readonly layoutMode: 'grid' | 'force';
+  readonly edgeRouting: 'orthogonal' | 'straight';
+}
+
 export class CanvasLayoutRuntime {
   private readonly orchestrator: LayoutOrchestrator;
   private readonly canvasId: string;
@@ -27,6 +37,7 @@ export class CanvasLayoutRuntime {
   private readonly workerBridge: LayoutWorkerBridge;
   private lensId: string | undefined;
   private readonly defaultEngine: string;
+  private viewConfig: RuntimeViewConfig;
 
   constructor(canvasId: string, initialData: CanvasData, config: CanvasLayoutRuntimeConfig = {}) {
     this.canvasId = canvasId;
@@ -37,6 +48,13 @@ export class CanvasLayoutRuntime {
 
     // Store default engine to check if coordinate normalization should be skipped
     this.defaultEngine = config.defaultEngine ?? this.inferEngineFromData(initialData);
+
+    // Initialize view config with defaults
+    this.viewConfig = {
+      containmentMode: 'containers',
+      layoutMode: 'grid',
+      edgeRouting: 'orthogonal'
+    };
 
     // Skip coordinate normalization for runtime engines that output correctly positioned nodes
     const isRuntimeEngine = this.isRuntimeEngine(this.defaultEngine);
@@ -89,12 +107,24 @@ export class CanvasLayoutRuntime {
       lastResult: this.frame.lastResult,
       delta: this.frame.delta,
       lensId: this.frame.lensId,
+      rendererId: this.frame.rendererId,
       metadata: this.frame.metadata ? { ...this.frame.metadata } : undefined
     };
   }
 
   getLayoutGraph(): LayoutGraph {
     return this.store.current.graph;
+  }
+
+  getViewConfig(): RuntimeViewConfig {
+    return { ...this.viewConfig };
+  }
+
+  setViewConfig(config: Partial<RuntimeViewConfig>): void {
+    this.viewConfig = {
+      ...this.viewConfig,
+      ...config
+    };
   }
 
   computePresentation(preset: ViewPresetDescriptor): GraphPresentationSnapshot {

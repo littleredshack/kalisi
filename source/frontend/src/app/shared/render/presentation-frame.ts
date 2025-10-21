@@ -10,6 +10,7 @@ export interface PresentationFrame {
   readonly lastResult: LayoutResult;
   readonly delta?: PresentationDelta;
   readonly lensId?: string;
+  readonly rendererId?: string; // 'runtime-containment-renderer' | 'runtime-flat-renderer'
   readonly metadata?: Record<string, unknown>;
 }
 

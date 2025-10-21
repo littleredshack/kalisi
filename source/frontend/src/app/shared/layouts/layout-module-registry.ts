@@ -92,8 +92,8 @@ const MODULES: LayoutModuleDescriptor[] = [
     aliases: ['containment-runtime', 'containment-live'],
     runtimeEngine: 'containment-runtime',
     defaultRenderer: 'runtime-containment-renderer',
-    description: 'Runtime containment layout with orthogonal routing and drillable containers.',
-    tags: ['runtime', 'containment', 'orthogonal'],
+    description: 'Runtime containment layout with configurable rendering modes (containers or flat).',
+    tags: ['runtime', 'containment', 'orthogonal', 'configurable'],
     capabilities: {
       supportsIncremental: true,
       deterministic: true,
@@ -102,9 +102,17 @@ const MODULES: LayoutModuleDescriptor[] = [
     renderers: [
       {
         id: 'runtime-containment-renderer',
-        label: 'Runtime Containment Renderer',
+        label: 'Container Mode',
+        description: 'Nested boxes with hidden CONTAINS edges',
         factory: () => new RuntimeContainmentRenderer(),
         tags: ['runtime', 'containment', 'orthogonal']
+      },
+      {
+        id: 'runtime-flat-renderer',
+        label: 'Flat Mode',
+        description: 'Independent nodes with visible CONTAINS edges',
+        factory: () => new RuntimeContainmentRenderer(), // TODO: Replace with RuntimeFlatRenderer in Phase 3
+        tags: ['runtime', 'flat', 'orthogonal']
       }
     ]
   },
