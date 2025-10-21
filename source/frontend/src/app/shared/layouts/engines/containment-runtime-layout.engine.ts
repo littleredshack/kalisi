@@ -4,6 +4,7 @@ import { layoutGraphToHierarchical, hierarchicalToLayoutGraph } from '../core/la
 import { HierarchicalNode, Edge } from '../../canvas/types';
 import { LayoutPrimitives } from '../../canvas/layout-primitives';
 import { RuntimeViewConfig } from '../../canvas/layout-runtime';
+import { flattenHierarchyWithEdges, applyFlatGridLayout, setAbsoluteWorldPositions } from '../helpers/flat-layout-helper';
 
 interface ContainmentMetrics {
   readonly padding: number;
@@ -42,8 +43,19 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
       gap: DEFAULT_GAP
     };
 
-    const processedNodes = snapshot.nodes.map(node => this.layoutContainer(node, layoutMetrics, runtimeConfig));
-    processedNodes.forEach(root => this.updateWorldMetadata(root));
+    let processedNodes: HierarchicalNode[];
+    let containsEdges: Edge[] = [];
+
+    if (runtimeConfig.containmentMode === 'flat') {
+      // FLAT MODE: Flatten hierarchy and create CONTAINS edges
+      const flatResult = this.layoutFlat(snapshot.nodes, layoutMetrics, runtimeConfig);
+      processedNodes = flatResult.nodes;
+      containsEdges = flatResult.containsEdges;
+    } else {
+      // CONTAINERS MODE: Process hierarchically
+      processedNodes = snapshot.nodes.map(node => this.layoutContainer(node, layoutMetrics, runtimeConfig));
+      processedNodes.forEach(root => this.updateWorldMetadata(root));
+    }
 
     // Filter containment edges based on containmentMode
     // In 'containers' mode: hide CONTAINS edges (visual hierarchy replaces them)
@@ -53,7 +65,7 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
           const edgeType = (edge.metadata?.['relationType'] as string)?.toUpperCase() || '';
           return !CONTAINMENT_EDGE_TYPES.has(edgeType);
         })
-      : snapshot.edges; // In flat mode, show all edges including CONTAINS
+      : [...snapshot.edges, ...containsEdges]; // In flat mode, add generated CONTAINS edges
 
     const routedEdges = this.computeEdgeWaypoints(processedNodes, edgesToRender, runtimeConfig);
 
@@ -216,12 +228,20 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     const nodeMap = new Map<string, HierarchicalNode>();
     const worldPositions = new Map<string, { x: number; y: number }>();
 
+    // Check if nodes are already flat (all at root level)
+    const isFlat = config.containmentMode === 'flat' ||
+                   nodes.every(node => !node.children || node.children.length === 0);
+
     const collect = (node: HierarchicalNode, offsetX = 0, offsetY = 0) => {
       const worldX = offsetX + (node.x ?? 0);
       const worldY = offsetY + (node.y ?? 0);
       nodeMap.set(node.GUID ?? node.id, node);
       worldPositions.set(node.GUID ?? node.id, { x: worldX, y: worldY });
-      node.children?.forEach(child => collect(child, worldX, worldY));
+
+      // Only recurse if not in flat mode
+      if (!isFlat && node.children && node.children.length > 0) {
+        node.children.forEach(child => collect(child, worldX, worldY));
+      }
     };
     nodes.forEach(root => collect(root));
 
@@ -291,5 +311,28 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
       metadata: node.metadata ? { ...node.metadata } : undefined,
       children: node.children ? node.children.map(child => this.cloneNode(child)) : []
     };
+  }
+
+  /**
+   * Layout in FLAT mode: Delegate to helper functions
+   */
+  private layoutFlat(
+    hierarchyRoots: HierarchicalNode[],
+    metrics: ContainmentMetrics,
+    config: EngineRuntimeConfig
+  ): { nodes: HierarchicalNode[]; containsEdges: Edge[] } {
+    // Flatten hierarchy and generate CONTAINS edges
+    const flatResult = flattenHierarchyWithEdges(hierarchyRoots);
+
+    // Ensure all nodes have proper defaults
+    flatResult.nodes.forEach(node => this.ensureDefaults(node));
+
+    // Apply grid layout to all flat nodes
+    applyFlatGridLayout(flatResult.nodes, { gap: metrics.gap, padding: metrics.padding });
+
+    // Set absolute world positions
+    setAbsoluteWorldPositions(flatResult.nodes);
+
+    return flatResult;
   }
 }
