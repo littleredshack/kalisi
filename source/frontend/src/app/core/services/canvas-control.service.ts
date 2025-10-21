@@ -335,7 +335,7 @@ export class CanvasControlService {
    */
   setContainmentMode(mode: 'containers' | 'flat'): void {
     this.containmentModeSubject.next(mode);
-    this.publishRuntimeConfigUpdate();
+    // Config changes propagate via observables - no event hub needed
   }
 
   /**
@@ -343,7 +343,7 @@ export class CanvasControlService {
    */
   setLayoutMode(mode: 'grid' | 'force'): void {
     this.layoutModeSubject.next(mode);
-    this.publishRuntimeConfigUpdate();
+    // Config changes propagate via observables - no event hub needed
   }
 
   /**
@@ -351,7 +351,7 @@ export class CanvasControlService {
    */
   setEdgeRouting(mode: 'orthogonal' | 'straight'): void {
     this.edgeRoutingSubject.next(mode);
-    this.publishRuntimeConfigUpdate();
+    // Config changes propagate via observables - no event hub needed
   }
 
   /**
@@ -363,25 +363,6 @@ export class CanvasControlService {
       layoutMode: this.layoutModeSubject.value,
       edgeRouting: this.edgeRoutingSubject.value
     };
-  }
-
-  /**
-   * Publish runtime config update to event hub
-   */
-  private publishRuntimeConfigUpdate(): void {
-    const canvasId = this.getActiveCanvasId();
-    if (!canvasId) {
-      return;
-    }
-
-    const config = this.getRuntimeViewConfig();
-    this.canvasEventHubService.emitEvent(canvasId, {
-      type: 'RuntimeConfigChanged',
-      canvasId,
-      config,
-      source: 'user',
-      timestamp: Date.now()
-    });
   }
 
   updateCameraInfo(info: CameraInfo): void {

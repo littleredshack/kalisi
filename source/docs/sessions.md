@@ -16,6 +16,104 @@ Cehck the logs until you see it has started. Run your playworght test. Show me t
 
 --------------
 
+> I want a new floating panel like the Styles panel. IT should be called the layout panel and be avaialble on the activity bar. It should be activiated with the keystroke Option-L and havea tooltip 
+"Layout (L)". . Secondly, we are working only with the Containment Runtime-Merge View. When I open that View it should display EXACTLY as it does currently. When I open the Layout Panel I should see
+ that 'Containment' is enabled. If Containment is not enabled then the graph should draw as a regular flat graph with all nodes connected by lines. We can start by applying this to the top level 
+nodes. We can do cascade once we have the toggle between these two rendering options working. In both cases (Containment on or off) the Layout option should be set to Grid. Other layout options will
+ br forece and tree. Later. So then we can achieve exactly the same view that I have now. But with configurable options and codebase that we can extend. Edge routing can also be a drop down. 
+Orthogonal is what we have in the current view. ALL the code that underlies the Containment Runtime-Merge VIEW  MUST remain in place. DO NOT try to rewrite it. IT MUST be used as is. It has take 
+nweeks to get that right and has just been ported to this system. So it must remain. That was all part of hte planning pahse for  this. 
+  ⎿  Interrupted · What should Claude do instead?
+
+> Also bear in mind that ALL of this must be done with the observer pattern that is already in place. 
+
+● Perfect! Now I have a crystal clear plan. Let me confirm my understanding:
+
+  Layout Panel UI Plan
+
+  1. New Floating Panel
+
+  - Name: "Layout Panel"
+  - Location: Activity bar (sidebar, like Styles panel)
+  - Keyboard: Option-L
+  - Tooltip: "Layout (L)"
+
+  2. Scope
+
+  - ONLY applies to: Containment Runtime-Merge view
+  - When I open that view → everything looks exactly as it does now
+  - Layout Panel shows: Containment: ON (current state)
+
+  3. Controls (Simple Start)
+
+  - Containment Mode: Toggle (ON/OFF)
+    - ON = Current behavior (nested boxes, CONTAINS edges hidden)
+    - OFF = Flat graph (all nodes connected by lines, CONTAINS edges visible)
+  - Layout Strategy: Dropdown (Grid selected by default)
+    - Options: Grid, Force (disabled/later), Tree (disabled/later)
+  - Edge Routing: Dropdown (Orthogonal selected by default)
+    - Options: Orthogonal, Straight (later)
+
+  4. Top-Level Only Initially
+
+  - Apply config to top-level nodes first
+  - Cascade comes later once toggle works
+
+  5. Critical Constraints
+
+  - ✅ Use existing Containment Runtime-Merge code AS-IS
+  - ✅ DO NOT rewrite the engine - it stays exactly as it is
+  - ✅ Use Observable pattern - CanvasControlService observables + CanvasEventHubService
+  - ✅ Default state matches current view - Containment ON, Grid, Orthogonal
+
+  Observable Flow (Already Built)
+
+  Layout Panel Component
+    ↓ calls
+  CanvasControlService.setContainmentMode('flat')
+    ↓ emits
+  RuntimeConfigChanged event → CanvasEventHubService
+    ↓ subscribes
+  Canvas Component listens
+    ↓ calls
+  runtime.setViewConfig({ containmentMode: 'flat' })
+    ↓ triggers
+  runLayout() with new engineOptions
+    ↓ engine responds
+  Shows flat view with CONTAINS edges
+
+  Ready to implement? I'll create:
+  1. Layout panel component
+  2. Add to activity bar
+  3. Wire observables
+  4. Test toggle between containment ON/OFF
+
+  ______________
+  
+  Critical UI Questions:
+
+  1. Where do users control this?
+    - Properties panel (where there's already a containment toggle)?
+    - Canvas controls toolbar?
+    - A new dedicated "View Config" panel?
+  2. What controls exactly?
+    - Containment Mode: Toggle? Radio buttons? Dropdown?
+    - Layout Mode: Dropdown (grid/force)?
+    - Edge Routing: Dropdown (orthogonal/straight)?
+  3. Global vs Per-Node?
+    - Do we start with just global controls (affects whole canvas)?
+    - Or also add per-node overrides (right-click node → configure)?
+    - NodeConfigManager is built but no UI for it
+  4. Visual Feedback
+    - How does user know what mode they're in?
+    - Real-time preview or apply button?
+    - Indicator showing "Container Mode" vs "Flat Mode"?
+  5. Integration Points
+    - When user changes mode, do we auto re-layout?
+    - Or just change renderer (keep positions)?
+
+    ______________________________
+    
 ● The complete rendering pipeline is:
 
   1. ContainmentRuntimeLayoutEngine.layout() produces LayoutGraph with relative coordinates (x:48, y:48 for children)
