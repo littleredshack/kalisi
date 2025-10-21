@@ -3,10 +3,17 @@ import { buildRuntimeGraphSnapshot, runtimeSnapshotToLayoutGraph } from '../util
 import { layoutGraphToHierarchical, hierarchicalToLayoutGraph } from '../core/layout-graph-utils';
 import { HierarchicalNode, Edge } from '../../canvas/types';
 import { LayoutPrimitives } from '../../canvas/layout-primitives';
+import { RuntimeViewConfig } from '../../canvas/layout-runtime';
 
 interface ContainmentMetrics {
   readonly padding: number;
   readonly gap: number;
+}
+
+interface EngineRuntimeConfig {
+  readonly containmentMode: 'containers' | 'flat';
+  readonly layoutMode: 'grid' | 'force';
+  readonly edgeRouting: 'orthogonal' | 'straight';
 }
 
 const DEFAULT_PADDING = 48;
@@ -27,21 +34,28 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
   layout(graph: LayoutGraph, options: LayoutOptions): LayoutResult {
     const snapshot = layoutGraphToHierarchical(graph);
 
+    // Extract runtime config from engineOptions
+    const runtimeConfig = this.extractRuntimeConfig(options.engineOptions);
+
     const layoutMetrics: ContainmentMetrics = {
       padding: DEFAULT_PADDING,
       gap: DEFAULT_GAP
     };
 
-    const processedNodes = snapshot.nodes.map(node => this.layoutContainer(node, layoutMetrics));
+    const processedNodes = snapshot.nodes.map(node => this.layoutContainer(node, layoutMetrics, runtimeConfig));
     processedNodes.forEach(root => this.updateWorldMetadata(root));
 
-    // Filter out containment edges - they're represented by visual hierarchy, not lines
-    const nonContainmentEdges = snapshot.edges.filter(edge => {
-      const edgeType = (edge.metadata?.['relationType'] as string)?.toUpperCase() || '';
-      return !CONTAINMENT_EDGE_TYPES.has(edgeType);
-    });
+    // Filter containment edges based on containmentMode
+    // In 'containers' mode: hide CONTAINS edges (visual hierarchy replaces them)
+    // In 'flat' mode: show CONTAINS edges as visible lines
+    const edgesToRender = runtimeConfig.containmentMode === 'containers'
+      ? snapshot.edges.filter(edge => {
+          const edgeType = (edge.metadata?.['relationType'] as string)?.toUpperCase() || '';
+          return !CONTAINMENT_EDGE_TYPES.has(edgeType);
+        })
+      : snapshot.edges; // In flat mode, show all edges including CONTAINS
 
-    const routedEdges = this.computeEdgeWaypoints(processedNodes, nonContainmentEdges);
+    const routedEdges = this.computeEdgeWaypoints(processedNodes, edgesToRender, runtimeConfig);
 
     const updatedGraph = hierarchicalToLayoutGraph({
       nodes: processedNodes,
@@ -74,7 +88,26 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     return runtimeSnapshotToLayoutGraph(runtimeSnapshot);
   }
 
-  private layoutContainer(node: HierarchicalNode, metrics: ContainmentMetrics): HierarchicalNode {
+  private extractRuntimeConfig(engineOptions?: Readonly<Record<string, unknown>>): EngineRuntimeConfig {
+    // Default config if not provided
+    const defaults: EngineRuntimeConfig = {
+      containmentMode: 'containers',
+      layoutMode: 'grid',
+      edgeRouting: 'orthogonal'
+    };
+
+    if (!engineOptions) {
+      return defaults;
+    }
+
+    return {
+      containmentMode: (engineOptions['containmentMode'] as 'containers' | 'flat') ?? defaults.containmentMode,
+      layoutMode: (engineOptions['layoutMode'] as 'grid' | 'force') ?? defaults.layoutMode,
+      edgeRouting: (engineOptions['edgeRouting'] as 'orthogonal' | 'straight') ?? defaults.edgeRouting
+    };
+  }
+
+  private layoutContainer(node: HierarchicalNode, metrics: ContainmentMetrics, config: EngineRuntimeConfig): HierarchicalNode {
     const clone = this.ensureDefaults(this.cloneNode(node));
     if (!clone.children || clone.children.length === 0) {
       return clone;
@@ -83,14 +116,22 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     const children = clone.children ?? [];
 
     // Recursively layout children first to get their sizes
-    const laidOutChildren = children.map(child => this.layoutContainer(child, metrics));
+    const laidOutChildren = children.map(child => this.layoutContainer(child, metrics, config));
 
-    // Now apply grid layout which will position children (but NOT resize them - they're already sized for their own children)
-    this.applyAdaptiveGrid(clone, laidOutChildren, metrics);
+    // Apply layout algorithm based on layoutMode
+    if (config.layoutMode === 'grid') {
+      this.applyAdaptiveGrid(clone, laidOutChildren, metrics);
+    } else if (config.layoutMode === 'force') {
+      // TODO: Implement force-directed layout delegation
+      this.applyAdaptiveGrid(clone, laidOutChildren, metrics); // Fallback to grid for now
+    }
     clone.children = laidOutChildren;
 
-    // Resize parent to fit all positioned children
-    LayoutPrimitives.resizeToFitChildren(clone, metrics.padding, metrics.padding);
+    // In 'containers' mode: resize parent to fit children (visual containment)
+    // In 'flat' mode: skip resize, let nodes have independent sizes
+    if (config.containmentMode === 'containers') {
+      LayoutPrimitives.resizeToFitChildren(clone, metrics.padding, metrics.padding);
+    }
 
     return clone;
   }
@@ -167,7 +208,7 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     return null;
   }
 
-  private computeEdgeWaypoints(nodes: HierarchicalNode[], edges: Edge[]): Edge[] {
+  private computeEdgeWaypoints(nodes: HierarchicalNode[], edges: Edge[], config: EngineRuntimeConfig): Edge[] {
     if (!edges || edges.length === 0) {
       return edges;
     }
@@ -204,13 +245,23 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
         y: toWorld.y + (toNode.height ?? 0) / 2
       };
 
-      const gridOffset = 24;
-      const waypoints = [
-        { x: fromCenter.x, y: fromCenter.y },
-        { x: fromCenter.x, y: toCenter.y - gridOffset },
-        { x: toCenter.x, y: toCenter.y - gridOffset },
-        { x: toCenter.x, y: toCenter.y }
-      ];
+      // Apply edge routing based on edgeRouting config
+      let waypoints;
+      if (config.edgeRouting === 'orthogonal') {
+        const gridOffset = 24;
+        waypoints = [
+          { x: fromCenter.x, y: fromCenter.y },
+          { x: fromCenter.x, y: toCenter.y - gridOffset },
+          { x: toCenter.x, y: toCenter.y - gridOffset },
+          { x: toCenter.x, y: toCenter.y }
+        ];
+      } else {
+        // Straight routing - direct line
+        waypoints = [
+          { x: fromCenter.x, y: fromCenter.y },
+          { x: toCenter.x, y: toCenter.y }
+        ];
+      }
 
       return {
         ...edge,
