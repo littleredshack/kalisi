@@ -1,5 +1,7 @@
 // Core data types for hierarchical canvas system
 
+import { NodeLayoutConfig } from './node-config-manager';
+
 export interface HierarchicalNode {
   id: string;
   GUID?: string; // The ONLY reliable identifier for nodes
@@ -24,6 +26,11 @@ export interface HierarchicalNode {
 
   // Fold/unfold state
   inheritedEdges?: Edge[]; // Edges inherited from collapsed children
+
+  // Cascading layout configuration
+  layoutConfig?: NodeLayoutConfig;
+  _resolvedConfig?: any; // Cache for resolved config
+  _configDirty?: boolean; // Dirty flag for config resolution
 }
 
 export interface Edge {
