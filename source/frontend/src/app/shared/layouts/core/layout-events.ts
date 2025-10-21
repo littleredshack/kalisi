@@ -1,6 +1,7 @@
 import { Observable, Subject } from 'rxjs';
 import { LayoutResult } from './layout-contract';
 import { NodeStyleOverrides, StyleApplicationScope } from '../../canvas/types';
+import { RuntimeViewConfig } from '../../canvas/layout-runtime';
 
 export type CanvasEventSource = 'user' | 'system' | 'ai' | 'collaboration' | 'history';
 
@@ -106,6 +107,13 @@ export type CanvasEvent =
       readonly timestamp: number;
       readonly overrides: Partial<NodeStyleOverrides>;
       readonly scope?: StyleApplicationScope;
+    }
+  | {
+      readonly type: 'RuntimeConfigChanged';
+      readonly canvasId: string;
+      readonly source: CanvasEventSource;
+      readonly timestamp: number;
+      readonly config: RuntimeViewConfig;
     };
 
 export class CanvasEventBus {

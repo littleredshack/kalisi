@@ -12,6 +12,7 @@ import {
   NodeStyleSnapshot,
   NodeSelectionSnapshot
 } from '../../shared/canvas/types';
+import { RuntimeViewConfig } from '../../shared/canvas/layout-runtime';
 
 export interface CameraInfo {
   x: number;
@@ -85,6 +86,11 @@ export class CanvasControlService {
   private readonly presetOptionsSubject = new BehaviorSubject<ReadonlyArray<ViewPresetDescriptor>>(ViewPresetRegistry.list());
   private readonly activePresetSubject = new BehaviorSubject<ResolvedViewPreset | null>(null);
 
+  // Runtime view configuration observables
+  private readonly containmentModeSubject = new BehaviorSubject<'containers' | 'flat'>('containers');
+  private readonly layoutModeSubject = new BehaviorSubject<'grid' | 'force'>('grid');
+  private readonly edgeRoutingSubject = new BehaviorSubject<'orthogonal' | 'straight'>('orthogonal');
+
   readonly cameraInfo$ = this.cameraInfoSubject.asObservable();
   readonly availableLevels$ = this.availableLevelsSubject.asObservable();
   readonly autoLayoutState$ = this.autoLayoutStateSubject.asObservable();
@@ -99,6 +105,11 @@ export class CanvasControlService {
   readonly selection$ = this.selectionSubject.asObservable();
   readonly presetOptions$ = this.presetOptionsSubject.asObservable();
   readonly activePreset$ = this.activePresetSubject.asObservable();
+
+  // Runtime view configuration observables
+  readonly containmentMode$ = this.containmentModeSubject.asObservable();
+  readonly layoutMode$ = this.layoutModeSubject.asObservable();
+  readonly edgeRouting$ = this.edgeRoutingSubject.asObservable();
 
   constructor(private readonly canvasEventHubService: CanvasEventHubService) {}
 
@@ -317,6 +328,60 @@ export class CanvasControlService {
       }
     }
     this.refreshSelectionSnapshot();
+  }
+
+  /**
+   * Set containment mode: 'containers' (nested) or 'flat' (independent nodes)
+   */
+  setContainmentMode(mode: 'containers' | 'flat'): void {
+    this.containmentModeSubject.next(mode);
+    this.publishRuntimeConfigUpdate();
+  }
+
+  /**
+   * Set layout mode: 'grid' or 'force'
+   */
+  setLayoutMode(mode: 'grid' | 'force'): void {
+    this.layoutModeSubject.next(mode);
+    this.publishRuntimeConfigUpdate();
+  }
+
+  /**
+   * Set edge routing: 'orthogonal' or 'straight'
+   */
+  setEdgeRouting(mode: 'orthogonal' | 'straight'): void {
+    this.edgeRoutingSubject.next(mode);
+    this.publishRuntimeConfigUpdate();
+  }
+
+  /**
+   * Get current runtime view configuration
+   */
+  getRuntimeViewConfig(): RuntimeViewConfig {
+    return {
+      containmentMode: this.containmentModeSubject.value,
+      layoutMode: this.layoutModeSubject.value,
+      edgeRouting: this.edgeRoutingSubject.value
+    };
+  }
+
+  /**
+   * Publish runtime config update to event hub
+   */
+  private publishRuntimeConfigUpdate(): void {
+    const canvasId = this.getActiveCanvasId();
+    if (!canvasId) {
+      return;
+    }
+
+    const config = this.getRuntimeViewConfig();
+    this.canvasEventHubService.emitEvent(canvasId, {
+      type: 'RuntimeConfigChanged',
+      canvasId,
+      config,
+      source: 'user',
+      timestamp: Date.now()
+    });
   }
 
   updateCameraInfo(info: CameraInfo): void {
