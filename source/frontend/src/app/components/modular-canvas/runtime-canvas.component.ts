@@ -31,8 +31,8 @@ import { GraphLensRegistry, GraphLensDescriptor } from '../../shared/graph/lens-
 import { ensureRelativeNodeCoordinates } from '../../shared/canvas/utils/relative-coordinates';
 import { CanvasLayoutRuntime, RuntimeViewConfig } from '../../shared/canvas/layout-runtime';
 import { layoutGraphToHierarchical } from '../../shared/layouts/core/layout-graph-utils';
+import { RawDataInput } from '../../shared/layouts/core/layout-contract';
 import { ContainmentRuntimeLayoutEngine } from '../../shared/layouts/engines/containment-runtime-layout.engine';
-import { LayoutOptions, RawDataInput } from '../../shared/layouts/core/layout-contract';
 import { RuntimeContainmentRenderer } from '../../shared/composable/renderers/runtime-containment-renderer';
 import { RuntimeFlatRenderer } from '../../shared/composable/renderers/runtime-flat-renderer';
 
@@ -96,6 +96,7 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   private historySubscription?: Subscription;
   private realtimeDeltaSubscription?: Subscription;
   private configSubscriptions: Subscription[] = [];
+  private runtimeConfigQueue: Promise<void> = Promise.resolve();
   private restoringHistory = false;
   private canUndoState = false;
   private canRedoState = false;
@@ -174,7 +175,7 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       skip(1) // Skip initial value - engine doesn't exist yet
     ).subscribe(mode => {
       console.log('[RuntimeCanvas] Containment mode changed to:', mode);
-      this.updateRuntimeConfig({ containmentMode: mode });
+      this.scheduleRuntimeConfigUpdate({ containmentMode: mode });
     });
     this.configSubscriptions.push(containmentSub);
 
@@ -182,7 +183,7 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       skip(1) // Skip initial value - engine doesn't exist yet
     ).subscribe(mode => {
       console.log('[RuntimeCanvas] Layout mode changed to:', mode);
-      this.updateRuntimeConfig({ layoutMode: mode });
+      this.scheduleRuntimeConfigUpdate({ layoutMode: mode });
     });
     this.configSubscriptions.push(layoutSub);
 
@@ -190,9 +191,78 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       skip(1) // Skip initial value - engine doesn't exist yet
     ).subscribe(mode => {
       console.log('[RuntimeCanvas] Edge routing changed to:', mode);
-      this.updateRuntimeConfig({ edgeRouting: mode });
+      this.scheduleRuntimeConfigUpdate({ edgeRouting: mode });
     });
     this.configSubscriptions.push(edgeSub);
+  }
+
+  private scheduleRuntimeConfigUpdate(configPatch: Partial<RuntimeViewConfig>): void {
+    this.runtimeConfigQueue = this.runtimeConfigQueue
+      .then(() => this.applyRuntimeConfigPatch(configPatch))
+      .catch(error => {
+        console.error('[RuntimeCanvas] Failed to apply runtime config patch', error);
+      });
+  }
+
+  private async applyRuntimeConfigPatch(configPatch: Partial<RuntimeViewConfig>): Promise<void> {
+    if (configPatch.containmentMode && this.selectedViewNode && this.engine) {
+      const rawData = await this.fetchCanonicalViewData(this.selectedViewNode);
+      if (rawData) {
+        await this.engine.setRawData(rawData, false);
+      }
+    }
+
+    this.updateRuntimeConfig(configPatch);
+  }
+
+  private async fetchCanonicalViewData(viewNode: any): Promise<RawDataInput | null> {
+    try {
+      const result = await this.neo4jDataService.executeViewNodeQuery(viewNode);
+      this.rawViewNodeData = result;
+
+      const rawEntities = result.entities.map((entity: any) => {
+        const baseProperties = { ...(entity.properties ?? {}) };
+        if (entity.display) {
+          baseProperties['display'] = { ...(entity.display ?? {}) };
+        }
+        if (entity.labels) {
+          baseProperties['labels'] = [...entity.labels];
+        }
+
+        return {
+          id: entity.id ?? entity.guid ?? entity.GUID ?? this.generateGuid(),
+          name: entity.name ?? baseProperties['name'] ?? String(entity.id ?? entity.guid ?? 'node'),
+          type: baseProperties['type'] ?? 'node',
+          properties: baseProperties
+        };
+      });
+
+      const rawRelationships = result.relationships.map((rel: any) => {
+        const properties = { ...(rel.properties ?? {}) };
+        if (rel.display) {
+          properties['display'] = { ...(rel.display ?? {}) };
+        }
+
+        const source = rel.source ?? rel.source_guid ?? rel.sourceGuid ?? rel.from ?? rel.fromGUID;
+        const target = rel.target ?? rel.target_guid ?? rel.targetGuid ?? rel.to ?? rel.toGUID;
+
+        return {
+          id: rel.id ?? `${source}->${target}-${rel.type}`,
+          source: source,
+          target: target,
+          type: rel.type ?? properties['type'] ?? 'RELATED_TO',
+          properties
+        };
+      });
+
+      return {
+        entities: rawEntities,
+        relationships: rawRelationships
+      };
+    } catch (error) {
+      console.error('[RuntimeCanvas] Failed to fetch canonical data for view node:', error);
+      return null;
+    }
   }
 
   private updateRuntimeConfig(configPatch: Partial<RuntimeViewConfig>): void {
@@ -236,6 +306,7 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     // Re-run layout to apply the new configuration
     this.engine.runLayout().then(() => {
       console.log('[RuntimeCanvas] Layout re-run complete');
+      this.data = this.engine?.getData() ?? this.data;
       this.updateCameraInfo();
       this.engineDataChanged.emit();
     });

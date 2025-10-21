@@ -4,6 +4,7 @@ import { IRenderer } from './renderer';
 import { CameraSystem } from './camera';
 import { CanvasInteractionHandler } from './canvas-interaction-handler';
 import { GraphDelta } from '../../core/services/neo4j-realtime.service';
+import { RawDataInput } from '../layouts/core/layout-contract';
 
 /**
  * Clean controller for runtime-based layouts.
@@ -94,6 +95,28 @@ export class RuntimeCanvasController {
     if (this.onDataChangedCallback) {
       this.onDataChangedCallback(this.getData());
     }
+  }
+
+  async setRawData(input: RawDataInput, runLayout = true): Promise<CanvasData> {
+    this.layoutRuntime.setRawData(input, false, 'user');
+
+    if (!runLayout) {
+      return this.layoutRuntime.getCanvasData();
+    }
+
+    const result = await this.layoutRuntime.runLayout({
+      reason: 'data-update',
+      source: 'user'
+    });
+    if (result.camera) {
+      this.cameraSystem.setCamera(result.camera);
+    }
+
+    if (this.onDataChangedCallback) {
+      this.onDataChangedCallback(result);
+    }
+
+    return result;
   }
 
   /**

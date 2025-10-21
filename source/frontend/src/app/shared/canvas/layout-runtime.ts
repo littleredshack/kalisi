@@ -1,4 +1,4 @@
-import { CanvasData } from './types';
+import { CanvasData, HierarchicalNode, Edge } from './types';
 import { LayoutOrchestrator, LayoutPriority, LayoutRunOptions } from '../layouts/core/layout-orchestrator';
 import { registerDefaultLayoutEngines } from '../layouts/engine-registry';
 import { canvasDataToLayoutGraph, layoutGraphToHierarchical } from '../layouts/core/layout-graph-utils';
@@ -28,18 +28,30 @@ export interface RuntimeViewConfig {
   readonly edgeRouting: 'orthogonal' | 'straight';
 }
 
+export type RuntimeViewConfigPatch = Partial<RuntimeViewConfig>;
+
+interface RuntimeViewOverlay {
+  global: RuntimeViewConfig;
+  overrides: Map<string, RuntimeViewConfigPatch>;
+}
+
+interface SerializedViewOverlay {
+  readonly global: RuntimeViewConfig;
+  readonly overrides: ReadonlyArray<{ nodeId: string; profile: RuntimeViewConfig }>;
+}
+
 export class CanvasLayoutRuntime {
   private readonly orchestrator: LayoutOrchestrator;
   private readonly canvasId: string;
   private readonly store: GraphStore;
   private canvasData: CanvasData;
   private modelData: CanvasData;
+  private readonly viewOverlay: RuntimeViewOverlay;
   private readonly eventBus: CanvasEventBus;
   private frame: PresentationFrame | null = null;
   private readonly workerBridge: LayoutWorkerBridge;
   private lensId: string | undefined;
   private readonly defaultEngine: string;
-  private viewConfig: RuntimeViewConfig;
 
   constructor(canvasId: string, initialData: CanvasData, config: CanvasLayoutRuntimeConfig = {}) {
     this.canvasId = canvasId;
@@ -52,14 +64,18 @@ export class CanvasLayoutRuntime {
     this.defaultEngine = config.defaultEngine ?? this.inferEngineFromData(initialData);
 
     // Initialize view config with defaults and optional overrides
-    const defaultViewConfig: RuntimeViewConfig = {
+    const defaultProfile: RuntimeViewConfig = {
       containmentMode: 'containers',
       layoutMode: 'grid',
       edgeRouting: 'orthogonal'
     };
-    this.viewConfig = {
-      ...defaultViewConfig,
+    const initialProfile: RuntimeViewConfig = {
+      ...defaultProfile,
       ...(config.initialViewConfig ?? {})
+    };
+    this.viewOverlay = {
+      global: initialProfile,
+      overrides: new Map()
     };
 
     // Skip coordinate normalization for runtime engines that output correctly positioned nodes
@@ -68,8 +84,8 @@ export class CanvasLayoutRuntime {
       ensureRelativeNodeCoordinates(initialData.nodes, 0, 0);
     }
 
-    // Store canonical model reference directly
-    this.modelData = initialData;
+    // Store canonical model as an immutable clone
+    this.modelData = this.cloneCanvasData(initialData);
     this.canvasData = initialData;
 
     const initialEngine = this.normaliseEngineName(this.defaultEngine);
@@ -124,14 +140,29 @@ export class CanvasLayoutRuntime {
   }
 
   getViewConfig(): RuntimeViewConfig {
-    return { ...this.viewConfig };
+    return { ...this.viewOverlay.global };
   }
 
-  setViewConfig(config: Partial<RuntimeViewConfig>): void {
-    this.viewConfig = {
-      ...this.viewConfig,
+  setViewConfig(config: RuntimeViewConfigPatch): void {
+    this.viewOverlay.global = {
+      ...this.viewOverlay.global,
       ...config
     };
+  }
+
+  setNodeViewConfig(nodeId: string, patch: RuntimeViewConfigPatch | null): void {
+    if (!nodeId) {
+      return;
+    }
+    if (patch === null) {
+      this.viewOverlay.overrides.delete(nodeId);
+      return;
+    }
+    const existing = this.viewOverlay.overrides.get(nodeId) ?? {};
+    this.viewOverlay.overrides.set(nodeId, {
+      ...existing,
+      ...patch
+    });
   }
 
   computePresentation(preset: ViewPresetDescriptor): GraphPresentationSnapshot {
@@ -140,7 +171,7 @@ export class CanvasLayoutRuntime {
 
   setCanvasData(data: CanvasData, runLayout = false, source: CanvasEventSource = 'system'): void {
     // Treat incoming data as canonical model (no deep copies)
-    this.modelData = data;
+    this.modelData = this.cloneCanvasData(data);
     this.canvasData = data;
 
     const baseGraph = canvasDataToLayoutGraph(this.modelData, this.store.current.version + 1);
@@ -196,14 +227,15 @@ export class CanvasLayoutRuntime {
     }
 
     const snapshot = layoutGraphToHierarchical(graph);
-    this.modelData = {
+    const canonical = this.cloneCanvasData({
       nodes: snapshot.nodes,
       edges: snapshot.edges,
       originalEdges: snapshot.edges,
       camera: this.canvasData?.camera ?? undefined,
       metadata: snapshot.metadata
-    };
-    this.canvasData = this.modelData;
+    });
+    this.modelData = canonical;
+    this.canvasData = canonical;
 
     this.store.replace(graph);
 
@@ -250,10 +282,13 @@ export class CanvasLayoutRuntime {
       this.orchestrator.setActiveEngine(this.canvasId, normalisedEngine, options.source ?? 'system');
     }
 
-    // Pass viewConfig as engineOptions so layout engine can respond to config
+    const activeProfile = this.resolveProfileForNode((options.engineOptions as any)?.targetNodeId);
     const engineOptions = {
-      ...this.viewConfig,
-      ...(options.engineOptions ?? {})
+      ...(options.engineOptions ?? {}),
+      containmentMode: activeProfile.containmentMode,
+      layoutMode: activeProfile.layoutMode,
+      edgeRouting: activeProfile.edgeRouting,
+      viewOverlay: this.serialiseOverlay()
     };
 
     const nextVersion = this.store.current.version + 1;
@@ -280,21 +315,14 @@ export class CanvasLayoutRuntime {
 
     this.frame = buildPresentationFrame(result, this.frame ?? undefined, this.lensId);
 
-    // Set rendererId based on containmentMode
     if (this.frame) {
-      const rendererId = this.viewConfig.containmentMode === 'containers'
+      const rendererId = this.viewOverlay.global.containmentMode === 'containers'
         ? 'runtime-containment-renderer'
         : 'runtime-flat-renderer';
       this.frame = {
         ...this.frame,
         rendererId
       };
-
-      if (this.viewConfig.containmentMode === 'containers') {
-        // In containers mode, promote the hierarchical frame to be the canonical model
-        // so future layouts (including flat toggles) always start from the latest constrained structure.
-        this.modelData = this.frame.canvasData;
-      }
     }
 
     this.canvasData = this.frame.canvasData;
@@ -371,5 +399,57 @@ export class CanvasLayoutRuntime {
       'orthogonal'
     ]);
     return runtimeEngines.has(engineName);
+  }
+
+  private cloneCanvasData(data: CanvasData): CanvasData {
+    const cloneNode = (node: HierarchicalNode): HierarchicalNode => ({
+      ...node,
+      metadata: node.metadata ? { ...node.metadata } : undefined,
+      style: { ...(node.style ?? { fill: '#1f2937', stroke: '#4b5563' }) },
+      children: node.children ? node.children.map(child => cloneNode(child)) : []
+    });
+
+    const cloneEdge = (edge: Edge): Edge => ({
+      ...edge,
+      metadata: edge.metadata ? { ...edge.metadata } : undefined,
+      style: { ...(edge.style ?? { stroke: '#6ea8fe', strokeWidth: 2, strokeDashArray: null }) },
+      waypoints: edge.waypoints ? edge.waypoints.map(point => ({ ...point })) : undefined
+    });
+
+    return {
+      nodes: data.nodes ? data.nodes.map(node => cloneNode(node)) : [],
+      edges: data.edges ? data.edges.map(edge => cloneEdge(edge)) : [],
+      originalEdges: (data.originalEdges ?? data.edges ?? []).map(edge => cloneEdge(edge)),
+      camera: data.camera ? { ...data.camera } : undefined,
+      metadata: data.metadata ? { ...data.metadata } : undefined
+    };
+  }
+
+  private resolveProfileForNode(nodeId?: string): RuntimeViewConfig {
+    if (!nodeId) {
+      return { ...this.viewOverlay.global };
+    }
+    const override = this.viewOverlay.overrides.get(nodeId);
+    if (!override) {
+      return { ...this.viewOverlay.global };
+    }
+    return {
+      ...this.viewOverlay.global,
+      ...override
+    };
+  }
+
+  private serialiseOverlay(): SerializedViewOverlay {
+    const overrides = Array.from(this.viewOverlay.overrides.entries()).map(([nodeId, patch]) => ({
+      nodeId,
+      profile: {
+        ...this.viewOverlay.global,
+        ...patch
+      }
+    }));
+    return {
+      global: { ...this.viewOverlay.global },
+      overrides
+    };
   }
 }
