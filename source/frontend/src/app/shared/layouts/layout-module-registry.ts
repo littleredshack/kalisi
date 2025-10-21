@@ -6,6 +6,7 @@ import { ComposableFlatRenderer } from '../composable/renderers/composable-flat-
 import { ComposableTreeRenderer } from '../composable/renderers/composable-tree-renderer';
 import { ComposableTreeTableRenderer } from '../composable/renderers/composable-tree-table-renderer';
 import { RuntimeContainmentRenderer } from '../composable/renderers/runtime-containment-renderer';
+import { RuntimeFlatRenderer } from '../composable/renderers/runtime-flat-renderer';
 
 export interface LayoutRendererDescriptor {
   readonly id: string;
@@ -111,7 +112,7 @@ const MODULES: LayoutModuleDescriptor[] = [
         id: 'runtime-flat-renderer',
         label: 'Flat Mode',
         description: 'Independent nodes with visible CONTAINS edges',
-        factory: () => new RuntimeContainmentRenderer(), // TODO: Replace with RuntimeFlatRenderer in Phase 3
+        factory: () => new RuntimeFlatRenderer(),
         tags: ['runtime', 'flat', 'orthogonal']
       }
     ]
