@@ -2,6 +2,7 @@ import { Component, ElementRef, ViewChild, AfterViewInit, OnInit, OnDestroy, Cha
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom, Subscription } from 'rxjs';
+import { skip } from 'rxjs/operators';
 import { Neo4jDataService } from '../../core/services/neo4j-data.service';
 import { ViewNodeStateService } from '../../core/services/view-node-state.service';
 import { DynamicLayoutService } from '../../core/services/dynamic-layout.service';
@@ -17,6 +18,7 @@ import {
   NodeStyleSnapshot,
   NodeStyleOverrides
 } from '../../shared/canvas/types';
+import { IRenderer } from '../../shared/canvas/renderer';
 import { SelectEvent, DragStartEvent, DragUpdateEvent, DragStopEvent, HitTestResizeEvent, DoubleClickEvent } from '../../shared/canvas/interaction-events';
 import { ComponentFactory } from '../../shared/canvas/component-factory';
 import { CanvasControlService, CanvasController, CameraInfo } from '../../core/services/canvas-control.service';
@@ -31,6 +33,8 @@ import { CanvasLayoutRuntime, RuntimeViewConfig } from '../../shared/canvas/layo
 import { layoutGraphToHierarchical } from '../../shared/layouts/core/layout-graph-utils';
 import { ContainmentRuntimeLayoutEngine } from '../../shared/layouts/engines/containment-runtime-layout.engine';
 import { LayoutOptions, RawDataInput } from '../../shared/layouts/core/layout-contract';
+import { RuntimeContainmentRenderer } from '../../shared/composable/renderers/runtime-containment-renderer';
+import { RuntimeFlatRenderer } from '../../shared/composable/renderers/runtime-flat-renderer';
 
 @Component({
   selector: 'app-runtime-canvas',
@@ -95,6 +99,10 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   private restoringHistory = false;
   private canUndoState = false;
   private canRedoState = false;
+
+  // Store both renderers for dynamic switching
+  private containmentRenderer: IRenderer | null = null;
+  private flatRenderer: IRenderer | null = null;
 
   constructor(
     private cdr: ChangeDetectorRef,
@@ -161,19 +169,26 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     });
 
     // Subscribe to runtime view configuration changes
-    const containmentSub = this.canvasControlService.containmentMode$.subscribe(mode => {
+    // IMPORTANT: Skip(1) to ignore initial BehaviorSubject emission (engine not ready yet)
+    const containmentSub = this.canvasControlService.containmentMode$.pipe(
+      skip(1) // Skip initial value - engine doesn't exist yet
+    ).subscribe(mode => {
       console.log('[RuntimeCanvas] Containment mode changed to:', mode);
       this.updateRuntimeConfig({ containmentMode: mode });
     });
     this.configSubscriptions.push(containmentSub);
 
-    const layoutSub = this.canvasControlService.layoutMode$.subscribe(mode => {
+    const layoutSub = this.canvasControlService.layoutMode$.pipe(
+      skip(1) // Skip initial value - engine doesn't exist yet
+    ).subscribe(mode => {
       console.log('[RuntimeCanvas] Layout mode changed to:', mode);
       this.updateRuntimeConfig({ layoutMode: mode });
     });
     this.configSubscriptions.push(layoutSub);
 
-    const edgeSub = this.canvasControlService.edgeRouting$.subscribe(mode => {
+    const edgeSub = this.canvasControlService.edgeRouting$.pipe(
+      skip(1) // Skip initial value - engine doesn't exist yet
+    ).subscribe(mode => {
       console.log('[RuntimeCanvas] Edge routing changed to:', mode);
       this.updateRuntimeConfig({ edgeRouting: mode });
     });
@@ -202,6 +217,20 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     runtime.setViewConfig(configPatch);
 
     console.log('[RuntimeCanvas] Updated runtime config:', runtime.getViewConfig());
+
+    // Switch renderer if containmentMode changed
+    if ('containmentMode' in configPatch) {
+      const newMode = configPatch.containmentMode;
+      const newRenderer = newMode === 'containers' ? this.containmentRenderer : this.flatRenderer;
+
+      if (newRenderer) {
+        console.log('[RuntimeCanvas] Switching to renderer for mode:', newMode);
+        this.engine.setRenderer(newRenderer);
+      } else {
+        console.warn('[RuntimeCanvas] Renderer not available for mode:', newMode);
+      }
+    }
+
     console.log('[RuntimeCanvas] Triggering layout re-run...');
 
     // Re-run layout to apply the new configuration
@@ -574,10 +603,20 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     this.currentRendererId = rendererId;
     this.runtimeEngineId = runtimeEngine;
 
-    // Inject ViewNodeStateService into containment-orthogonal renderer
-    if (renderer && 'setViewNodeStateService' in renderer) {
-      (renderer as any).setViewNodeStateService(this.viewNodeState);
+    // Create BOTH renderers for dynamic switching
+    this.containmentRenderer = new RuntimeContainmentRenderer();
+    this.flatRenderer = new RuntimeFlatRenderer();
+
+    // Inject ViewNodeStateService into both renderers
+    if (this.containmentRenderer && 'setViewNodeStateService' in this.containmentRenderer) {
+      (this.containmentRenderer as any).setViewNodeStateService(this.viewNodeState);
     }
+    if (this.flatRenderer && 'setViewNodeStateService' in this.flatRenderer) {
+      (this.flatRenderer as any).setViewNodeStateService(this.viewNodeState);
+    }
+
+    // Start with containment renderer (default mode)
+    const initialRenderer = this.containmentRenderer;
 
     // If we have raw ViewNode data, process it with the selected layout engine
     if (this.rawViewNodeData && this.selectedViewNode) {
@@ -645,7 +684,7 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     console.log(`[RuntimeCanvas] Using RuntimeCanvasController for ${this.runtimeEngineId}`);
     this.engine = new RuntimeCanvasController(
       canvas,
-      renderer,
+      initialRenderer,
       this.data!,
       this.canvasId,
       this.runtimeEngineId

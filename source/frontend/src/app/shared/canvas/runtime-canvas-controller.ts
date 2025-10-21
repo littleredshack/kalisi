@@ -18,7 +18,7 @@ import { GraphDelta } from '../../core/services/neo4j-realtime.service';
 export class RuntimeCanvasController {
   private readonly canvasId: string;
   private readonly layoutRuntime: CanvasLayoutRuntime;
-  private readonly renderer: IRenderer;
+  private renderer: IRenderer; // Not readonly - can switch renderers dynamically
   private readonly cameraSystem: CameraSystem;
   private readonly canvas: HTMLCanvasElement;
   private readonly interactionHandler: CanvasInteractionHandler;
@@ -385,6 +385,15 @@ export class RuntimeCanvasController {
    */
   getRenderer(): IRenderer {
     return this.renderer;
+  }
+
+  /**
+   * Set a new renderer (used when switching containment modes)
+   */
+  setRenderer(renderer: IRenderer): void {
+    console.log('[RuntimeCanvasController] Switching renderer:', renderer.constructor.name);
+    this.renderer = renderer;
+    // Render loop will pick up new renderer on next frame automatically
   }
 
   /**
