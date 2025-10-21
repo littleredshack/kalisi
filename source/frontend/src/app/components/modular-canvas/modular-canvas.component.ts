@@ -628,7 +628,6 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
 
     if (isRuntimeEngine) {
       // CLEAN ARCHITECTURE: Runtime engine → Renderer (NO transformations!)
-      console.log(`[ModularCanvas] Using RuntimeCanvasController for ${this.runtimeEngineId}`);
       this.engine = new RuntimeCanvasController(
         canvas,
         renderer,

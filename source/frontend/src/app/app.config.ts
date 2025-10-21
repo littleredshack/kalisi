@@ -8,11 +8,7 @@ import { routes } from './app.routes';
 import { WebSocketLoggerService } from './core/services/websocket-logger.service';
 
 function initializeWebSocketLogger(logger: WebSocketLoggerService) {
-  return () => {
-    console.log('APP_INITIALIZER: WebSocket logger service loaded');
-    // Service constructor will initialize automatically
-    return Promise.resolve();
-  };
+  return () => Promise.resolve();
 }
 
 export const appConfig: ApplicationConfig = {

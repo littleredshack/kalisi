@@ -44,7 +44,6 @@ export class AppComponent implements OnInit {
   ) {
     // Force websocket logger initialization
     const wsConnected = this.webSocketLogger.isConnected();
-    console.log('[Kalisi Angular] Application starting, WS connected:', wsConnected);
   }
   
   ngOnInit() {

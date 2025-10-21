@@ -51,7 +51,6 @@ export class Neo4jRealtimeService {
   );
 
   constructor() {
-    console.log('[Neo4jRealtimeService] Service initialized');
   }
 
   /**
@@ -73,7 +72,6 @@ export class Neo4jRealtimeService {
    */
   public connect(viewNodeId: string): void {
     if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-      console.log('[Neo4jRealtimeService] Already connected, updating subscription');
       this.subscribe(viewNodeId);
       return;
     }
@@ -86,7 +84,6 @@ export class Neo4jRealtimeService {
    * Disconnect from WebSocket
    */
   public disconnect(): void {
-    console.log('[Neo4jRealtimeService] Disconnecting');
 
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -113,13 +110,11 @@ export class Neo4jRealtimeService {
       const port = window.location.port;
       const wsUrl = `${protocol}//${host}:${port}/ws`;
 
-      console.log(`[Neo4jRealtimeService] Connecting to ${wsUrl}`);
       this.status$.next(RealtimeConnectionStatus.Connecting);
 
       this.websocket = new WebSocket(wsUrl);
 
       this.websocket.onopen = () => {
-        console.log('[Neo4jRealtimeService] WebSocket connected');
         this.status$.next(RealtimeConnectionStatus.Connected);
         this.reconnectAttempts = 0;
 
@@ -139,7 +134,6 @@ export class Neo4jRealtimeService {
       };
 
       this.websocket.onclose = (event) => {
-        console.log('[Neo4jRealtimeService] WebSocket closed', event);
         this.websocket = null;
 
         if (this.currentViewNodeId) {
@@ -177,7 +171,6 @@ export class Neo4jRealtimeService {
       viewNodeId: viewNodeId
     };
 
-    console.log('[Neo4jRealtimeService] Subscribing to graph changes:', viewNodeId);
     this.websocket.send(JSON.stringify(subscriptionMessage));
   }
 

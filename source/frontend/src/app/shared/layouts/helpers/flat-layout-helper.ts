@@ -48,7 +48,6 @@ export function flattenHierarchyWithEdges(
       dragging: node.dragging
     };
 
-    console.log('[flattenHierarchy] Flattened node:', clone.text, 'id:', clone.GUID ?? clone.id, 'children.length:', clone.children.length);
     flatNodes.push(clone);
 
     // Generate CONTAINS edge from parent to this node

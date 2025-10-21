@@ -68,9 +68,6 @@ export function layoutGraphToHierarchical(graph: LayoutGraph): HierarchicalGraph
   });
 
   const roots = computeRootNodes(graph, nodeMap);
-  console.log('[layoutGraphToHierarchical] Total nodes in graph:', Object.keys(graph.nodes).length);
-  console.log('[layoutGraphToHierarchical] Computed roots count:', roots.length);
-  console.log('[layoutGraphToHierarchical] Root node names:', roots.map(n => n.text));
 
   const edges: Edge[] = Object.values(graph.edges).map(edge => ({
     id: edge.id,

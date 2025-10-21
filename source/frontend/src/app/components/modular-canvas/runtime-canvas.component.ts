@@ -130,7 +130,6 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   // Component state
 
   ngAfterViewInit(): void {
-    console.log('[RuntimeCanvas] ngAfterViewInit called - component is rendered');
     // Canvas is ready - but wait for data to be loaded before creating engine
     this.resizeCanvas();
     // Register this canvas with the control service
@@ -174,7 +173,6 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     const containmentSub = this.canvasControlService.containmentMode$.pipe(
       skip(1) // Skip initial value - engine doesn't exist yet
     ).subscribe(mode => {
-      console.log('[RuntimeCanvas] Containment mode changed to:', mode);
       this.scheduleRuntimeConfigUpdate({ containmentMode: mode });
     });
     this.configSubscriptions.push(containmentSub);
@@ -182,7 +180,6 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     const layoutSub = this.canvasControlService.layoutMode$.pipe(
       skip(1) // Skip initial value - engine doesn't exist yet
     ).subscribe(mode => {
-      console.log('[RuntimeCanvas] Layout mode changed to:', mode);
       this.scheduleRuntimeConfigUpdate({ layoutMode: mode });
     });
     this.configSubscriptions.push(layoutSub);
@@ -190,7 +187,6 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     const edgeSub = this.canvasControlService.edgeRouting$.pipe(
       skip(1) // Skip initial value - engine doesn't exist yet
     ).subscribe(mode => {
-      console.log('[RuntimeCanvas] Edge routing changed to:', mode);
       this.scheduleRuntimeConfigUpdate({ edgeRouting: mode });
     });
     this.configSubscriptions.push(edgeSub);
@@ -266,27 +262,37 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   }
 
   private updateRuntimeConfig(configPatch: Partial<RuntimeViewConfig>): void {
-    console.log('[RuntimeCanvas] updateRuntimeConfig called with:', configPatch);
+    if (typeof window !== 'undefined' && (window as any).__DEV__ && (console.debug || console.log)) {
+      (console.debug || console.log).call(console, '[RuntimeCanvas] updateRuntimeConfig called with:', configPatch);
+    }
 
     if (!this.engine) {
-      console.log('[RuntimeCanvas] Engine not ready yet, skipping config update');
+      if (typeof window !== 'undefined' && (window as any).__DEV__ && (console.debug || console.log)) {
+        (console.debug || console.log).call(console, '[RuntimeCanvas] Engine not ready yet, skipping config update');
+      }
       return;
     }
 
     // Get the layoutRuntime from the engine
     const runtime = (this.engine as any).layoutRuntime as CanvasLayoutRuntime;
     if (!runtime) {
-      console.log('[RuntimeCanvas] Runtime not found in engine, skipping config update');
+      if (typeof window !== 'undefined' && (window as any).__DEV__ && (console.debug || console.log)) {
+        (console.debug || console.log).call(console, '[RuntimeCanvas] Runtime not found in engine, skipping config update');
+      }
       return;
     }
 
-    console.log('[RuntimeCanvas] Applying config to runtime:', configPatch);
-    console.log('[RuntimeCanvas] Current runtime config:', runtime.getViewConfig());
+    if (typeof window !== 'undefined' && (window as any).__DEV__ && (console.debug || console.log)) {
+      (console.debug || console.log).call(console, '[RuntimeCanvas] Applying config to runtime:', configPatch);
+      (console.debug || console.log).call(console, '[RuntimeCanvas] Current runtime config:', runtime.getViewConfig());
+    }
 
     // Update the view config
     runtime.setViewConfig(configPatch);
 
-    console.log('[RuntimeCanvas] Updated runtime config:', runtime.getViewConfig());
+    if (typeof window !== 'undefined' && (window as any).__DEV__ && (console.debug || console.log)) {
+      (console.debug || console.log).call(console, '[RuntimeCanvas] Updated runtime config:', runtime.getViewConfig());
+    }
 
     // Switch renderer if containmentMode changed
     if ('containmentMode' in configPatch) {
@@ -294,18 +300,24 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       const newRenderer = newMode === 'containers' ? this.containmentRenderer : this.flatRenderer;
 
       if (newRenderer) {
-        console.log('[RuntimeCanvas] Switching to renderer for mode:', newMode);
+        if (typeof window !== 'undefined' && (window as any).__DEV__ && (console.debug || console.log)) {
+          (console.debug || console.log).call(console, '[RuntimeCanvas] Switching to renderer for mode:', newMode);
+        }
         this.engine.setRenderer(newRenderer);
       } else {
         console.warn('[RuntimeCanvas] Renderer not available for mode:', newMode);
       }
     }
 
-    console.log('[RuntimeCanvas] Triggering layout re-run...');
+    if (typeof window !== 'undefined' && (window as any).__DEV__ && (console.debug || console.log)) {
+      (console.debug || console.log).call(console, '[RuntimeCanvas] Triggering layout re-run...');
+    }
 
     // Re-run layout to apply the new configuration
     this.engine.runLayout().then(() => {
-      console.log('[RuntimeCanvas] Layout re-run complete');
+      if (typeof window !== 'undefined' && (window as any).__DEV__ && (console.debug || console.log)) {
+        (console.debug || console.log).call(console, '[RuntimeCanvas] Layout re-run complete');
+      }
       this.data = this.engine?.getData() ?? this.data;
       this.updateCameraInfo();
       this.engineDataChanged.emit();
@@ -758,7 +770,6 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     }
     
     // Always use RuntimeCanvasController for this component
-    console.log(`[RuntimeCanvas] Using RuntimeCanvasController for ${this.runtimeEngineId}`);
     this.engine = new RuntimeCanvasController(
       canvas,
       initialRenderer,
@@ -873,14 +884,18 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       return;
     }
 
-    console.log(`[RuntimeCanvas] Setting up realtime subscription for ViewNode: ${this.selectedViewNode.id}`);
+    if (typeof window !== 'undefined' && (window as any).__DEV__ && (console.debug || console.log)) {
+      (console.debug || console.log).call(console, `[RuntimeCanvas] Setting up realtime subscription for ViewNode: ${this.selectedViewNode.id}`);
+    }
 
     // Connect to the WebSocket and subscribe to graph changes
     this.neo4jRealtimeService.connect(this.selectedViewNode.id);
 
     // Subscribe to delta updates
     this.realtimeDeltaSubscription = this.neo4jRealtimeService.getDelta$().subscribe(delta => {
-      console.log('[RuntimeCanvas] Received graph delta:', delta);
+      if (typeof window !== 'undefined' && (window as any).__DEV__ && (console.debug || console.log)) {
+        (console.debug || console.log).call(console, '[RuntimeCanvas] Received graph delta:', delta);
+      }
 
       if (!this.engine) {
         console.warn('[RuntimeCanvas] Engine not available, cannot apply delta');
@@ -890,7 +905,9 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       try {
         // Apply the delta to the engine without recording in history (system change)
         this.engine.applyDelta(delta, { recordHistory: false });
-        console.log('[RuntimeCanvas] Successfully applied graph delta');
+        if (typeof window !== 'undefined' && (window as any).__DEV__ && (console.debug || console.log)) {
+          (console.debug || console.log).call(console, '[RuntimeCanvas] Successfully applied graph delta');
+        }
       } catch (error) {
         console.error('[RuntimeCanvas] Error applying graph delta:', error);
       }

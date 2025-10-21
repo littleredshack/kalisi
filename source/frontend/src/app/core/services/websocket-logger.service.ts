@@ -29,12 +29,8 @@ export class WebSocketLoggerService {
       error: console.error.bind(console)
     };
 
-    (window as any)._nativeConsole.log('>>> WebSocketLoggerService constructor called <<<');
-
     this.sessionId = 'session_' + Math.random().toString(36).substr(2, 9);
     this.initializeService();
-
-    (window as any)._nativeConsole.log('>>> WebSocketLoggerService initialization complete <<<');
   }
 
   private initializeService(): void {
@@ -51,8 +47,6 @@ export class WebSocketLoggerService {
     this.interceptConsole();
     this.setupErrorHandlers();
     this.isInitialized = true;
-
-    this.originalConsole.log('[Kalisi] WebSocket Console Logger initialized');
   }
 
   private setupWebSocket(): void {
@@ -63,13 +57,9 @@ export class WebSocketLoggerService {
       const port = window.location.port;
       const wsUrl = `${protocol}//${host}:${port}/ws`;
 
-      this.originalConsole.log(`[Kalisi] Connecting WebSocket to: ${wsUrl}`);
       this.websocket = new WebSocket(wsUrl);
       
       this.websocket.onopen = () => {
-        // Use original console to avoid intercepting our own logs
-        this.originalConsole.log('[Kalisi] WebSocket connected for console logging');
-
         // Send session start marker
         const sessionStart = {
           type: 'session_start',
@@ -94,7 +84,6 @@ export class WebSocketLoggerService {
       };
       
       this.websocket.onclose = () => {
-        this.originalConsole.log('[Kalisi] WebSocket connection closed, attempting to reconnect in 5s');
         setTimeout(() => this.setupWebSocket(), 5000);
       };
       

@@ -206,17 +206,14 @@ export class LayoutPanelComponent implements OnInit, OnDestroy, OnChanges {
   // Layout configuration methods
   onContainmentToggle(enabled: boolean): void {
     const mode: 'containers' | 'flat' = enabled ? 'containers' : 'flat';
-    console.log('[LayoutPanel] Containment toggled to:', mode, 'enabled:', enabled);
     this.canvasControlService.setContainmentMode(mode);
   }
 
   onLayoutModeChange(mode: 'grid' | 'force'): void {
-    console.log('[LayoutPanel] Layout mode changed to:', mode);
     this.canvasControlService.setLayoutMode(mode);
   }
 
   onEdgeRoutingChange(mode: 'orthogonal' | 'straight'): void {
-    console.log('[LayoutPanel] Edge routing changed to:', mode);
     this.canvasControlService.setEdgeRouting(mode);
   }
 
