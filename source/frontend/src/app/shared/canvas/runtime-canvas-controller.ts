@@ -517,18 +517,13 @@ export class RuntimeCanvasController {
     const targetNode = this.findNodeByIdInData(nodeId, data.nodes);
 
     if (!targetNode) {
-      console.warn('[RuntimeCanvas] applyNodeStyleOverride: node not found', nodeId);
       return;
     }
-
-    console.log('[RuntimeCanvas] Applying style override to node:', nodeId, 'overrides:', overrides);
 
     // Direct mutation of ViewGraph - no overlay system
     const nodesToUpdate = scope === 'type'
       ? this.collectNodesByType(targetNode.type, data.nodes)
       : [targetNode];
-
-    console.log('[RuntimeCanvas] Updating', nodesToUpdate.length, 'nodes');
 
     nodesToUpdate.forEach(node => {
       this.mergeNodeStyleOverrides(node, overrides);
