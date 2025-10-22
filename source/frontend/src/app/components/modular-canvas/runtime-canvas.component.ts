@@ -327,14 +327,23 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       if (viewNode.layout) {
         try {
           const savedLayoutData = JSON.parse(viewNode.layout);
+          console.log('[RuntimeCanvas] LOAD - Parsed saved layout:');
+          console.log('  - Nodes:', savedLayoutData?.nodes?.length);
+          console.log('  - Has viewConfig:', !!savedLayoutData?.viewConfig);
+          console.log('  - ViewConfig:', savedLayoutData?.viewConfig);
+          console.log('  - Has camera:', !!savedLayoutData?.camera);
+          console.log('  - Sample node 0:', savedLayoutData?.nodes?.[0] ? { id: savedLayoutData.nodes[0].id, x: savedLayoutData.nodes[0].x, y: savedLayoutData.nodes[0].y, hasChildren: !!savedLayoutData.nodes[0].children?.length } : 'none');
+
           if (savedLayoutData?.nodes?.length && dataset) {
-            this.normaliseCanvasData(savedLayoutData);
+            // Skip coordinate normalization for saved layouts - positions are already correct
+            this.normaliseCanvasData(savedLayoutData, true);
             this.canvasSnapshot = savedLayoutData;
             // CRITICAL: Store dataset even when using saved layout
             this.graphDataSet = dataset;
 
             // Restore saved viewConfig if present (containment mode, layout mode, etc.)
             if (savedLayoutData.viewConfig) {
+              console.log('[RuntimeCanvas] Restoring viewConfig from saved layout');
               this.viewState = {
                 ...this.createInitialViewState(viewNode, dataset),
                 layout: {
@@ -348,6 +357,7 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
                 camera: savedLayoutData.camera
               };
             } else {
+              console.log('[RuntimeCanvas] No viewConfig in saved layout, using defaults');
               this.viewState = this.createInitialViewState(viewNode, dataset);
             }
 
@@ -643,25 +653,40 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
 
     (window as any).__canvasEngine = this.engine;
 
+    console.log('[RuntimeCanvas] createEngineWithData - State:');
+    console.log('  - Has graphDataSet:', !!this.graphDataSet);
+    console.log('  - Has viewState:', !!this.viewState);
+    console.log('  - Has canvasSnapshot:', !!this.canvasSnapshot);
+    if (this.canvasSnapshot) {
+      console.log('  - Snapshot nodes:', this.canvasSnapshot.nodes?.length);
+      console.log('  - Snapshot node 0:', this.canvasSnapshot.nodes?.[0] ? { id: this.canvasSnapshot.nodes[0].id, x: this.canvasSnapshot.nodes[0].x, y: this.canvasSnapshot.nodes[0].y } : 'none');
+    }
+
     let initialSnapshot: CanvasData;
     if (this.graphDataSet && this.viewState) {
       // If we also have a saved layout snapshot, use it for positions
       // but still store the dataset for containment toggles
       if (this.canvasSnapshot) {
+        console.log('[RuntimeCanvas] Path: Using saved snapshot WITH dataset');
         this.engine.getLayoutRuntime().setGraphDataSet(this.graphDataSet, false, 'system');
         this.engine.getLayoutRuntime().setViewConfig(this.viewState.layout.global);
         // CRITICAL: Do NOT run layout - we want to preserve saved positions
         this.engine.setData(this.canvasSnapshot, false);
         initialSnapshot = this.engine.getData();
+        console.log('[RuntimeCanvas] After setData, getData returns', initialSnapshot.nodes?.length, 'nodes');
+        console.log('[RuntimeCanvas] Node 0 now:', initialSnapshot.nodes?.[0] ? { id: initialSnapshot.nodes[0].id, x: initialSnapshot.nodes[0].x, y: initialSnapshot.nodes[0].y } : 'none');
       } else {
+        console.log('[RuntimeCanvas] Path: No snapshot, running layout from dataset');
         initialSnapshot = await this.engine.loadGraphDataSet(this.graphDataSet, this.viewState, {
           reason: 'initial'
         });
       }
     } else if (this.canvasSnapshot) {
+      console.log('[RuntimeCanvas] Path: Using snapshot only (no dataset)');
       this.engine.setData(this.canvasSnapshot, false);
       initialSnapshot = this.engine.getData();
     } else {
+      console.log('[RuntimeCanvas] Path: Using fallback default data');
       const fallback = this.createDefaultData();
       this.engine.setData(fallback, false);
       initialSnapshot = fallback;
@@ -897,6 +922,12 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
               edgeRouting: viewConfig.edgeRouting
             }
           };
+
+          console.log('[RuntimeCanvas] SAVE - Preparing to save:');
+          console.log('  - Nodes:', savedLayout.nodes.length);
+          console.log('  - ViewConfig:', savedLayout.viewConfig);
+          console.log('  - Has camera:', !!savedLayout.camera);
+          console.log('  - Sample node 0:', { id: savedLayout.nodes[0].id, x: savedLayout.nodes[0].x, y: savedLayout.nodes[0].y, hasChildren: !!savedLayout.nodes[0].children?.length });
 
           const layoutJson = JSON.stringify(savedLayout);
 

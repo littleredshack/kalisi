@@ -110,7 +110,7 @@
           - generic:
             - generic:
               - generic: Hello! I can help you craft Neo4j Cypher queries safely. Ask me anything about your graph database.
-              - generic: 10/22/25, 5:11 AM
+              - generic: 10/22/25, 2:09 PM
       - generic:
         - generic:
           - textbox "Ask about Neo4j queries..."
