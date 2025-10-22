@@ -516,6 +516,8 @@ export class CanvasLayoutRuntime {
         if (totalDescendants > 0) {
           node.metadata['badges'] = [{ text: String(totalDescendants), color: 'rgba(30, 64, 175, 0.9)' }];
         }
+      } else {
+        showDescendants(node.children ?? []);
       }
 
       const nextAncestors = [...ancestors, guid];
@@ -567,6 +569,17 @@ export class CanvasLayoutRuntime {
         return 0;
       }
       return node.children.reduce((acc, child) => acc + 1 + countDescendants(child), 0);
+    }
+
+    function showDescendants(children: HierarchicalNode[]): void {
+      children.forEach(child => {
+        if (child.metadata && child.metadata['hiddenByCollapse']) {
+          delete child.metadata['hiddenByCollapse'];
+        }
+        child.visible = child.visible !== false;
+        child.visible = true;
+        showDescendants(child.children ?? []);
+      });
     }
   }
 
