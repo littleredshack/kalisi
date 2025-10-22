@@ -1,0 +1,261 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e4]:
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - button "Hide Activity Bar" [ref=e9] [cursor=pointer]:
+        - generic [ref=e10]: 
+      - button "Home" [ref=e11] [cursor=pointer]:
+        - generic [ref=e12]: 
+      - button "Library" [ref=e13] [cursor=pointer]:
+        - generic [ref=e14]: 
+      - button "Properties" [ref=e15] [cursor=pointer]:
+        - generic [ref=e16]: 
+      - button "Chat" [ref=e17] [cursor=pointer]:
+        - generic [ref=e18]: 
+      - button "Style" [ref=e19] [cursor=pointer]:
+        - generic [ref=e20]: 
+      - button "Layout" [ref=e21] [cursor=pointer]:
+        - generic [ref=e22]: 
+      - button "Settings" [ref=e23] [cursor=pointer]:
+        - generic [ref=e24]: 
+    - generic [ref=e26]:
+      - button "Code" [ref=e27] [cursor=pointer]:
+        - generic [ref=e28]: 
+      - button "Neo4J" [ref=e29] [cursor=pointer]:
+        - generic [ref=e30]: 
+  - generic [ref=e31]:
+    - generic [ref=e32]:
+      - heading "Models" [level=3] [ref=e33]
+      - textbox "Search..." [ref=e34]
+    - generic [ref=e35]:
+      - generic [ref=e36]:
+        - generic [ref=e37] [cursor=pointer]: 
+        - generic [ref=e38] [cursor=pointer]: Code Graph
+      - generic [ref=e39]:
+        - generic [ref=e40] [cursor=pointer]: 
+        - generic [ref=e41] [cursor=pointer]: CodeBase Analysis
+      - generic [ref=e42]:
+        - generic [ref=e43] [cursor=pointer]: 
+        - generic [ref=e44] [cursor=pointer]: Test Architecture Set
+      - generic [ref=e46] [cursor=pointer]: Containment - Runtime Merge
+      - generic [ref=e48] [cursor=pointer]: Composable Flat Graph
+      - generic [ref=e50] [cursor=pointer]: Composable Processes View
+      - generic [ref=e52] [cursor=pointer]: Containment - Orthogonal
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - heading " Settings" [level=2]:
+            - generic: 
+            - text: Settings
+          - button:
+            - generic: 
+        - generic:
+          - generic:
+            - generic:
+              - button " Appearance":
+                - generic:
+                  - generic: 
+                  - generic: Appearance
+                - img
+              - region " Appearance"
+            - generic:
+              - button " Interface":
+                - generic:
+                  - generic: 
+                  - generic: Interface
+                - img
+              - region " Interface"
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - generic: 
+          - heading "Chat Assistant" [level=3]
+        - generic:
+          - button "":
+            - generic: 
+          - button "":
+            - generic: 
+      - generic:
+        - generic:
+          - generic: GPT-4o
+          - generic: Read-only mode
+      - generic:
+        - generic:
+          - generic:
+            - generic: 
+            - generic: Canvas Orchestrator
+          - generic:
+            - generic:
+              - text: "Layout:"
+              - strong: Runtime Containment
+            - generic:
+              - text: "· Lens:"
+              - strong: Entire Graph
+        - generic:
+          - button "Tree"
+          - button "Containment Grid"
+          - button "Orthogonal Flow"
+          - button "Force Directed"
+          - button "Runtime Containment"
+        - generic:
+          - button "Entire Graph"
+          - button "Root Neighborhood"
+          - button "Active Containment"
+      - generic:
+        - generic:
+          - generic:
+            - generic:
+              - generic: Hello! I can help you craft Neo4j Cypher queries safely. Ask me anything about your graph database.
+              - generic: 10/22/25, 5:11 AM
+      - generic:
+        - generic:
+          - textbox "Ask about Neo4j queries..."
+          - button "" [disabled]:
+            - generic: 
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - generic: 
+          - heading "Properties" [level=3]
+        - generic:
+          - button "":
+            - generic: 
+      - generic:
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - generic:
+                  - button " Canvas Settings" [expanded]:
+                    - generic:
+                      - generic: 
+                      - generic: Canvas Settings
+                    - img
+                  - region " Canvas Settings":
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic: Containment - Runtime Merge
+                            - generic: "Auto Layout: N/A"
+                          - generic: "-234, -56 · 1x"
+                        - generic:
+                          - button "Reset":
+                            - generic: 
+                            - generic: Reset
+                          - button "Save Layout":
+                            - generic: 
+                            - generic: Save Layout
+                          - button "Undo" [disabled]:
+                            - generic: 
+                            - generic: Undo
+                          - button "Redo" [disabled]:
+                            - generic: Redo
+                          - button "Auto Layout Off":
+                            - generic: 
+                            - generic: Auto Layout Off
+                        - generic:
+                          - generic:
+                            - generic: Layout engine
+                            - combobox:
+                              - option "Tree"
+                              - option "Containment Grid"
+                              - option "Orthogonal Flow"
+                              - option "Force Directed"
+                              - option "Runtime Containment" [selected]
+                          - generic:
+                            - generic: Graph lens
+                            - combobox:
+                              - option "Entire Graph" [selected]
+                              - option "Root Neighborhood"
+                              - option "Active Containment"
+                        - generic:
+                          - generic:
+                            - generic: View preset
+                          - generic:
+                            - combobox:
+                              - option "Containment Insight"
+                              - option "Force Explore"
+                              - option "Timeline Flow"
+                          - generic:
+                            - generic: 
+                            - generic: Select a preset to adjust colours.
+                        - generic:
+                          - generic:
+                            - checkbox "Enable containment nesting"
+                            - generic: Enable containment nesting
+                          - generic:
+                            - generic:
+                              - text: "Edges:"
+                              - strong: CONTAINS
+            - generic:
+              - generic:
+                - generic: Panel opacity
+                - generic: 85%
+              - slider: "0.85"
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - generic: 
+          - heading "Node Styling" [level=3]
+        - generic:
+          - button "":
+            - generic: 
+      - generic:
+        - generic:
+          - generic: 
+          - paragraph: Select a node on the canvas to adjust styling.
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - heading "Layout" [level=3]
+        - generic:
+          - button "":
+            - generic: 
+      - generic:
+        - generic:
+          - generic: Rendering Mode
+          - generic:
+            - generic:
+              - generic:
+                - generic: Containment
+                - generic: Show nodes as nested containers
+              - generic:
+                - checkbox
+        - generic:
+          - generic: Layout Strategy
+          - generic:
+            - generic:
+              - generic: Algorithm
+              - combobox:
+                - option "Grid" [selected]
+                - option "Force (coming soon)" [disabled]
+                - option "Tree (coming soon)" [disabled]
+        - generic:
+          - generic: Edge Routing
+          - generic:
+            - generic:
+              - generic: Style
+              - combobox:
+                - option "Orthogonal" [selected]
+                - option "Straight (coming soon)" [disabled]
+  - text:  
+  - generic:
+    - generic:
+      - generic:
+        - 'heading "Debug: View State" [level=3]'
+        - generic:
+          - button "":
+            - generic: 
+          - button "":
+            - generic: 
+      - generic:
+        - textbox "No view state data available"
+```

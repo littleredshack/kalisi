@@ -68,9 +68,7 @@ export class RuntimeCanvasController {
     if (overlayService) {
       this.overlayService = overlayService;
       // Overlay integration removed - ViewGraph is now the single source of truth
-      this.overlaySubscription = this.overlayService.changes$.subscribe(() => {
-        this.scheduleOverlayRefresh();
-      });
+      // Subscription removed to prevent spurious layout runs
     }
 
     // Set initial camera from data
@@ -570,28 +568,7 @@ export class RuntimeCanvasController {
     return results;
   }
 
-  private scheduleOverlayRefresh(): void {
-    this.overlayUpdateQueue = this.overlayUpdateQueue
-      .then(async () => {
-        try {
-          const result = await this.layoutRuntime.runLayout({
-            reason: 'user-command',
-            source: 'system'
-          });
-          if (result.camera) {
-            this.cameraSystem.setCamera(result.camera);
-          }
-          if (this.onDataChangedCallback) {
-            this.onDataChangedCallback(result);
-          }
-        } catch (error) {
-          console.error('[RuntimeCanvas] Failed to apply overlay update', error);
-        }
-      })
-      .catch(error => {
-        console.error('[RuntimeCanvas] Overlay refresh queue error', error);
-      });
-  }
+  // Overlay refresh removed - ViewGraph mutations are immediate, no refresh needed
 
   private mergeNodeStyleOverrides(node: HierarchicalNode, overrides: Partial<NodeStyleOverrides>): void {
     if (!overrides) return;
