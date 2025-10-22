@@ -156,11 +156,12 @@ export class CanvasLayoutRuntime {
   async runLayout(options: LayoutRunOptions = {}): Promise<CanvasData> {
     const preservedCamera = this.viewGraph?.camera;
 
+    console.log('[LayoutRuntime] runLayout called, reason:', options.reason, 'source:', options.source);
+    console.log('[LayoutRuntime] Current nodes before layout:', this.viewGraph.nodes.length, 'mode:', this.runtimeConfig.containmentMode);
+
     const nextVersion = this.store.current.version + 1;
     const baseGraph = canvasDataToLayoutGraph(this.viewGraph, nextVersion);
     this.store.replace(baseGraph);
-
-    console.log('[LayoutRuntime] Running layout with mode:', this.runtimeConfig.containmentMode, 'nodes:', this.viewGraph.nodes.length);
 
     const normalisedEngine = options.engineName ? this.normaliseEngineName(options.engineName) : undefined;
     if (normalisedEngine) {
@@ -173,8 +174,6 @@ export class CanvasLayoutRuntime {
       layoutMode: this.runtimeConfig.layoutMode,
       edgeRouting: this.runtimeConfig.edgeRouting
     };
-
-    console.log('[LayoutRuntime] Engine options:', engineOptions);
 
     const result = await this.workerBridge.run(this.canvasId, baseGraph, {
       ...options,
