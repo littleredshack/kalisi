@@ -23,7 +23,7 @@ import { IRenderer } from '../../shared/canvas/renderer';
 import { SelectEvent, DragStartEvent, DragUpdateEvent, DragStopEvent, HitTestResizeEvent, DoubleClickEvent } from '../../shared/canvas/interaction-events';
 import { ComponentFactory } from '../../shared/canvas/component-factory';
 import { CanvasControlService, CanvasController, CameraInfo } from '../../core/services/canvas-control.service';
-import { CanvasViewStateService } from '../../shared/canvas/state/canvas-view-state.service';
+// CanvasViewStateService removed
 import { CanvasHistoryService } from '../../core/services/canvas-history.service';
 import { CanvasEventHubService } from '../../core/services/canvas-event-hub.service';
 import { LayoutModuleDescriptor, LayoutModuleRegistry } from '../../shared/layouts/layout-module-registry';
@@ -116,7 +116,7 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     private messageService: MessageService,
     private http: HttpClient,
     private canvasControlService: CanvasControlService,
-    private canvasViewStateService: CanvasViewStateService,
+    // canvasViewStateService removed
     private canvasHistoryService: CanvasHistoryService,
     private canvasEventHubService: CanvasEventHubService,
     private neo4jRealtimeService: Neo4jRealtimeService,
@@ -840,7 +840,7 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     try {
       const newData = JSON.parse(target.value);
       if (this.engine) {
-        this.canvasViewStateService.initialize(this.canvasId, newData, 'external');
+        // canvasViewStateService removed - direct mutation
         this.engine.setData(newData);
       }
     } catch (error) {

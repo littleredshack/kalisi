@@ -1,16 +1,14 @@
-import { Camera } from '../../canvas/types';
-import { RuntimeViewConfig, RuntimeViewConfigPatch } from '../../canvas/layout-runtime';
+import { Camera } from '../types';
+import { RuntimeViewConfig } from '../layout-runtime';
 
+// Minimal ViewState for save/load functionality
 export interface ViewState {
   readonly id: string;
   readonly datasetId: string;
   readonly layout: {
     readonly global: RuntimeViewConfig;
-    readonly overrides: ReadonlyMap<string, RuntimeViewConfigPatch>;
   };
-  readonly rendererId?: string;
   readonly camera?: Camera;
-  readonly styleOverrides?: ReadonlyMap<string, Record<string, unknown>>;
 }
 
 export function createDefaultViewState(
@@ -22,8 +20,7 @@ export function createDefaultViewState(
     id,
     datasetId,
     layout: {
-      global: { ...config },
-      overrides: new Map<string, RuntimeViewConfigPatch>()
+      global: { ...config }
     }
   };
 }
