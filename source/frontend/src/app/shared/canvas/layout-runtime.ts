@@ -106,10 +106,17 @@ export class CanvasLayoutRuntime {
   }
 
   setViewConfig(config: RuntimeViewConfigPatch): void {
+    const previousMode = this.runtimeConfig.containmentMode;
     this.runtimeConfig = {
       ...this.runtimeConfig,
       ...config
     } as RuntimeViewConfig;
+
+    // If containment mode changed, rebuild from original dataset to restore hierarchy
+    if (config.containmentMode && config.containmentMode !== previousMode && this.graphDataSet) {
+      const raw = graphDataSetToRawDataInput(this.graphDataSet);
+      this.setRawDataInternal(raw, false, 'system');
+    }
   }
 
   setCanvasData(data: CanvasData, runLayout = false, source: CanvasEventSource = 'system'): void {
