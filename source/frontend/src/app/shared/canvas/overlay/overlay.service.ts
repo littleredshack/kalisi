@@ -49,6 +49,29 @@ export class OverlayService {
       containmentMode: existing?.containmentMode,
       layout: existing?.layout,
       visibility: existing?.visibility,
+      collapseState: existing?.collapseState,
+      stopCascade: existing?.stopCascade,
+      updatedAt: Date.now(),
+      author
+    };
+    this.store.upsertNodePatch(nodeId, patch);
+    this.emit();
+  }
+
+  applyNodeCollapse(
+    nodeId: string,
+    state: 'collapsed' | 'expanded',
+    author: 'user' | 'system' = 'user'
+  ): void {
+    const existing = this.store.getNodePatch(nodeId);
+    const patch: NodeOverlayPatch = {
+      id: nodeId,
+      scope: existing?.scope ?? 'node',
+      style: existing?.style,
+      layout: existing?.layout,
+      containmentMode: existing?.containmentMode,
+      visibility: existing?.visibility,
+      collapseState: state,
       stopCascade: existing?.stopCascade,
       updatedAt: Date.now(),
       author

@@ -721,18 +721,7 @@ export class RuntimeCanvasController {
         // start from the updated coordinates instead of the canonical dataset.
         const latest = this.layoutRuntime.getCanvasData();
         this.layoutRuntime.setCanvasData(latest, false, 'system');
-
-        if (this.overlayService) {
-          const nodeId = selectedNode.GUID ?? selectedNode.id;
-          if (nodeId) {
-            const applyWhen = this.layoutRuntime.getViewConfig().containmentMode === 'flat' ? 'flat' : 'containers';
-            this.overlayService.applyNodeGeometry(nodeId, {
-              position: { x: selectedNode.x ?? 0, y: selectedNode.y ?? 0 },
-              mode: 'absolute',
-              applyWhen
-            });
-          }
-        }
+        this.layoutRuntime.commitCanvasData();
       }
     }
 
@@ -955,18 +944,6 @@ export class RuntimeCanvasController {
     // Update selection position tracking
     this.interactionHandler.updateSelectedNodeWorldPos(this.interactionHandler.getAbsolutePosition(node, data.nodes));
 
-    if (this.overlayService) {
-      const nodeId = node.GUID ?? node.id;
-      if (nodeId) {
-        const applyWhen = this.layoutRuntime.getViewConfig().containmentMode === 'flat' ? 'flat' : 'containers';
-        this.overlayService.applyNodeGeometry(nodeId, {
-          position: { x: node.x ?? 0, y: node.y ?? 0 },
-          size: { width: node.width ?? 0, height: node.height ?? 0 },
-          mode: 'absolute',
-          applyWhen
-        });
-      }
-    }
   }
 
   /**
@@ -983,16 +960,6 @@ export class RuntimeCanvasController {
     const nextState = currentlyCollapsed ? 'expanded' : 'collapsed';
 
     if (this.overlayService) {
-      // When collapsing, save the CURRENT expanded size from layout output as a geometry override
-      // This preserves the size across layout runs (which start from immutable canonical data)
-      if (nextState === 'collapsed' && node.width && node.height) {
-        this.overlayService.applyNodeGeometry(nodeGuid, {
-          size: { width: node.width, height: node.height },
-          mode: 'absolute',
-          applyWhen: 'containers'
-        }, 'system');
-      }
-
       this.overlayService.applyNodeCollapse(nodeGuid, nextState);
     }
   }

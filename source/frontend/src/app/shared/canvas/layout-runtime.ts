@@ -93,9 +93,9 @@ export class CanvasLayoutRuntime {
     }
 
     // Store canonical model as an immutable clone
-    this.canonicalModelData = this.cloneCanvasData(initialData);
-    this.modelData = this.cloneCanvasData(initialData);
-    this.canvasData = this.cloneCanvasData(initialData);
+    this.canonicalModelData = initialData;
+    this.modelData = initialData;
+    this.canvasData = initialData;
 
     const initialEngine = this.normaliseEngineName(this.defaultEngine);
     this.orchestrator.setActiveEngine(canvasId, initialEngine);
@@ -180,8 +180,8 @@ export class CanvasLayoutRuntime {
 
   setCanvasData(data: CanvasData, runLayout = false, source: CanvasEventSource = 'system'): void {
     this.graphDataSet = null;
-    // Treat incoming data as canonical model (no deep copies)
-    this.modelData = this.cloneCanvasData(data);
+    this.canonicalModelData = data;
+    this.modelData = data;
     this.canvasData = data;
 
     const baseGraph = canvasDataToLayoutGraph(this.modelData, this.store.current.version + 1);
@@ -206,6 +206,15 @@ export class CanvasLayoutRuntime {
     if (runLayout) {
       this.runLayout({ reason: 'data-update', source });
     }
+  }
+
+  /**
+   * Promote the current canvas snapshot to become the canonical baseline.
+   * Useful when interactive mutations (dragging, resizing) should persist
+   * across subsequent layout runs.
+   */
+  commitCanvasData(): void {
+    this.canonicalModelData = this.canvasData;
   }
 
   /**
@@ -247,16 +256,16 @@ export class CanvasLayoutRuntime {
     }
 
     const snapshot = layoutGraphToHierarchical(graph);
-    const canonical = this.cloneCanvasData({
+    const canonical: CanvasData = {
       nodes: snapshot.nodes,
       edges: snapshot.edges,
       originalEdges: snapshot.edges,
       camera: this.canvasData?.camera ?? undefined,
       metadata: snapshot.metadata
-    });
-    this.canonicalModelData = this.cloneCanvasData(canonical);
-    this.modelData = this.cloneCanvasData(canonical);
-    this.canvasData = this.cloneCanvasData(canonical);
+    };
+    this.canonicalModelData = canonical;
+    this.modelData = canonical;
+    this.canvasData = canonical;
 
     this.store.replace(graph);
 
@@ -299,7 +308,7 @@ export class CanvasLayoutRuntime {
 
   async runLayout(options: LayoutRunOptions = {}): Promise<CanvasData> {
     const preservedCamera = this.canvasData?.camera ? { ...this.canvasData.camera } : undefined;
-    this.modelData = this.cloneCanvasData(this.canonicalModelData);
+    this.modelData = this.canonicalModelData;
     if (preservedCamera) {
       this.modelData.camera = preservedCamera;
     }
@@ -429,30 +438,6 @@ export class CanvasLayoutRuntime {
     return runtimeEngines.has(engineName);
   }
 
-  private cloneCanvasData(data: CanvasData): CanvasData {
-    const cloneNode = (node: HierarchicalNode): HierarchicalNode => ({
-      ...node,
-      metadata: node.metadata ? { ...node.metadata } : undefined,
-      style: { ...(node.style ?? { fill: '#1f2937', stroke: '#4b5563' }) },
-      children: node.children ? node.children.map(child => cloneNode(child)) : []
-    });
-
-    const cloneEdge = (edge: Edge): Edge => ({
-      ...edge,
-      metadata: edge.metadata ? { ...edge.metadata } : undefined,
-      style: { ...(edge.style ?? { stroke: '#6ea8fe', strokeWidth: 2, strokeDashArray: null }) },
-      waypoints: edge.waypoints ? edge.waypoints.map(point => ({ ...point })) : undefined
-    });
-
-    return {
-      nodes: data.nodes ? data.nodes.map(node => cloneNode(node)) : [],
-      edges: data.edges ? data.edges.map(edge => cloneEdge(edge)) : [],
-      originalEdges: (data.originalEdges ?? data.edges ?? []).map(edge => cloneEdge(edge)),
-      camera: data.camera ? { ...data.camera } : undefined,
-      metadata: data.metadata ? { ...data.metadata } : undefined
-    };
-  }
-
   private resolveProfileForNode(nodeId?: string): RuntimeViewConfig {
     if (!nodeId) {
       return { ...this.viewOverlay.global };
@@ -506,8 +491,6 @@ export class CanvasLayoutRuntime {
         baseLayout,
         baseContainmentMode: baseContainment,
         baseVisibility: node.visible === false ? 'hidden' : 'visible',
-        basePosition: { x: node.x ?? 0, y: node.y ?? 0 },
-        baseSize: { width: node.width ?? 200, height: node.height ?? 120 },
         baseCollapseState: 'expanded'
       });
 
@@ -532,38 +515,6 @@ export class CanvasLayoutRuntime {
         const totalDescendants = countDescendants(node);
         if (totalDescendants > 0) {
           node.metadata['badges'] = [{ text: String(totalDescendants), color: 'rgba(30, 64, 175, 0.9)' }];
-        }
-      }
-
-      if (profile.geometry) {
-        const applies = profile.geometry.applyWhen === 'both' || profile.geometry.applyWhen === profile.containmentMode;
-        if (applies) {
-          const baseX = node.x ?? 0;
-          const baseY = node.y ?? 0;
-          const baseWidth = node.width ?? 200;
-          const baseHeight = node.height ?? 120;
-
-          if (profile.geometry.position) {
-            const { x, y } = profile.geometry.position;
-            if (profile.geometry.mode === 'relative') {
-              node.x = baseX + (x ?? 0);
-              node.y = baseY + (y ?? 0);
-            } else {
-              node.x = x ?? baseX;
-              node.y = y ?? baseY;
-            }
-          }
-
-          if (profile.geometry.size) {
-            const { width, height } = profile.geometry.size;
-            if (profile.geometry.mode === 'relative') {
-              node.width = baseWidth + (width ?? 0);
-              node.height = baseHeight + (height ?? 0);
-            } else {
-              node.width = width ?? baseWidth;
-              node.height = height ?? baseHeight;
-            }
-          }
         }
       }
 
