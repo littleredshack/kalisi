@@ -712,25 +712,18 @@ export class RuntimeCanvasController {
 
     // Handle side effects that need canvas controller involvement
     if (event.type === 'drag-update' && result && (result as any).dragHandled) {
-      const selectedNode = this.interactionHandler.getSelectedNode();
-      if (selectedNode) {
-        if (this.overlayService) {
-          const nodeId = selectedNode.GUID ?? selectedNode.id;
-          if (nodeId) {
-            const applyWhen = this.layoutRuntime.getViewConfig().containmentMode === 'flat' ? 'flat' : 'containers';
-            this.overlayService.applyNodeGeometry(nodeId, {
-              position: { x: selectedNode.x ?? 0, y: selectedNode.y ?? 0 },
-              mode: 'absolute',
-              applyWhen
-            });
-          }
-        }
+      if (this.onDataChangedCallback) {
+        this.onDataChangedCallback(this.layoutRuntime.getCanvasData());
       }
     }
 
     if (event.type === 'drag-stop') {
       const selectedNode = this.interactionHandler.getSelectedNode();
       if (selectedNode) {
+        if (this.onDataChangedCallback) {
+          this.onDataChangedCallback(this.layoutRuntime.getCanvasData());
+        }
+
         if (this.overlayService) {
           const nodeId = selectedNode.GUID ?? selectedNode.id;
           if (nodeId) {
