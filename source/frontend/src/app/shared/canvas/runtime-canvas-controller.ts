@@ -970,15 +970,11 @@ export class RuntimeCanvasController {
       }
     }
 
-    const edges = this.computeEdgesWithInheritance(this.layoutRuntime.getCanvasData().originalEdges || this.layoutRuntime.getCanvasData().edges);
-    const latest = this.layoutRuntime.getCanvasData();
-    latest.edges = edges;
-
     if (this.onDataChangedCallback) {
-      this.onDataChangedCallback(latest);
+      this.onDataChangedCallback(data);
     }
 
-    this.layoutRuntime.setCanvasData(latest, false, 'system');
+    this.layoutRuntime.setCanvasData(data, false, 'system');
     this.layoutRuntime.commitCanvasData();
   }
 
