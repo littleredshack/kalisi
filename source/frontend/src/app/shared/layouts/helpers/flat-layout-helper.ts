@@ -23,12 +23,18 @@ export interface FlatLayoutMetrics {
  * Flatten hierarchy and generate CONTAINS edges
  */
 export function flattenHierarchyWithEdges(
-  hierarchyRoots: HierarchicalNode[]
+  hierarchyRoots: HierarchicalNode[],
+  hiddenByCollapse: Set<string>
 ): FlatLayoutResult {
   const flatNodes: HierarchicalNode[] = [];
   const containsEdges: Edge[] = [];
 
   const flatten = (node: HierarchicalNode, parent: HierarchicalNode | null) => {
+    const guid = node.GUID ?? node.id;
+    if ((guid && hiddenByCollapse.has(guid)) || node.metadata?.['hiddenByCollapse']) {
+      return;
+    }
+
     // Create flattened clone with empty children
     const clone: HierarchicalNode = {
       id: node.id,

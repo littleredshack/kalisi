@@ -67,7 +67,7 @@ export class RuntimeCanvasController {
 
     if (overlayService) {
       this.overlayService = overlayService;
-      this.layoutRuntime.setOverlayStore(this.overlayService.getStore());
+      // Overlay integration removed - ViewGraph is now the single source of truth
       this.overlaySubscription = this.overlayService.changes$.subscribe(() => {
         this.scheduleOverlayRefresh();
       });
@@ -93,23 +93,28 @@ export class RuntimeCanvasController {
    * Set new data and optionally run layout
    */
   setData(data: CanvasData, runLayout = false): void {
-    // Store original edges if not already stored
-    const dataWithOriginalEdges = {
-      ...data,
-      originalEdges: data.originalEdges || data.edges.filter(e => !e.id.startsWith('inherited-'))
-    };
+    // Direct mutation - no cloning
+    const currentData = this.layoutRuntime.getCanvasData();
 
-    // Compute edges with inheritance
-    dataWithOriginalEdges.edges = this.computeEdgesWithInheritance(dataWithOriginalEdges.originalEdges);
+    if (!currentData.originalEdges) {
+      currentData.originalEdges = data.originalEdges || data.edges.filter(e => !e.id.startsWith('inherited-'));
+    }
 
-    this.layoutRuntime.setCanvasData(dataWithOriginalEdges, runLayout);
+    currentData.nodes = data.nodes;
+    currentData.edges = this.computeEdgesWithInheritance(currentData.originalEdges);
+    currentData.metadata = data.metadata;
 
     if (data.camera) {
+      currentData.camera = data.camera;
       this.cameraSystem.setCamera(data.camera);
     }
 
+    if (runLayout) {
+      this.layoutRuntime.runLayout({ reason: 'data-update', source: 'system' });
+    }
+
     if (this.onDataChangedCallback) {
-      this.onDataChangedCallback(this.getData());
+      this.onDataChangedCallback(currentData);
     }
   }
 
@@ -376,8 +381,7 @@ export class RuntimeCanvasController {
    * Switch layout engine
    */
   async switchEngine(engineName: string): Promise<void> {
-    this.layoutRuntime.setActiveEngine(engineName, 'user');
-    await this.runLayout();
+    await this.layoutRuntime.switchEngine(engineName, 'user');
   }
 
   /**
@@ -711,29 +715,11 @@ export class RuntimeCanvasController {
     }
 
     if (event.type === 'drag-stop') {
-      const selectedNode = this.interactionHandler.getSelectedNode();
-      if (selectedNode) {
-        if (this.onDataChangedCallback) {
-          this.onDataChangedCallback(this.layoutRuntime.getCanvasData());
-        }
-
-        // Persist positional changes into the runtime model so subsequent layout runs
-        // start from the updated coordinates instead of the canonical dataset.
-        const latest = this.layoutRuntime.getCanvasData();
-        this.layoutRuntime.setCanvasData(latest, false, 'system');
-
-        if (this.overlayService) {
-          const nodeId = selectedNode.GUID ?? selectedNode.id;
-          if (nodeId) {
-            const applyWhen = this.layoutRuntime.getViewConfig().containmentMode === 'flat' ? 'flat' : 'containers';
-            this.overlayService.applyNodeGeometry(nodeId, {
-              position: { x: selectedNode.x ?? 0, y: selectedNode.y ?? 0 },
-              mode: 'absolute',
-              applyWhen
-            });
-          }
-        }
+      if (this.onDataChangedCallback) {
+        this.onDataChangedCallback(this.layoutRuntime.getCanvasData());
       }
+      const latest = this.layoutRuntime.getCanvasData();
+      this.layoutRuntime.setCanvasData(latest, false, 'system');
     }
 
     if (event.type === 'select') {
@@ -955,18 +941,8 @@ export class RuntimeCanvasController {
     // Update selection position tracking
     this.interactionHandler.updateSelectedNodeWorldPos(this.interactionHandler.getAbsolutePosition(node, data.nodes));
 
-    if (this.overlayService) {
-      const nodeId = node.GUID ?? node.id;
-      if (nodeId) {
-        const applyWhen = this.layoutRuntime.getViewConfig().containmentMode === 'flat' ? 'flat' : 'containers';
-        this.overlayService.applyNodeGeometry(nodeId, {
-          position: { x: node.x ?? 0, y: node.y ?? 0 },
-          size: { width: node.width ?? 0, height: node.height ?? 0 },
-          mode: 'absolute',
-          applyWhen
-        });
-      }
-    }
+    // Direct mutation of ViewGraph - no overlay system needed
+    // Position and size are already mutated directly on the node above
   }
 
   /**
@@ -978,23 +954,39 @@ export class RuntimeCanvasController {
     const node = this.findNodeByGuid(data.nodes, nodeGuid);
     if (!node) return;
 
-    const currentlyCollapsed =
-      node.metadata?.['resolvedProfile']?.collapseState === 'collapsed' || node.collapsed;
-    const nextState = currentlyCollapsed ? 'expanded' : 'collapsed';
+    const currentlyCollapsed = node.collapsed === true;
 
-    if (this.overlayService) {
-      // When collapsing, save the CURRENT expanded size from layout output as a geometry override
-      // This preserves the size across layout runs (which start from immutable canonical data)
-      if (nextState === 'collapsed' && node.width && node.height) {
-        this.overlayService.applyNodeGeometry(nodeGuid, {
-          size: { width: node.width, height: node.height },
-          mode: 'absolute',
-          applyWhen: 'containers'
-        }, 'system');
+    if (!currentlyCollapsed) {
+      this.saveVisibilityState(node);
+      node.collapsed = true;
+      this.hideAllDescendants(node);
+      node.visible = true;
+    } else {
+      node.collapsed = false;
+      this.restoreVisibilityState(node);
+      if (node.metadata && node.metadata['_visibilitySnapshot']) {
+        delete node.metadata['_visibilitySnapshot'];
       }
-
-      this.overlayService.applyNodeCollapse(nodeGuid, nextState);
     }
+
+    const baseEdges = data.originalEdges || data.edges;
+    data.edges = this.computeEdgesWithInheritance(baseEdges);
+
+    this.layoutRuntime.setCanvasData(data, false, 'system');
+
+    this.layoutRuntime.runLayout({
+      reason: 'user-command',
+      source: 'system'
+    }).then(updated => {
+      const base = updated.originalEdges || updated.edges;
+      updated.edges = this.computeEdgesWithInheritance(base);
+      this.layoutRuntime.setCanvasData(updated, false, 'system');
+      if (this.onDataChangedCallback) {
+        this.onDataChangedCallback(updated);
+      }
+    }).catch(error => {
+      console.error('[RuntimeCanvasController] Failed to run layout after collapse toggle', error);
+    });
   }
 
   /**

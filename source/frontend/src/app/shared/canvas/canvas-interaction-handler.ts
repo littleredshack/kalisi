@@ -20,7 +20,6 @@ import {
   DoubleClickResult
 } from './interaction-events';
 
-const COLLAPSED_NODE_WIDTH = 220;
 const COLLAPSED_NODE_HEIGHT = 64;
 
 /**
@@ -482,25 +481,19 @@ export class CanvasInteractionHandler {
     const screenX = (worldPos.x - camera.x) * camera.zoom;
     const screenY = (worldPos.y - camera.y) * camera.zoom;
 
-    // Get effective size based on collapse behavior from renderer
-    const collapseBehavior = viewNodeStateService?.getCollapseBehaviorValue?.() ?? 'full-size';
-    const shouldShrink =
-      collapseBehavior === 'shrink' && node.collapsed && node.children && node.children.length > 0;
-
-    const isTreeNode = node.metadata?.['displayMode'] === 'tree';
     const defaultWidth = typeof node.metadata?.['defaultWidth'] === 'number'
       ? Number(node.metadata['defaultWidth'])
-      : node.width;
+      : undefined;
     const defaultHeight = typeof node.metadata?.['defaultHeight'] === 'number'
       ? Number(node.metadata['defaultHeight'])
-      : node.height;
+      : undefined;
 
-    const width = shouldShrink
-      ? (isTreeNode ? defaultWidth : COLLAPSED_NODE_WIDTH)
-      : node.width;
-    const height = shouldShrink
-      ? (isTreeNode ? defaultHeight : COLLAPSED_NODE_HEIGHT)
-      : node.height;
+    const width = Number.isFinite(node.width)
+      ? Number(node.width)
+      : defaultWidth ?? 220;
+    const height = Number.isFinite(node.height)
+      ? Number(node.height)
+      : defaultHeight ?? COLLAPSED_NODE_HEIGHT;
     const screenWidth = width * camera.zoom;
     const screenHeight = height * camera.zoom;
 

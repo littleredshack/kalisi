@@ -1,18 +1,13 @@
-import { CanvasData, HierarchicalNode, Edge, NodeStyleSnapshot, EdgeStyleOverrides } from './types';
+import { CanvasData, HierarchicalNode, Edge, Camera } from './types';
 import { LayoutOrchestrator, LayoutPriority, LayoutRunOptions } from '../layouts/core/layout-orchestrator';
 import { registerDefaultLayoutEngines } from '../layouts/engine-registry';
 import { canvasDataToLayoutGraph, layoutGraphToHierarchical } from '../layouts/core/layout-graph-utils';
-import { LayoutGraph, RawDataInput } from '../layouts/core/layout-contract';
+import { LayoutGraph, LayoutResult, RawDataInput } from '../layouts/core/layout-contract';
 import { GraphStore, GraphPresentationSnapshot } from '../graph/graph-store';
 import { ViewPresetDescriptor } from '../graph/view-presets';
-import { PresentationFrame, buildPresentationFrame } from '../render/presentation-frame';
 import { CanvasEventBus, CanvasEventSource } from '../layouts/core/layout-events';
 import { LayoutWorkerBridge } from '../layouts/async/layout-worker-bridge';
-import { ensureRelativeNodeCoordinates } from './utils/relative-coordinates';
 import { processRawDataToGraph, validateRawData } from '../layouts/utils/raw-data-processor';
-import { OverlayResolver } from './overlay/overlay-resolver';
-import { OverlayStore } from './overlay/overlay-store';
-import { ResolvedConfig } from './node-config-manager';
 import { GraphDataSet, graphDataSetToRawDataInput } from '../graph/graph-data-set';
 
 export interface CanvasLayoutRuntimeConfig {
@@ -22,10 +17,6 @@ export interface CanvasLayoutRuntimeConfig {
   readonly initialViewConfig?: Partial<RuntimeViewConfig>;
 }
 
-/**
- * Runtime view configuration for layout and rendering modes
- * Supports independent choice of layout algorithm and rendering style
- */
 export interface RuntimeViewConfig {
   readonly containmentMode: 'containers' | 'flat';
   readonly layoutMode: 'grid' | 'force';
@@ -34,81 +25,51 @@ export interface RuntimeViewConfig {
 
 export type RuntimeViewConfigPatch = Partial<RuntimeViewConfig>;
 
-interface RuntimeViewOverlay {
-  global: RuntimeViewConfig;
-  overrides: Map<string, RuntimeViewConfigPatch>;
-}
-
-interface SerializedViewOverlay {
-  readonly global: RuntimeViewConfig;
-  readonly overrides: ReadonlyArray<{ nodeId: string; profile: RuntimeViewConfig }>;
-}
-
 export class CanvasLayoutRuntime {
   private readonly orchestrator: LayoutOrchestrator;
+  private readonly workerBridge: LayoutWorkerBridge;
   private readonly canvasId: string;
   private readonly store: GraphStore;
-  private canvasData: CanvasData;
-  private modelData: CanvasData;
-  private canonicalModelData: CanvasData;
-  private readonly viewOverlay: RuntimeViewOverlay;
-  private readonly eventBus: CanvasEventBus;
-  private frame: PresentationFrame | null = null;
-  private readonly workerBridge: LayoutWorkerBridge;
+  private viewGraph: CanvasData;
+  private runtimeConfig: RuntimeViewConfig;
+  private frame: LayoutResult | null = null;
   private lensId: string | undefined;
   private readonly defaultEngine: string;
-  private overlayStore: OverlayStore | null = null;
-  private overlayResolver: OverlayResolver | null = null;
+  private readonly eventBus: CanvasEventBus;
   private graphDataSet: GraphDataSet | null = null;
 
   constructor(canvasId: string, initialData: CanvasData, config: CanvasLayoutRuntimeConfig = {}) {
     this.canvasId = canvasId;
     this.orchestrator = registerDefaultLayoutEngines(new LayoutOrchestrator());
     this.workerBridge = new LayoutWorkerBridge(this.orchestrator, { useWorker: config.useWorker });
-    const initialGraph = canvasDataToLayoutGraph(initialData);
-    this.store = new GraphStore(initialGraph);
 
-    // Store default engine to check if coordinate normalization should be skipped
-    this.defaultEngine = config.defaultEngine ?? this.inferEngineFromData(initialData);
-
-    // Initialize view config with defaults and optional overrides
     const defaultProfile: RuntimeViewConfig = {
       containmentMode: 'containers',
       layoutMode: 'grid',
       edgeRouting: 'orthogonal'
     };
-    const initialProfile: RuntimeViewConfig = {
+
+    this.runtimeConfig = {
       ...defaultProfile,
       ...(config.initialViewConfig ?? {})
     };
-    this.viewOverlay = {
-      global: initialProfile,
-      overrides: new Map()
-    };
 
-    // Skip coordinate normalization for runtime engines that output correctly positioned nodes
-    const isRuntimeEngine = this.isRuntimeEngine(this.defaultEngine);
-    if (!isRuntimeEngine) {
-      ensureRelativeNodeCoordinates(initialData.nodes, 0, 0);
-    }
+    this.viewGraph = this.initialiseViewGraph(initialData);
 
-    // Store canonical model as an immutable clone
-    this.canonicalModelData = this.cloneCanvasData(initialData);
-    this.modelData = this.cloneCanvasData(initialData);
-    this.canvasData = this.cloneCanvasData(initialData);
+    const initialGraph = canvasDataToLayoutGraph(this.viewGraph);
+    this.store = new GraphStore(initialGraph);
 
-    const initialEngine = this.normaliseEngineName(this.defaultEngine);
-    this.orchestrator.setActiveEngine(canvasId, initialEngine);
+    this.defaultEngine = config.defaultEngine ?? this.inferEngineFromData(this.viewGraph);
+    this.orchestrator.setActiveEngine(canvasId, this.defaultEngine);
     this.eventBus = this.orchestrator.getEventBus(canvasId);
 
     if (config.runLayoutOnInit) {
-      const result = this.orchestrator.runLayout(canvasId, this.store.current.graph, {
+      const result = this.orchestrator.runLayout(canvasId, initialGraph, {
         reason: 'initial',
         source: 'system'
       });
       this.store.update(result);
-      this.frame = buildPresentationFrame(result, undefined, this.lensId);
-      this.canvasData = this.frame.canvasData;
+      this.applyLayoutResult(result);
     }
   }
 
@@ -124,24 +85,16 @@ export class CanvasLayoutRuntime {
     return this.orchestrator.getActiveEngineName(this.canvasId);
   }
 
-  getCanvasData(): CanvasData {
-    return this.canvasData;
+  setActiveEngine(engineName: string, source: CanvasEventSource = 'user'): void {
+    this.orchestrator.setActiveEngine(this.canvasId, this.normaliseEngineName(engineName), source);
   }
 
-  getPresentationFrame(): PresentationFrame | null {
-    if (!this.frame) {
-      return null;
-    }
-    return {
-      version: this.frame.version,
-      camera: this.frame.camera ? { ...this.frame.camera } : undefined,
-      canvasData: this.frame.canvasData,
-      lastResult: this.frame.lastResult,
-      delta: this.frame.delta,
-      lensId: this.frame.lensId,
-      rendererId: this.frame.rendererId,
-      metadata: this.frame.metadata ? { ...this.frame.metadata } : undefined
-    };
+  getCanvasData(): CanvasData {
+    return this.viewGraph;
+  }
+
+  getPresentationFrame(): LayoutResult | null {
+    return this.frame;
   }
 
   getLayoutGraph(): LayoutGraph {
@@ -149,74 +102,27 @@ export class CanvasLayoutRuntime {
   }
 
   getViewConfig(): RuntimeViewConfig {
-    return { ...this.viewOverlay.global };
+    return { ...this.runtimeConfig };
   }
 
   setViewConfig(config: RuntimeViewConfigPatch): void {
-    this.viewOverlay.global = {
-      ...this.viewOverlay.global,
+    this.runtimeConfig = {
+      ...this.runtimeConfig,
       ...config
-    };
-  }
-
-  setNodeViewConfig(nodeId: string, patch: RuntimeViewConfigPatch | null): void {
-    if (!nodeId) {
-      return;
-    }
-    if (patch === null) {
-      this.viewOverlay.overrides.delete(nodeId);
-      return;
-    }
-    const existing = this.viewOverlay.overrides.get(nodeId) ?? {};
-    this.viewOverlay.overrides.set(nodeId, {
-      ...existing,
-      ...patch
-    });
-  }
-
-  computePresentation(preset: ViewPresetDescriptor): GraphPresentationSnapshot {
-    return this.store.computePresentation(preset);
+    } as RuntimeViewConfig;
   }
 
   setCanvasData(data: CanvasData, runLayout = false, source: CanvasEventSource = 'system'): void {
-    this.graphDataSet = null;
-    // Treat incoming data as canonical model (no deep copies)
-    this.modelData = this.cloneCanvasData(data);
-    this.canvasData = data;
-
-    const baseGraph = canvasDataToLayoutGraph(this.modelData, this.store.current.version + 1);
-    this.store.replace(baseGraph);
-    this.frame = {
-      version: this.store.current.version,
-      camera: this.canvasData.camera,
-      canvasData: this.canvasData,
-      lastResult: {
-        graph: baseGraph,
-        camera: this.canvasData.camera,
-        diagnostics: undefined
-      },
-      delta: {
-        nodes: [],
-        edges: []
-      },
-      lensId: this.lensId,
-      metadata: this.canvasData.metadata ? { ...this.canvasData.metadata } : undefined
-    };
-
+    this.viewGraph = data;
     if (runLayout) {
-      this.runLayout({ reason: 'data-update', source });
+      void this.runLayout({ reason: 'data-update', source });
     }
   }
 
-  /**
-   * Set data from raw entities and relationships
-   * Uses the current engine's processRawData() if available,
-   * otherwise falls back to default transformation
-   */
   setGraphDataSet(dataset: GraphDataSet, runLayout = false, source: CanvasEventSource = 'system'): void {
     this.graphDataSet = dataset;
-    const rawInput = graphDataSetToRawDataInput(dataset);
-    this.setRawData(rawInput, runLayout, source);
+    const raw = graphDataSetToRawDataInput(dataset);
+    this.setRawDataInternal(raw, runLayout, source);
   }
 
   getGraphDataSet(): GraphDataSet | null {
@@ -224,104 +130,33 @@ export class CanvasLayoutRuntime {
   }
 
   setRawData(input: RawDataInput, runLayout = true, source: CanvasEventSource = 'system'): void {
-    // Validate input
-    const validation = validateRawData(input);
-    if (!validation.valid) {
-      console.error('[LayoutRuntime] Invalid raw data:', validation.errors);
-      throw new Error(`Invalid raw data: ${validation.errors.join(', ')}`);
-    }
-
-    const engineName = this.orchestrator.getActiveEngineName(this.canvasId);
-
-    // Check if current engine supports raw data processing
-    const engine = engineName ? this.orchestrator.getEngine(engineName) : null;
-
-    let graph: LayoutGraph;
-
-    if (engine && engine.processRawData) {
-      // Use engine's custom processing
-      graph = engine.processRawData(input);
-    } else {
-      // Use default transformation
-      graph = processRawDataToGraph(input);
-    }
-
-    const snapshot = layoutGraphToHierarchical(graph);
-    const canonical = this.cloneCanvasData({
-      nodes: snapshot.nodes,
-      edges: snapshot.edges,
-      originalEdges: snapshot.edges,
-      camera: this.canvasData?.camera ?? undefined,
-      metadata: snapshot.metadata
-    });
-    this.canonicalModelData = this.cloneCanvasData(canonical);
-    this.modelData = this.cloneCanvasData(canonical);
-    this.canvasData = this.cloneCanvasData(canonical);
-
-    this.store.replace(graph);
-
-    this.frame = {
-      version: this.store.current.version,
-      camera: this.canvasData.camera,
-      canvasData: this.canvasData,
-      lastResult: {
-        graph,
-        camera: this.canvasData.camera,
-        diagnostics: undefined
-      },
-      delta: {
-        nodes: [],
-        edges: []
-      },
-      lensId: this.lensId,
-      metadata: this.canvasData.metadata ? { ...this.canvasData.metadata } : undefined
-    };
-
-    // Run layout to position nodes
-    if (runLayout) {
-      this.runLayout({ reason: 'initial', source });
-    }
-  }
-
-  setActiveEngine(engineName: string, source: CanvasEventSource = 'system'): void {
-    this.orchestrator.setActiveEngine(this.canvasId, this.normaliseEngineName(engineName), source);
+    this.graphDataSet = null;
+    this.setRawDataInternal(input, runLayout, source);
   }
 
   setLens(lensId: string | undefined): void {
     this.lensId = lensId;
-    if (this.frame) {
-      this.frame = {
-        ...this.frame,
-        lensId
-      };
-    }
   }
 
   async runLayout(options: LayoutRunOptions = {}): Promise<CanvasData> {
-    const preservedCamera = this.canvasData?.camera ? { ...this.canvasData.camera } : undefined;
-    this.modelData = this.cloneCanvasData(this.canonicalModelData);
-    if (preservedCamera) {
-      this.modelData.camera = preservedCamera;
-    }
-    this.applyOverlayProfiles(this.modelData);
+    const preservedCamera = this.viewGraph?.camera;
+
+    const nextVersion = this.store.current.version + 1;
+    const baseGraph = canvasDataToLayoutGraph(this.viewGraph, nextVersion);
+    this.store.replace(baseGraph);
 
     const normalisedEngine = options.engineName ? this.normaliseEngineName(options.engineName) : undefined;
     if (normalisedEngine) {
       this.orchestrator.setActiveEngine(this.canvasId, normalisedEngine, options.source ?? 'system');
     }
 
-    const activeProfile = this.resolveProfileForNode((options.engineOptions as any)?.targetNodeId);
     const engineOptions = {
       ...(options.engineOptions ?? {}),
-      containmentMode: activeProfile.containmentMode,
-      layoutMode: activeProfile.layoutMode,
-      edgeRouting: activeProfile.edgeRouting,
-      viewOverlay: this.serialiseOverlay()
+      containmentMode: this.runtimeConfig.containmentMode,
+      layoutMode: this.runtimeConfig.layoutMode,
+      edgeRouting: this.runtimeConfig.edgeRouting
     };
 
-    const nextVersion = this.store.current.version + 1;
-    const baseGraph = canvasDataToLayoutGraph(this.modelData, nextVersion);
-    this.store.replace(baseGraph);
     const result = await this.workerBridge.run(this.canvasId, baseGraph, {
       ...options,
       engineName: normalisedEngine,
@@ -329,32 +164,70 @@ export class CanvasLayoutRuntime {
       priority: this.resolvePriority(options)
     });
 
-    Object.entries(result.graph.nodes).forEach(([id, node]) => {
-      if (node.children.length > 0) {
-      }
-    });
-
     this.store.update(result);
+    this.applyLayoutResult(result, preservedCamera);
+    return this.viewGraph;
+  }
 
-    Object.entries(result.graph.nodes).forEach(([id, node]) => {
-      if (node.children.length > 0) {
-      }
-    });
+  switchEngine(engineName: string, source: CanvasEventSource = 'user'): Promise<CanvasData> {
+    this.orchestrator.setActiveEngine(this.canvasId, this.normaliseEngineName(engineName), source);
+    return this.runLayout({ reason: 'engine-switch', engineName, source });
+  }
 
-    this.frame = buildPresentationFrame(result, this.frame ?? undefined, this.lensId);
+  computePresentation(preset: ViewPresetDescriptor): GraphPresentationSnapshot {
+    return this.store.computePresentation(preset);
+  }
 
-    if (this.frame) {
-      const rendererId = this.viewOverlay.global.containmentMode === 'containers'
-        ? 'runtime-containment-renderer'
-        : 'runtime-flat-renderer';
-      this.frame = {
-        ...this.frame,
-        rendererId
-      };
+  private setRawDataInternal(input: RawDataInput, runLayout: boolean, source: CanvasEventSource): void {
+    const validation = validateRawData(input);
+    if (!validation.valid) {
+      console.error('[LayoutRuntime] Invalid raw data:', validation.errors);
+      throw new Error(`Invalid raw data: ${validation.errors.join(', ')}`);
     }
 
-    this.canvasData = this.frame.canvasData;
-    return this.canvasData;
+    const graph = processRawDataToGraph(input);
+    const snapshot = layoutGraphToHierarchical(graph);
+
+    // Direct mutation - preserve camera, update structure
+    const preservedCamera = this.viewGraph?.camera;
+    this.viewGraph.nodes = snapshot.nodes;
+    this.viewGraph.edges = snapshot.edges;
+    this.viewGraph.originalEdges = snapshot.edges;
+    this.viewGraph.camera = preservedCamera;
+    this.viewGraph.metadata = snapshot.metadata;
+
+    this.store.replace(graph);
+
+    if (runLayout) {
+      void this.runLayout({ reason: 'initial', source });
+    }
+  }
+
+  private applyLayoutResult(result: LayoutResult, preservedCamera?: Camera): void {
+    const snapshot = layoutGraphToHierarchical(result.graph);
+
+    // Direct mutation - no cloning
+    if (!this.viewGraph.originalEdges) {
+      this.viewGraph.originalEdges = snapshot.edges;
+    }
+
+    this.viewGraph.nodes = snapshot.nodes;
+    this.viewGraph.edges = snapshot.edges;
+    this.viewGraph.camera = preservedCamera ?? result.camera ?? this.viewGraph.camera;
+    this.viewGraph.metadata = snapshot.metadata;
+
+    this.frame = result;
+  }
+
+  private initialiseViewGraph(data: CanvasData): CanvasData {
+    const ensureOriginalEdges = data.originalEdges ?? data.edges;
+    return {
+      nodes: data.nodes,
+      edges: data.edges,
+      originalEdges: ensureOriginalEdges,
+      camera: data.camera,
+      metadata: data.metadata
+    };
   }
 
   private inferEngineFromData(data: CanvasData): string {
@@ -416,254 +289,5 @@ export class CanvasLayoutRuntime {
     }
 
     return 'normal';
-  }
-
-  private isRuntimeEngine(engineName: string): boolean {
-    // Runtime engines that calculate positions correctly and should not have
-    // their positions overwritten by ensureRelativeNodeCoordinates
-    const runtimeEngines = new Set([
-      'containment-runtime',
-      'containment-grid',
-      'orthogonal'
-    ]);
-    return runtimeEngines.has(engineName);
-  }
-
-  private cloneCanvasData(data: CanvasData): CanvasData {
-    const cloneNode = (node: HierarchicalNode): HierarchicalNode => ({
-      ...node,
-      metadata: node.metadata ? { ...node.metadata } : undefined,
-      style: { ...(node.style ?? { fill: '#1f2937', stroke: '#4b5563' }) },
-      children: node.children ? node.children.map(child => cloneNode(child)) : []
-    });
-
-    const cloneEdge = (edge: Edge): Edge => ({
-      ...edge,
-      metadata: edge.metadata ? { ...edge.metadata } : undefined,
-      style: { ...(edge.style ?? { stroke: '#6ea8fe', strokeWidth: 2, strokeDashArray: null }) },
-      waypoints: edge.waypoints ? edge.waypoints.map(point => ({ ...point })) : undefined
-    });
-
-    return {
-      nodes: data.nodes ? data.nodes.map(node => cloneNode(node)) : [],
-      edges: data.edges ? data.edges.map(edge => cloneEdge(edge)) : [],
-      originalEdges: (data.originalEdges ?? data.edges ?? []).map(edge => cloneEdge(edge)),
-      camera: data.camera ? { ...data.camera } : undefined,
-      metadata: data.metadata ? { ...data.metadata } : undefined
-    };
-  }
-
-  private resolveProfileForNode(nodeId?: string): RuntimeViewConfig {
-    if (!nodeId) {
-      return { ...this.viewOverlay.global };
-    }
-    const override = this.viewOverlay.overrides.get(nodeId);
-    if (!override) {
-      return { ...this.viewOverlay.global };
-    }
-    return {
-      ...this.viewOverlay.global,
-      ...override
-    };
-  }
-
-  setOverlayStore(store: OverlayStore | null): void {
-    this.overlayStore = store;
-    this.overlayResolver = store ? new OverlayResolver(store) : null;
-  }
-
-  getOverlayResolver(): OverlayResolver | null {
-    return this.overlayResolver;
-  }
-
-  private applyOverlayProfiles(data: CanvasData): void {
-    if (!this.overlayResolver) {
-      return;
-    }
-
-    const clearFlags = (node: HierarchicalNode): void => {
-      if (node.metadata) {
-        delete node.metadata['hiddenByCollapse'];
-        delete node.metadata['badges'];
-      }
-      node.children?.forEach(child => clearFlags(child));
-    };
-    data.nodes.forEach(clearFlags);
-
-    const traverse = (node: HierarchicalNode, ancestors: string[]): void => {
-      const guid = node.GUID ?? node.id;
-      if (!guid) {
-        return;
-      }
-
-      const baseLayout = this.buildResolvedLayoutConfig(guid);
-      const baseContainment = baseLayout.renderStyle.nodeMode === 'flat' ? 'flat' : 'containers';
-
-      const profile = this.overlayResolver!.resolveNode({
-        nodeId: guid,
-        ancestorIds: ancestors,
-        baseStyle: this.buildNodeStyleSnapshot(node),
-        baseLayout,
-        baseContainmentMode: baseContainment,
-        baseVisibility: node.visible === false ? 'hidden' : 'visible',
-        basePosition: { x: node.x ?? 0, y: node.y ?? 0 },
-        baseSize: { width: node.width ?? 200, height: node.height ?? 120 },
-        baseCollapseState: 'expanded'
-      });
-
-      node.metadata = {
-        ...(node.metadata ?? {}),
-        resolvedProfile: profile,
-        collapseState: profile.collapseState
-      };
-
-      node.style = {
-        ...node.style,
-        fill: profile.style.fill,
-        stroke: profile.style.stroke,
-        icon: profile.style.icon
-      };
-
-      node.visible = profile.visibility !== 'hidden';
-      node.collapsed = profile.collapseState === 'collapsed';
-
-      if (profile.collapseState === 'collapsed') {
-        markDescendantsHidden(node.children ?? []);
-        const totalDescendants = countDescendants(node);
-        if (totalDescendants > 0) {
-          node.metadata['badges'] = [{ text: String(totalDescendants), color: 'rgba(30, 64, 175, 0.9)' }];
-        }
-      }
-
-      if (profile.geometry) {
-        const applies = profile.geometry.applyWhen === 'both' || profile.geometry.applyWhen === profile.containmentMode;
-        if (applies) {
-          const baseX = node.x ?? 0;
-          const baseY = node.y ?? 0;
-          const baseWidth = node.width ?? 200;
-          const baseHeight = node.height ?? 120;
-
-          if (profile.geometry.position) {
-            const { x, y } = profile.geometry.position;
-            if (profile.geometry.mode === 'relative') {
-              node.x = baseX + (x ?? 0);
-              node.y = baseY + (y ?? 0);
-            } else {
-              node.x = x ?? baseX;
-              node.y = y ?? baseY;
-            }
-          }
-
-          if (profile.geometry.size) {
-            const { width, height } = profile.geometry.size;
-            if (profile.geometry.mode === 'relative') {
-              node.width = baseWidth + (width ?? 0);
-              node.height = baseHeight + (height ?? 0);
-            } else {
-              node.width = width ?? baseWidth;
-              node.height = height ?? baseHeight;
-            }
-          }
-        }
-      }
-
-      const nextAncestors = [...ancestors, guid];
-      node.children?.forEach(child => traverse(child, nextAncestors));
-    };
-
-    data.nodes.forEach(root => traverse(root, []));
-
-    data.edges?.forEach(edge => {
-      const edgeProfile = this.overlayResolver!.resolveEdge({
-        edgeId: edge.id,
-        baseStyle: this.buildEdgeStyleSnapshot(edge),
-        baseVisibility: edge.metadata?.['visible'] === false ? 'hidden' : 'visible'
-      });
-
-      edge.style = {
-        ...edge.style,
-        stroke: edgeProfile.style.stroke ?? edge.style?.stroke ?? '#6ea8fe',
-        strokeWidth: edgeProfile.style.strokeWidth ?? edge.style?.strokeWidth ?? 2,
-        strokeDashArray: edgeProfile.style.strokeDashArray !== undefined
-          ? edgeProfile.style.strokeDashArray
-          : edge.style?.strokeDashArray ?? null
-      };
-
-      if (edgeProfile.style.label !== undefined) {
-        edge.label = edgeProfile.style.label ?? '';
-      }
-
-      edge.metadata = {
-        ...(edge.metadata ?? {}),
-        visible: edgeProfile.visibility !== 'hidden',
-        labelVisible: edgeProfile.style.labelVisible !== undefined ? edgeProfile.style.labelVisible : edge.metadata?.['labelVisible']
-      };
-    });
-
-    function markDescendantsHidden(children: HierarchicalNode[]): void {
-      children.forEach(child => {
-        child.metadata = {
-          ...(child.metadata ?? {}),
-          hiddenByCollapse: true
-        };
-        child.visible = false;
-        markDescendantsHidden(child.children ?? []);
-      });
-    }
-
-    function countDescendants(node: HierarchicalNode): number {
-      if (!node.children || node.children.length === 0) {
-        return 0;
-      }
-      return node.children.reduce((acc, child) => acc + 1 + countDescendants(child), 0);
-    }
-  }
-
-  private buildNodeStyleSnapshot(node: HierarchicalNode): NodeStyleSnapshot {
-    return {
-      fill: node.style.fill,
-      stroke: node.style.stroke,
-      icon: node.style.icon,
-      shape: (node.metadata?.['shape'] as NodeStyleSnapshot['shape']) ?? 'rounded',
-      cornerRadius: (node.metadata?.['cornerRadius'] as number | undefined) ?? 8,
-      labelVisible: node.metadata?.['labelVisible'] !== false
-    };
-  }
-
-  private buildEdgeStyleSnapshot(edge: Edge): EdgeStyleOverrides {
-    return {
-      stroke: edge.style?.stroke ?? '#6ea8fe',
-      strokeWidth: edge.style?.strokeWidth ?? 2,
-      strokeDashArray: edge.style?.strokeDashArray ?? undefined,
-      label: edge.label,
-      labelVisible: edge.metadata?.['labelVisible'] !== false
-    };
-  }
-
-  private buildResolvedLayoutConfig(nodeId: string): ResolvedConfig {
-    const runtimeConfig = this.resolveProfileForNode(nodeId);
-    return {
-      layoutStrategy: runtimeConfig.layoutMode === 'force' ? 'force' : 'grid',
-      layoutOptions: {},
-      renderStyle: {
-        nodeMode: runtimeConfig.containmentMode === 'flat' ? 'flat' : 'container',
-        edgeRouting: runtimeConfig.edgeRouting === 'straight' ? 'straight' : 'orthogonal',
-        showContainsEdges: runtimeConfig.containmentMode === 'flat'
-      }
-    };
-  }
-
-  private serialiseOverlay(): SerializedViewOverlay {
-    const overrides = Array.from(this.viewOverlay.overrides.entries()).map(([nodeId, patch]) => ({
-      nodeId,
-      profile: {
-        ...this.viewOverlay.global,
-        ...patch
-      }
-    }));
-    return {
-      global: { ...this.viewOverlay.global },
-      overrides
-    };
   }
 }

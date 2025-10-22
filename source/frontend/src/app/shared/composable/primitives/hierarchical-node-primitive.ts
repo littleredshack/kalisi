@@ -37,8 +37,16 @@ export class HierarchicalNodePrimitive {
     // Determine if we should shrink this node
     const shouldShrink = !collapseBehavior || collapseBehavior === 'shrink';
 
-    const baseWidth = Number.isFinite(node.width) ? node.width : COLLAPSED_NODE_WIDTH;
-    const baseHeight = Number.isFinite(node.height) ? node.height : COLLAPSED_NODE_HEIGHT;
+    const baseWidth = Number.isFinite(node.width)
+      ? Number(node.width)
+      : typeof node.metadata?.['defaultWidth'] === 'number'
+        ? Number(node.metadata['defaultWidth'])
+        : COLLAPSED_NODE_WIDTH;
+    const baseHeight = Number.isFinite(node.height)
+      ? Number(node.height)
+      : typeof node.metadata?.['defaultHeight'] === 'number'
+        ? Number(node.metadata['defaultHeight'])
+        : COLLAPSED_NODE_HEIGHT;
 
     const targetWidth = node.metadata?.['targetWidth'];
     const targetHeight = node.metadata?.['targetHeight'];
@@ -176,24 +184,22 @@ export class HierarchicalNodePrimitive {
     const worldX = parentX + node.x;
     const worldY = parentY + node.y;
 
-    // Determine if we should shrink this node
-    const shouldShrink = node.collapsed && node.children && node.children.length > 0 && collapseBehavior === 'shrink';
-
-    const defaultWidth = typeof node.metadata?.['defaultWidth'] === 'number'
-      ? Number(node.metadata['defaultWidth'])
-      : COLLAPSED_NODE_WIDTH;
-    const defaultHeight = typeof node.metadata?.['defaultHeight'] === 'number'
-      ? Number(node.metadata['defaultHeight'])
-      : COLLAPSED_NODE_HEIGHT;
-
-    const nodeWidth = shouldShrink ? defaultWidth : node.width;
-    const nodeHeight = shouldShrink ? defaultHeight : node.height;
+    const width = Number.isFinite(node.width)
+      ? Number(node.width)
+      : typeof node.metadata?.['defaultWidth'] === 'number'
+        ? Number(node.metadata['defaultWidth'])
+        : COLLAPSED_NODE_WIDTH;
+    const height = Number.isFinite(node.height)
+      ? Number(node.height)
+      : typeof node.metadata?.['defaultHeight'] === 'number'
+        ? Number(node.metadata['defaultHeight'])
+        : COLLAPSED_NODE_HEIGHT;
 
     return {
       x: (worldX - camera.x) * camera.zoom,
       y: (worldY - camera.y) * camera.zoom,
-      width: nodeWidth * camera.zoom,
-      height: nodeHeight * camera.zoom
+      width: width * camera.zoom,
+      height: height * camera.zoom
     };
   }
 
@@ -211,23 +217,22 @@ export class HierarchicalNodePrimitive {
     const nodeWorldX = parentX + node.x;
     const nodeWorldY = parentY + node.y;
 
-    const shouldShrink =
-      collapseBehavior === 'shrink' && node.collapsed && node.children && node.children.length > 0;
-    const defaultWidth = typeof node.metadata?.['defaultWidth'] === 'number'
-      ? Number(node.metadata['defaultWidth'])
-      : COLLAPSED_NODE_WIDTH;
-    const defaultHeight = typeof node.metadata?.['defaultHeight'] === 'number'
-      ? Number(node.metadata['defaultHeight'])
-      : COLLAPSED_NODE_HEIGHT;
-
-    const nodeWidth = shouldShrink ? defaultWidth : node.width;
-    const nodeHeight = shouldShrink ? defaultHeight : node.height;
+    const width = Number.isFinite(node.width)
+      ? Number(node.width)
+      : typeof node.metadata?.['defaultWidth'] === 'number'
+        ? Number(node.metadata['defaultWidth'])
+        : COLLAPSED_NODE_WIDTH;
+    const height = Number.isFinite(node.height)
+      ? Number(node.height)
+      : typeof node.metadata?.['defaultHeight'] === 'number'
+        ? Number(node.metadata['defaultHeight'])
+        : COLLAPSED_NODE_HEIGHT;
 
     return (
       worldX >= nodeWorldX &&
-      worldX <= nodeWorldX + nodeWidth &&
+      worldX <= nodeWorldX + width &&
       worldY >= nodeWorldY &&
-      worldY <= nodeWorldY + nodeHeight
+      worldY <= nodeWorldY + height
     );
   }
 

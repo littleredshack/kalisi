@@ -224,10 +224,16 @@ export class RuntimeContainmentRenderer extends BaseRenderer {
         return;
       }
 
-      const shouldShrink =
-        node.collapsed && node.children && node.children.length > 0 && this.collapseBehavior === 'shrink';
-      const width = shouldShrink ? 180 : node.width;
-      const height = shouldShrink ? 60 : node.height;
+      const width = Number.isFinite(node.width)
+        ? Number(node.width)
+        : typeof node.metadata?.['defaultWidth'] === 'number'
+          ? Number(node.metadata['defaultWidth'])
+          : 180;
+      const height = Number.isFinite(node.height)
+        ? Number(node.height)
+        : typeof node.metadata?.['defaultHeight'] === 'number'
+          ? Number(node.metadata['defaultHeight'])
+          : 60;
       const absolute: Bounds = {
         x: offset.x + node.x,
         y: offset.y + node.y,

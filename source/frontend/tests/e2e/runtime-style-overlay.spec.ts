@@ -141,6 +141,5 @@ test.describe('Runtime Overlay Styling', () => {
 
     expect(nodeStyle).not.toBeNull();
     expect(nodeStyle?.fill?.toLowerCase()).toBe(newColor);
-    expect(nodeStyle?.overrideFill?.toLowerCase()).toBe(newColor);
   });
 });

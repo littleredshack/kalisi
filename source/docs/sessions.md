@@ -18,6 +18,231 @@ Cehck the logs until you see it has started. Run your playworght test. Show me t
 
 THE LATEST THING WE ARE WORKING ON
 
+----------------
+
+  Here’s what I’ll do next so it lines up with the architecture we agreed on:
+
+  1. Stop using OverlayService.applyNodeGeometry for drag/resize. That overlay layer is meant for occasional overrides, not every mouse
+     move.
+  2. Store 2D positions directly on the ViewState (per node). That gives us the single “Presentation” graph the doc talks about.
+  3. Make layout updates pull positions from the view state first, then fall back to the raw dataset. Overlay has no say in node
+     coordinates anymore.
+  4. Update the drag handler to mutate ViewState live, so the JSON panel shows the change immediately and we don’t need commit/clone
+     hacks.
+  5. Leave the canonical (Neo4j) dataset untouched, letting crawler/delta updates roll in just like before.
+
+  I’ll start implementing this ViewState geometry layer now so dragging a child node actually sticks.
+
+
+› And why do we have iewState or canvasData?  Why do we have both of those ?
+
+
+• Right now they exist because we’re straddling two different metaphors:
+
+  - canvasData is the live, hierarchical scene the renderer consumes: recursive nodes, edges, camera. It’s the thing the runtime engine
+    mutates in-memory for hit-testing, selection, etc.
+  - viewState was introduced to hold config for the view—“global: flat layout”, per-node renderer choices, saved camera, etc.—without
+    touching the raw dataset. It’s supposed to be declarative.
+
+  In practice we’ve ended up storing geometry in both places: dragging updates canvasData, but overlays (viewState → overlay resolver)
+  reapply the old geometry and the node snaps back. That’s why it feels like duplication and whack-a-mole.
+
+  So the fix should be: pick one owner for render geometry. Either (a) let canvasData be the authoritative copy and strip geometry
+  overlays entirely, or (b) move positions into viewState and regenerate canvasData from it every time. Keeping both in sync is what’s
+  hurting us.
+
+  Given the architecture doc’s intent (“immutable dataset + view overlays”), option (b) is cleaner: dataset stays raw, viewState captures
+  user presentation choices, layout runtime renders a canvasData snapshot from those two inputs. No clones, no fighting between layers.
+  The controller would mutate viewState directly on drag/resize, and the runtime just re-emits a fresh canvasData every frame.
+
+  If you’d rather lean on (a) and drop viewState until we truly need separate configs, we can do that too. The important part is getting
+  down to a single source of truth for geometry. Let me know which way you’d prefer and I’ll implement it.
+
+
+› No. That is unacceptable. Why do we need a canvasData snapshot at all ?
+
+
+• Totally fair pushback. The “canvas data snapshot” only exists because we never fully flipped over to the new architecture—so the old
+  engine still passes around mutable CanvasData, while the new view-state idea is half-baked. If we embrace the architecture we wrote
+  down, we can retire that snapshot entirely. Here’s how:
+
+  1. Single Presentation Object
+     Build a ViewGraph (or whatever we call it) that merges the immutable dataset with the view state. That’s the only structure the
+     renderer touches. No interim CanvasData clones.
+  2. Direct Mutation
+     When you drag, resize, or toggle containment, mutate the ViewGraph. History/log panels subscribe to it, so the debugger shows the
+     changes immediately—exactly like the old setup.
+  3. Layout Input ≈ ViewGraph
+     Layout engines consume that same object. If we need to re-run layout, we pass the current ViewGraph. When layout finishes, we feed
+     the result right back into the same object. No canonical/model copies.
+  4. Immutable Dataset untouched
+     The raw Neo4j dataset stays read-only. Realtime deltas update it, and we have logic to reconcile view state when nodes go away.
+  5. No Geometry Overlays
+     OverlayService returns to styling/visibility only. Geometry is native data on the view graph.
+
+  So to answer your question: in this model, we don’t need a canvasData snapshot at all. We’d have:
+
+  - GraphDataSet (immutable from Neo4j)
+  - ViewState / ViewGraph (mutable, user-controlled presentation + layout output)
+  - Renderer/layout operate directly on ViewGraph
+
+  I can start refactoring toward that now—strip out the overlay geometry calls, replace the snapshot clones with direct updates, and move
+  the runtime controller/renderer to read the view graph directly. Let me know if you’re ready for me to take that swing.
+
+  ---------------
+
+  
+Simplification Ideas
+
+  1. Feed raw Neo4j data directly into the real CanvasLayoutRuntime.setRawData, removing the temporary runtime and collapsing conversions
+     into a single pass.
+  2. Treat CanvasLayoutRuntime as the sole owner of CanvasData; expose read-only snapshots (or lightweight diffs) and stop writing back
+     into this.data inside the component.
+  3. Replace pervasive deep clones with an immutable graph representation or structural sharing (e.g. Immer) so history/view-state can
+     reuse the same objects while maintaining safety.
+
+
+› I agree and want to implement radically all these 3 steps. On point 3, my idea has always been that each Set of Data has a query which
+  gives us the raw nodes and edges. These contain no visual data and should never be expected to. We then decide how to layout these
+  nodes and edges and how to style them. We do all that by having confugration in the canvas with layout and styling options. The layout
+  and the styling and any other visual state is stored in a View. So the frontend must have one object that represents the original data
+  and one object that is the View that the user is looking at. And that view could contain a mix os all sort of different layout and
+  rendering engines all working together on the canvas. So we could have a tree view for a node and its desccdants while another node and
+  it children could be a in containment layout
+
+
+• This is a big restructuring plan to separate raw data from view state using immutable data models in the runtime components. I’m
+  cleanly. The plan also includes freezing data to ensure immutability and carefully adjusting constructors and data flow to avoid
+  breaking existing logic while streamlining runtime data handling.
+
+• Explored
+  └ Search new CanvasLayoutRuntime
+
+■ Conversation interrupted - tell the model what to do differently
+
+
+› Assess my suggestion and offer you perspective and recommendations
+
+
+• I’m preparing a thorough evaluation of the suggested steps to handle raw data and runtime layout separately. I’ll cover the feasibility
+  of feeding raw data directly into the runtime, making the runtime the sole canvas data owner, and maintaining separate data and view
+  objects with mixed layout support per node. My plan is to offer clear recommendations, highlight important architectural considerations
+  like centralizing raw data in a GraphDataStore and mapping layout views per node, and caution about risks like runtime complexity when
+  mixing layout engines. I’ll reference relevant files and aim for an incremental approach.
+
+─ Worked for 9s ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+• You’re on the right track. What you’re proposing aligns with what the code is already trying to do, but the current implementation
+  doesn’t enforce those boundaries; that’s why the cloning and state churn exploded. Here’s how I’d shape it and what to watch for:
+
+  - Single Raw Graph Source. Introduce a durable GraphDataSet abstraction (per ViewNode/Set) to hold the canonical {nodes, relationships}
+    straight from Neo4j, never mutated. Neo4jDataService.executeViewNodeQuery and friends should populate this once, without rebuilding
+    temporary runtimes (frontend/src/app/core/services/neo4j-data.service.ts:180). Subsequent layouts read from it, but never write back.
+  - View State As Composition. Take your “View” idea literally: a ViewState that references the raw dataset by id and carries
+    all visual concerns—layout engine assignments, renderer settings, per-node overrides, edge routing hints, camera, history.
+    RuntimeCanvasComponent should hold just {dataSetRef, viewStateRef} instead of juggling this.data, temp runtimes, and raw arrays
+    (frontend/src/app/components/modular-canvas/runtime-canvas.component.ts:347).
+  - Runtime As The Sole Mutator. CanvasLayoutRuntime becomes the only place that can produce a mutable CanvasData for rendering. The
+    component never reassigns this.data = engine.getData() anymore (runtime-canvas.component.ts:270); instead, it subscribes to immutable
+    snapshots (or diffs) emitted by the runtime. CanvasHistoryService and CanvasViewStateService should record references or patches
+    rather than deep clones once the data/view split exists (frontend/src/app/core/services/canvas-history.service.ts:18, frontend/src/
+    app/shared/canvas/state/canvas-view-state.service.ts:40).
+  - Flexible Layout Composition. With raw data and view state separated, mixing engines becomes feasible: apply layout profiles
+    per node (or region) in ViewState, then let the runtime resolve them dynamically. You already have the scaffolding in
+    CanvasLayoutRuntime.resolveProfileForNode and overlay support (frontend/src/app/shared/canvas/layout-runtime.ts:358); the change is
+    to move those configs out of ad-hoc metadata and into the formal view definition so different subtrees can run different strategies.
+
+  Recommendations to get there:
+
+  1. Refactor Loading: Make Neo4jDataService return a GraphDataSet and have RuntimeCanvasComponent pass it straight into the live
+     CanvasLayoutRuntime.setRawData. Drop the temporary runtime instantiation paths (runtime-canvas.component.ts:690).
+  2. Define View Contracts: Introduce ViewState/ViewProfile interfaces, rewrite createEngineWithData so it instantiates the runtime with
+     {graphDataSet, viewState} instead of raw CanvasData, and persist those view profiles on the View entity you already store server-
+     side.
+  3. Rework Runtime APIs: Expose read-only snapshots or diff streams from CanvasLayoutRuntime and update history/view-state services to
+     consume them without cloning the full graph. That’s the point where you can remove cloneCanvasData everywhere.
+
+  This will be a sizeable change, but it’s the right direction: one immutable raw graph, one structured view definition, and a runtime
+  that projects the two into the canvas without bouncing through half a dozen intermediate copies.
+
+  --------------------
+  
+
+Runtime Flow
+
+  - Neo4j calls are funneled through services/api-gateway/src/handlers/runtime.rs:20, which validates the Cypher payload, tags it with a
+    deterministic query id, and delegates execution to the pooled Neo4jGateway.
+  - Neo4jGateway.execute (services/api-gateway/src/database/neo4j_gateway.rs:65) streams rows from Neo4j, captures metrics, and
+    normalizes the raw response into JSON {results, count} without imposing layout rules.
+  - The runtime canvas contract is assembled in build_canvas_response (services/api-gateway/src/runtime/canvas.rs:25): it walks Neo4j
+    rows, extracts canonical nodes/edges (including display hints like dimensions, colors, icons, containment GUIDs), and returns a
+    CanvasGraphDto payload designed for layout engines.
+  - Frontend consumption starts in Neo4jDataService.executeViewNodeQuery (frontend/src/app/core/services/neo4j-data.service.ts:180),
+    which looks up the ViewNode definition, runs /runtime/canvas/data, and converts the canonical DTO into engine-friendly entity/
+    relationship arrays while preserving display metadata.
+  - RuntimeCanvasComponent (frontend/src/app/components/modular-canvas/runtime-canvas.component.ts:347) ties a selected ViewNode to the
+    canvas: it reloads ViewNode settings, chooses engines/renderers, instantiates RuntimeCanvasController, and feeds either saved layouts
+    or freshly transformed Neo4j data.
+  - Layout and rendering responsibilities stay in the runtime layer: RuntimeCanvasController (frontend/src/app/shared/canvas/
+    runtime-canvas-controller.ts:27) manages camera + data orchestration, CanvasLayoutRuntime (frontend/src/app/shared/canvas/layout-
+    runtime.ts:1) owns layout execution and raw-data transforms, while renderers like RuntimeContainmentRenderer (frontend/src/app/
+    shared/composable/renderers/runtime-containment-renderer.ts:1) focus purely on painting.
+
+  Realtime Path
+
+  - Write-oriented Cypher requests that include a view_node_id trigger try_emit_delta (services/api-gateway/src/graph_events/emit.rs:31),
+    which inspects the Neo4j response, extracts affected GUIDs, and publishes a GraphDelta via Redis streams.
+  - WebSocket clients subscribe through /ws; websocket_handler (services/api-gateway/src/websocket.rs:25) spins up a Redis consumer
+    scoped to the requesting ViewNode and relays matching deltas.
+  - The Angular Neo4jRealtimeService (frontend/src/app/core/services/neo4j-realtime.service.ts:53) manages WebSocket lifecycle, emits
+    delta observables, and throttles reconnects.
+  - RuntimeCanvasComponent.setupRealtimeSubscription (frontend/src/app/components/modular-canvas/runtime-canvas.component.ts:852) feeds
+    those deltas into the active RuntimeCanvasController, which applies incremental node/edge mutations while preserving interaction
+    state.
+
+  Separation of Concerns
+
+  - Backend keeps a tight split: Neo4j access (Neo4jGateway), DTO assembly (runtime/canvas.rs), and event emission (graph_events) are
+    independent modules wired only at the handler layer. Layout is never inferred server-side—the contract is “positions optional,
+    hierarchy + styling hints only.”
+  - Frontend layers respect roles: Neo4jDataService is data-only, RuntimeCanvasComponent handles ViewNode orchestration,
+    RuntimeCanvasController is the runtime façade bridging input data to layout runtime, CanvasLayoutRuntime runs algorithms and edge
+    inheritance, and renderer classes paint pixels.
+  - The ViewNode entity effectively stores presentation presets (layout engine choice, saved layouts, containment defaults) while the
+    data query remains a single Cypher statement, so the same node/edge set can be rendered with containment, tree, or flat views without
+    altering the raw graph fetch.
+
+  ASCII Picture
+
+  +-----------+     +---------------------+     +----------------------+     +----------------------+     +--------------------+
+  |   Neo4j   | --> | Neo4jGateway.execute| --> | build_canvas_response | --> | /runtime/canvas/data | --> | Neo4jDataService   |
+  +-----------+     +---------------------+     +----------------------+     +----------------------+     +----------+---------+
+                                                                                                             | entities|rels   |
+                                                                                                             v          |
+                                                                                                   +--------------------+|
+                                                                                                   | RuntimeCanvasComponent|
+                                                                                                   +----------+---------+
+                                                                                                              |
+                                                                                                              v
+                                                                                                 +-----------------------+
+                                                                                                 | RuntimeCanvasController|
+                                                                                                 +----------+------------+
+                                                                                                            |
+                                                                                                            v
+  +-------------------+    deltas    +-------------------+    websocket    +-------------------+    apply    +-------------------+
+  | try_emit_delta    | -----------> | Redis Stream      | --------------> | Neo4jRealtimeService | -------> | CanvasLayoutRuntime|
+  +-------------------+              +-------------------+                 +-------------------+            +-------------------+
+
+  Natural next steps:
+
+  1. Exercise the flow end-to-end with /runtime/canvas/data queries for representative ViewNodes to confirm node display metadata is
+     sufficient for chosen layouts.
+  2. Attach debugger/logging around GraphDelta to ensure redis/WebSocket wiring aligns with selected ViewNode ids before layering in more
+     visual customization.
+
+------------------------------
+
+
 • Runtime Architecture
 
   - Canonical Graph Store (CanvasLayoutRuntime.modelData, GraphStore): holds the exact Neo4j snapshot; never mutated by UI or layout

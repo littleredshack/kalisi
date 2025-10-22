@@ -38,10 +38,7 @@ export class ComposableHierarchicalCanvasEngine {
   private ctx: CanvasRenderingContext2D;
   private cameraSystem: CameraSystem;
   private renderer: IRenderer;
-  private presentationFrame: PresentationFrame | null = null;
-  private lastRenderedFrameVersion = -1;
   private lastRenderedCamera: Camera | null = null;
-  private lastRenderedLensId: string | undefined;
   private viewNodeStateService?: ViewNodeStateService;
   private dynamicLayoutService?: DynamicLayoutService;
   private data: CanvasData;
@@ -281,7 +278,6 @@ export class ComposableHierarchicalCanvasEngine {
     this.layoutRuntime.setLens(lensId);
     const filtered = this.applyLensToData(lensId);
     this.setData(filtered, 'system', false);
-    this.lastRenderedFrameVersion = -1;
   }
 
   async switchLayoutEngine(
@@ -332,8 +328,7 @@ export class ComposableHierarchicalCanvasEngine {
     this.suppressCanvasEvents = true;
     try {
       const result = await this.layoutRuntime.runLayout({ ...options, engineName: targetEngine, source });
-      this.presentationFrame = this.layoutRuntime.getPresentationFrame() ?? null;
-      this.setData(this.presentationFrame?.canvasData ?? result, source);
+      this.setData(result, source);
       this.currentEngineName = this.layoutRuntime.getActiveEngineName() ?? this.currentEngineName;
       return this.getData();
     } finally {
@@ -793,8 +788,6 @@ export class ComposableHierarchicalCanvasEngine {
 
   // Rendering
   render(): void {
-    this.presentationFrame = this.layoutRuntime.getPresentationFrame() ?? this.presentationFrame;
-    const frame = this.presentationFrame;
     const camera = this.cameraSystem.getCamera();
     const shouldForceRender = this.pendingRendererInvalidation;
     const cameraChanged =
@@ -802,12 +795,9 @@ export class ComposableHierarchicalCanvasEngine {
       this.lastRenderedCamera.x !== camera.x ||
       this.lastRenderedCamera.y !== camera.y ||
       this.lastRenderedCamera.zoom !== camera.zoom;
-    const lensChanged = frame ? frame.lensId !== this.lastRenderedLensId : false;
 
-    if (frame && frame.version === this.lastRenderedFrameVersion && (!frame.delta || (frame.delta.nodes.length === 0 && frame.delta.edges.length === 0))) {
-      if (!cameraChanged && !lensChanged && !shouldForceRender) {
-        return;
-      }
+    if (!cameraChanged && !shouldForceRender) {
+      return;
     }
 
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -821,7 +811,7 @@ export class ComposableHierarchicalCanvasEngine {
       this.ctx.restore();
     }
 
-    this.renderer.render(this.ctx, this.data.nodes, this.data.edges, camera, frame ?? undefined);
+    this.renderer.render(this.ctx, this.data.nodes, this.data.edges, camera);
     this.pendingRendererInvalidation = false;
 
     const selectedNode = this.interactionHandler.getSelectedNode();
@@ -830,9 +820,7 @@ export class ComposableHierarchicalCanvasEngine {
       this.interactionHandler.renderSelectionAtPosition(this.ctx, selectedNode, worldPos, camera, this.viewNodeStateService);
     }
 
-    this.lastRenderedFrameVersion = frame?.version ?? this.lastRenderedFrameVersion;
     this.lastRenderedCamera = { ...camera };
-    this.lastRenderedLensId = frame?.lensId ?? this.lastRenderedLensId;
   }
 
   centerOnNode(node: HierarchicalNode): void {
@@ -1044,19 +1032,9 @@ export class ComposableHierarchicalCanvasEngine {
   }
 
   private notifyDataChanged(): void {
-    this.presentationFrame = this.layoutRuntime.getPresentationFrame();
-    if (this.presentationFrame) {
-      this.onDataChanged?.({
-        ...this.presentationFrame.canvasData,
-        camera: this.cameraSystem.getCamera()
-      });
-    } else {
-      this.onDataChanged?.({
-        ...this.data,
-        camera: this.cameraSystem.getCamera()
-      });
-    }
-    this.lastRenderedFrameVersion = -1;
+    // Direct access to ViewGraph - no cloning
+    this.data.camera = this.cameraSystem.getCamera();
+    this.onDataChanged?.(this.data);
   }
 
   private refreshViewPreset(presetId?: string): void {

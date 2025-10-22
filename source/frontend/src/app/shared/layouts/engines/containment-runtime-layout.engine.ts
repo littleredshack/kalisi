@@ -39,6 +39,22 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
 
   layout(graph: LayoutGraph, options: LayoutOptions): LayoutResult {
     const snapshot = layoutGraphToHierarchical(graph);
+    const hiddenByCollapse = new Set<string>();
+    const collapsedNodes = new Set<string>();
+
+    const collectHidden = (node: HierarchicalNode): void => {
+      const guid = node.GUID ?? node.id;
+      if (guid) {
+        if (node.metadata?.['hiddenByCollapse']) {
+          hiddenByCollapse.add(guid);
+        }
+        if (node.metadata?.['collapseState'] === 'collapsed') {
+          collapsedNodes.add(guid);
+        }
+      }
+      node.children?.forEach(child => collectHidden(child));
+    };
+    snapshot.nodes.forEach(collectHidden);
 
     // Extract runtime config from engineOptions
     const runtimeConfig = this.extractRuntimeConfig(options.engineOptions);
@@ -53,19 +69,21 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
 
     if (runtimeConfig.containmentMode === 'flat') {
       // FLAT MODE: Flatten hierarchy (CONTAINS edges already exist in snapshot.edges from backend)
-      const flatFrame = this.layoutFlatFromHierarchy(snapshot.nodes, layoutMetrics, runtimeConfig);
+      const visibleRoots = snapshot.nodes.filter(node => !hiddenByCollapse.has(node.GUID ?? node.id));
+      const flatFrame = this.layoutFlatFromHierarchy(visibleRoots, layoutMetrics, runtimeConfig, hiddenByCollapse);
       processedNodes = flatFrame.nodes;
       rootIds = flatFrame.rootIds;
     } else {
       // CONTAINERS MODE: Process hierarchically
-      processedNodes = snapshot.nodes.map(node => this.layoutContainer(node, layoutMetrics, runtimeConfig));
+      processedNodes = snapshot.nodes
+        .filter(node => !hiddenByCollapse.has(node.GUID ?? node.id))
+        .map(node => this.layoutContainer(node, layoutMetrics, runtimeConfig, hiddenByCollapse, collapsedNodes));
       processedNodes.forEach(root => this.updateWorldMetadata(root));
       rootIds = processedNodes
         .map(node => node.GUID ?? node.id)
         .filter((value): value is string => Boolean(value));
     }
 
-    // Preserve all edges but toggle visibility via metadata so canonical data stays intact
     const edgesToRender = snapshot.edges.map(edge => {
       const existingMetadata = edge.metadata ?? {};
       const relationTypeSource =
@@ -78,18 +96,13 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
       const isContainmentEdge = normalisedType ? CONTAINMENT_EDGE_TYPES.has(normalisedType) : false;
 
       const metadata: Record<string, unknown> = {
-        ...existingMetadata
+        ...existingMetadata,
+        relationType: existingMetadata['relationType'] ?? relationTypeSource,
+        visible:
+          (runtimeConfig.containmentMode === 'flat' || !isContainmentEdge) &&
+          !hiddenByCollapse.has(edge.from) &&
+          !hiddenByCollapse.has(edge.to)
       };
-
-      if (!metadata['relationType'] && relationTypeSource) {
-        metadata['relationType'] = relationTypeSource;
-      }
-
-      if (isContainmentEdge) {
-        metadata['visible'] = runtimeConfig.containmentMode !== 'containers';
-      } else if (metadata['visible'] === undefined) {
-        metadata['visible'] = true;
-      }
 
       return {
         ...edge,
@@ -97,7 +110,9 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
       };
     });
 
-    const routedEdges = this.computeEdgeWaypoints(processedNodes, edgesToRender, runtimeConfig);
+    const augmentedEdges = this.addInheritedEdges(edgesToRender, snapshot.nodes, hiddenByCollapse);
+
+    const routedEdges = this.computeEdgeWaypoints(processedNodes, augmentedEdges, runtimeConfig);
 
 
     const resolvedRootIds = rootIds && rootIds.length > 0
@@ -156,16 +171,33 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     };
   }
 
-  private layoutContainer(node: HierarchicalNode, metrics: ContainmentMetrics, config: EngineRuntimeConfig): HierarchicalNode {
+  private layoutContainer(
+    node: HierarchicalNode,
+    metrics: ContainmentMetrics,
+    config: EngineRuntimeConfig,
+    hiddenByCollapse: Set<string>,
+    collapsedNodes: Set<string>
+  ): HierarchicalNode {
     const clone = this.ensureDefaults(this.cloneNode(node));
-    if (!clone.children || clone.children.length === 0) {
+    const guid = clone.GUID ?? clone.id;
+    const isCollapsed = guid ? collapsedNodes.has(guid) : false;
+
+    if (!node.children || node.children.length === 0) {
+      clone.children = [];
       return clone;
     }
 
-    const children = clone.children ?? [];
+    if (isCollapsed) {
+      // When collapsed, preserve the node's current size (from canonical data)
+      // Don't resize - children are hidden but the container keeps its expanded size
+      clone.children = [];
+      return clone;
+    }
+
+    const visibleChildren = node.children.filter(child => !hiddenByCollapse.has(child.GUID ?? child.id));
 
     // Recursively layout children first to get their sizes
-    const laidOutChildren = children.map(child => this.layoutContainer(child, metrics, config));
+    const laidOutChildren = visibleChildren.map(child => this.layoutContainer(child, metrics, config, hiddenByCollapse, collapsedNodes));
 
     // Apply layout algorithm based on layoutMode
     if (config.layoutMode === 'grid') {
@@ -183,6 +215,119 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     }
 
     return clone;
+  }
+
+  private addInheritedEdges(
+    edges: Edge[],
+    hierarchyRoots: HierarchicalNode[],
+    hiddenByCollapse: Set<string>
+  ): Edge[] {
+    const augmented = new Map<string, Edge>();
+    edges.forEach(edge => augmented.set(edge.id, edge));
+
+    const visibilityMap = this.buildVisibilityMap(hierarchyRoots, hiddenByCollapse);
+
+    edges.forEach(edge => {
+      const sourceInfo = visibilityMap.get(edge.from);
+      const targetInfo = visibilityMap.get(edge.to);
+      if (!sourceInfo || !targetInfo) {
+        return;
+      }
+
+      if (sourceInfo.visible && targetInfo.visible) {
+        return;
+      }
+
+      const finalSource = sourceInfo.visible ? edge.from : sourceInfo.visibleAncestor;
+      const finalTarget = targetInfo.visible ? edge.to : targetInfo.visibleAncestor;
+
+      if (!finalSource || !finalTarget || finalSource === finalTarget) {
+        return;
+      }
+
+      const inheritedId = `inherited-${edge.id}-${finalSource}-${finalTarget}`;
+      if (augmented.has(inheritedId)) {
+        return;
+      }
+
+      augmented.set(inheritedId, {
+        ...edge,
+        id: inheritedId,
+        from: finalSource,
+        to: finalTarget,
+        fromGUID: finalSource,
+        toGUID: finalTarget,
+        metadata: {
+          ...(edge.metadata ?? {}),
+          inherited: true,
+          visible: true
+        },
+        style: {
+          ...edge.style,
+          stroke: '#1e3a8a',
+          strokeWidth: Math.min(6, (edge.style?.strokeWidth ?? 2) + 1),
+          strokeDashArray: [4, 4]
+        }
+      });
+    });
+
+    return Array.from(augmented.values());
+  }
+
+  private buildVisibilityMap(
+    roots: HierarchicalNode[],
+    hiddenByCollapse: Set<string>
+  ): Map<string, { visible: boolean; visibleAncestor?: string }> {
+    const parentMap = new Map<string, string | null>();
+
+    const register = (node: HierarchicalNode, parentId: string | null): void => {
+      const id = node.GUID ?? node.id;
+      if (!id) {
+        return;
+      }
+      parentMap.set(id, parentId);
+      node.children?.forEach(child => register(child, id));
+    };
+    roots.forEach(root => register(root, null));
+
+    const visibleSet = new Set<string>();
+    parentMap.forEach((_parent, id) => {
+      if (!hiddenByCollapse.has(id)) {
+        visibleSet.add(id);
+      }
+    });
+
+    const cache = new Map<string, { visible: boolean; visibleAncestor?: string }>();
+
+    const resolve = (id: string): { visible: boolean; visibleAncestor?: string } => {
+      if (cache.has(id)) {
+        return cache.get(id)!;
+      }
+
+      if (visibleSet.has(id)) {
+        const info = { visible: true, visibleAncestor: id };
+        cache.set(id, info);
+        return info;
+      }
+
+      const parentId = parentMap.get(id);
+      if (!parentId) {
+        const info = { visible: false, visibleAncestor: undefined };
+        cache.set(id, info);
+        return info;
+      }
+
+      const parentInfo = resolve(parentId);
+      const info = { visible: false, visibleAncestor: parentInfo.visibleAncestor };
+      cache.set(id, info);
+      return info;
+    };
+
+    parentMap.forEach((_parent, id) => {
+      resolve(id);
+    });
+
+    return cache;
   }
 
   private ensureDefaults(node: HierarchicalNode): HierarchicalNode {
@@ -357,10 +502,11 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
   private layoutFlatFromHierarchy(
     hierarchyRoots: HierarchicalNode[],
     metrics: ContainmentMetrics,
-    config: EngineRuntimeConfig
+    config: EngineRuntimeConfig,
+    hiddenByCollapse: Set<string>
   ): FlatLayoutFrame {
     // Flatten hierarchy (but don't generate edges - they already exist in original data)
-    const flatResult = flattenHierarchyWithEdges(hierarchyRoots);
+    const flatResult = flattenHierarchyWithEdges(hierarchyRoots, hiddenByCollapse);
 
     // Ensure all nodes have proper defaults
     flatResult.nodes.forEach(node => this.ensureDefaults(node));
