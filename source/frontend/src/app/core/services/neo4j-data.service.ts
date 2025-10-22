@@ -9,6 +9,7 @@ import {
 } from '../../shared/tree-table/tree-table.types';
 import { TreeTableLayoutResult } from '../../shared/tree-table/tree-table-layout-engine';
 import { RawEntity, RawRelationship, RawDataInput } from '../../shared/layouts/core/layout-contract';
+import { GraphDataSet } from '../../shared/graph/graph-data-set';
 
 // Simple entity model without renderer dependency
 interface EntityModel {
@@ -52,6 +53,8 @@ export interface GraphRelationship {
 export interface GraphRawData extends RawDataInput {
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
+
+import { GraphDataSet } from '../../shared/graph/graph-data-set';
 
 interface RuntimeGraphResponse {
   query_id: string;
@@ -99,7 +102,6 @@ interface RuntimeGraphResponse {
   telemetry_cursor?: string | null;
   raw_rows?: Array<Record<string, unknown>>;
 }
-
 
 @Injectable({
   providedIn: 'root'
@@ -203,6 +205,49 @@ export class Neo4jDataService {
     } catch (error) {
       console.error('Error executing ViewNode query:', error);
       return { entities: [], relationships: [] };
+    }
+  }
+
+  /**
+   * Fetch an immutable dataset of nodes/relationships for a ViewNode without
+   * applying any rendering/layout transformations.
+   */
+  async fetchGraphDataSet(viewNode: any): Promise<GraphDataSet | null> {
+    try {
+      let queryToExecute = await this.getQueryFromQueryNode(viewNode);
+
+      if (viewNode.name === 'Code Model') {
+        queryToExecute = `
+          MATCH (root:CodeElement {name: "workspace"})
+          WITH root.import_batch AS batch
+          MATCH (n:CodeElement {import_batch: batch})
+          OPTIONAL MATCH (n)-[r:HAS_CHILD]->(m:CodeElement {import_batch: batch})
+          RETURN n, r, m
+        `;
+      }
+
+      const runtimeResponse = await firstValueFrom(
+        this.http.post<RuntimeGraphResponse>('/runtime/canvas/data', {
+          query: queryToExecute,
+          parameters: {},
+          include_raw_rows: true
+        })
+      );
+
+      return {
+        id: `${viewNode.id ?? 'anonymous'}::${runtimeResponse.query_id}`,
+        viewNodeId: viewNode.id,
+        queryId: runtimeResponse.query_id,
+        cypher: runtimeResponse.cypher,
+        parameters: runtimeResponse.parameters ?? {},
+        nodes: runtimeResponse.nodes ?? [],
+        relationships: runtimeResponse.relationships ?? [],
+        metadata: runtimeResponse.metadata,
+        rawRows: runtimeResponse.raw_rows ?? []
+      };
+    } catch (error) {
+      console.error('Error fetching graph dataset for ViewNode:', error);
+      return null;
     }
   }
 

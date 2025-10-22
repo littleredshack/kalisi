@@ -4,6 +4,7 @@ import { HttpClient } from '@angular/common/http';
 import { firstValueFrom, Subscription } from 'rxjs';
 import { skip } from 'rxjs/operators';
 import { Neo4jDataService } from '../../core/services/neo4j-data.service';
+import { GraphDataSet } from '../../shared/graph/graph-data-set';
 import { ViewNodeStateService } from '../../core/services/view-node-state.service';
 import { DynamicLayoutService } from '../../core/services/dynamic-layout.service';
 import { MessageService } from 'primeng/api';
@@ -36,6 +37,7 @@ import { ContainmentRuntimeLayoutEngine } from '../../shared/layouts/engines/con
 import { RuntimeContainmentRenderer } from '../../shared/composable/renderers/runtime-containment-renderer';
 import { RuntimeFlatRenderer } from '../../shared/composable/renderers/runtime-flat-renderer';
 import { OverlayService } from '../../shared/canvas/overlay/overlay.service';
+import { ViewState, createDefaultViewState } from '../../shared/canvas/state/view-state.model';
 
 @Component({
   selector: 'app-runtime-canvas',
@@ -81,8 +83,10 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   
   // FR-030: Input to receive selected ViewNode from parent
   selectedViewNode: any | null = null;
-  private pendingViewNodeLayout: CanvasData | null = null;
-  private rawViewNodeData: {entities: any[], relationships: any[]} | null = null;
+  private graphDataSet: GraphDataSet | null = null;
+  private viewState: ViewState | null = null;
+  private canvasSnapshot: CanvasData | null = null;
+  private data: CanvasData | null = null;
   private canvasId = 'modular-canvas';
   private currentLayoutModule?: LayoutModuleDescriptor;
   private currentRendererId?: string;
@@ -126,7 +130,6 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   }
   
   public engine: RuntimeCanvasController | null = null;
-  data: CanvasData | null = null;
   cameraInfo = { x: 0, y: 0, zoom: 1.0 };
   
   // Component state
