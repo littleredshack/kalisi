@@ -955,27 +955,13 @@ export class RuntimeCanvasController {
     const node = this.findNodeByGuid(data.nodes, nodeGuid);
     if (!node) return;
 
-    const currentlyCollapsed = node.collapsed === true;
+    const currentlyCollapsed =
+      node.metadata?.['resolvedProfile']?.collapseState === 'collapsed' || node.collapsed;
+    const nextState = currentlyCollapsed ? 'expanded' : 'collapsed';
 
-    if (!currentlyCollapsed) {
-      this.saveVisibilityState(node);
-      node.collapsed = true;
-      this.hideAllDescendants(node);
-      node.visible = true;
-    } else {
-      node.collapsed = false;
-      this.restoreVisibilityState(node);
-      if (node.metadata && node.metadata['_visibilitySnapshot']) {
-        delete node.metadata['_visibilitySnapshot'];
-      }
+    if (this.overlayService) {
+      this.overlayService.applyNodeCollapse(nodeGuid, nextState);
     }
-
-    if (this.onDataChangedCallback) {
-      this.onDataChangedCallback(data);
-    }
-
-    this.layoutRuntime.setCanvasData(data, false, 'system');
-    this.layoutRuntime.commitCanvasData();
   }
 
   /**
@@ -1060,9 +1046,11 @@ export class RuntimeCanvasController {
     const savedState = node.metadata?.['_visibilitySnapshot'];
 
     if (savedState) {
+      // Restore from snapshot using same recursive method as composable
       this.restoreNodeStateRecursively(node, savedState);
     } else {
-      this.showDescendants(node.children ?? []);
+      // No snapshot - default to showing only immediate children
+      this.showImmediateChildren(node);
     }
   }
 
@@ -1080,26 +1068,13 @@ export class RuntimeCanvasController {
           child.visible = childSavedState.visible;
           child.collapsed = childSavedState.collapsed;
 
+          // Recursively restore grandchildren state
           if (childSavedState.childrenStates) {
             this.restoreNodeStateRecursively(child, childSavedState);
           }
-        } else {
-          child.visible = true;
-          child.collapsed = false;
-          this.showDescendants(child.children ?? []);
         }
       });
     }
-  }
-
-  private showDescendants(children: HierarchicalNode[]): void {
-    children.forEach(child => {
-      child.visible = true;
-      child.collapsed = false;
-      if (child.children && child.children.length > 0) {
-        this.showDescendants(child.children);
-      }
-    });
   }
 
   /**
