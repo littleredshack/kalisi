@@ -336,8 +336,7 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
                     containmentMode: savedLayoutData.viewConfig.containmentMode ?? 'containers',
                     layoutMode: savedLayoutData.viewConfig.layoutMode ?? 'grid',
                     edgeRouting: savedLayoutData.viewConfig.edgeRouting ?? 'orthogonal'
-                  },
-                  overrides: new Map()
+                  }
                 },
                 camera: savedLayoutData.camera
               };
