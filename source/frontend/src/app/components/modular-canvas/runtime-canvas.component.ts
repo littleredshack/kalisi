@@ -1292,11 +1292,8 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     if (!this.engine) {
       return null;
     }
-    const module = LayoutModuleRegistry.getModule(engineName);
-    if (module) {
-      this.currentLayoutModule = module;
-      this.runtimeEngineId = module.runtimeEngine;
-    }
+    // LayoutModuleRegistry simplified - only containment-runtime exists
+    this.runtimeEngineId = 'containment-runtime';
     await this.engine.switchEngine(engineName);
     this.canvasControlService.notifyStateChange();
     return this.engine.getData();
