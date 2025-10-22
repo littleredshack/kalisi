@@ -521,36 +521,21 @@ export class RuntimeCanvasController {
       return;
     }
 
-    if (this.overlayService) {
-      const overlay = this.overlayService;
-      if (scope === 'type') {
-        const nodesToUpdate = this.collectNodesByType(targetNode.type, data.nodes);
-        nodesToUpdate.forEach(node => {
-          const targetId = node.GUID ?? node.id;
-          if (targetId) {
-            overlay.applyNodeStyle(targetId, overrides, 'node');
-          }
-        });
-      } else {
-        const targetGuid = targetNode.GUID ?? targetNode.id;
-        if (targetGuid) {
-          overlay.applyNodeStyle(targetGuid, overrides, 'node');
-        }
-      }
-      return;
-    }
+    console.log('[RuntimeCanvas] Applying style override to node:', nodeId, 'overrides:', overrides);
 
+    // Direct mutation of ViewGraph - no overlay system
     const nodesToUpdate = scope === 'type'
       ? this.collectNodesByType(targetNode.type, data.nodes)
       : [targetNode];
+
+    console.log('[RuntimeCanvas] Updating', nodesToUpdate.length, 'nodes');
 
     nodesToUpdate.forEach(node => {
       this.mergeNodeStyleOverrides(node, overrides);
       this.applyOverridesToNode(node);
     });
 
-    // The data is modified by reference, so the changes will be picked up
-    // by the render loop on the next frame. Notify that data has changed.
+    // ViewGraph is mutated directly - notify observers
     if (this.onDataChangedCallback) {
       this.onDataChangedCallback(data);
     }
