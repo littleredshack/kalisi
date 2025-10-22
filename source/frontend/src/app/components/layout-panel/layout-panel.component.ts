@@ -3,7 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TooltipModule } from 'primeng/tooltip';
 import { CanvasControlService } from '../../core/services/canvas-control.service';
-import { Observable } from 'rxjs';
+import { Observable, Subscription } from 'rxjs';
+import { NodeSelectionSnapshot } from '../../shared/canvas/types';
 
 @Component({
   selector: 'app-layout-panel',
@@ -52,6 +53,14 @@ export class LayoutPanelComponent implements OnInit, OnDestroy, OnChanges {
   layoutMode: 'grid' | 'force' = 'grid';
   edgeRouting: 'orthogonal' | 'straight' = 'orthogonal';
 
+  // Per-node configuration
+  selectedNode: NodeSelectionSnapshot | null = null;
+  nodeContainmentMode: string = 'inherit';
+  nodeLayoutStrategy: string = 'inherit';
+  applyToDescendants = false;
+
+  private selectionSubscription?: Subscription;
+
   constructor(private canvasControlService: CanvasControlService) {
     this.containmentMode$ = this.canvasControlService.containmentMode$;
     this.layoutMode$ = this.canvasControlService.layoutMode$;
@@ -78,12 +87,19 @@ export class LayoutPanelComponent implements OnInit, OnDestroy, OnChanges {
     this.edgeRouting$.subscribe(mode => {
       this.edgeRouting = mode;
     });
+
+    // Subscribe to node selection
+    this.selectionSubscription = this.canvasControlService.selection$.subscribe(selection => {
+      this.selectedNode = selection;
+      this.updateNodeConfigState();
+    });
   }
 
   ngOnDestroy(): void {
     document.removeEventListener('mousemove', this.onGlobalMouseMove);
     document.removeEventListener('mouseup', this.onGlobalMouseUp);
     document.removeEventListener('keydown', this.onGlobalKeyDown);
+    this.selectionSubscription?.unsubscribe();
   }
 
   private onGlobalKeyDown = (event: KeyboardEvent): void => {
@@ -222,5 +238,50 @@ export class LayoutPanelComponent implements OnInit, OnDestroy, OnChanges {
 
   get containmentEnabled(): boolean {
     return this.containmentMode === 'containers';
+  }
+
+  // Per-node configuration methods
+  hasNodeSelected(): boolean {
+    const result = this.selectedNode?.kind === 'node';
+    return result;
+  }
+
+  getSelectedNodeName(): string {
+    if (this.selectedNode?.kind === 'node') {
+      return this.selectedNode.text || this.selectedNode.label || this.selectedNode.id || 'Selected Node';
+    }
+    return 'No node selected';
+  }
+
+  private updateNodeConfigState(): void {
+    if (this.selectedNode?.kind === 'node' && this.selectedNode.layoutConfig) {
+      this.nodeContainmentMode = this.selectedNode.layoutConfig.renderStyle?.nodeMode || 'inherit';
+      this.nodeLayoutStrategy = this.selectedNode.layoutConfig.layoutStrategy || 'inherit';
+    } else {
+      this.nodeContainmentMode = 'inherit';
+      this.nodeLayoutStrategy = 'inherit';
+    }
+    this.applyToDescendants = false;
+  }
+
+  onNodeContainmentChange(mode: string): void {
+    this.canvasControlService.setNodeContainmentMode(
+      null,
+      mode as 'container' | 'flat' | 'inherit',
+      this.applyToDescendants
+    );
+  }
+
+  onNodeLayoutStrategyChange(strategy: string): void {
+    this.canvasControlService.setNodeLayoutStrategy(
+      null,
+      strategy as 'grid' | 'force' | 'tree' | 'manual' | 'inherit',
+      this.applyToDescendants
+    );
+  }
+
+  onClearNodeConfig(): void {
+    this.canvasControlService.clearNodeConfig(null);
+    this.applyToDescendants = false;
   }
 }

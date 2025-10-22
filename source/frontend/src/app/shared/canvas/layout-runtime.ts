@@ -184,7 +184,8 @@ export class CanvasLayoutRuntime {
       containmentMode: this.runtimeConfig.containmentMode,
       layoutMode: this.runtimeConfig.layoutMode,
       edgeRouting: this.runtimeConfig.edgeRouting,
-      nodeConfigManager: this.nodeConfigManager
+      nodeConfigManager: this.nodeConfigManager,
+      graphDataSet: this.graphDataSet // Pass immutable source data
     };
 
     const result = await this.workerBridge.run(this.canvasId, baseGraph, {

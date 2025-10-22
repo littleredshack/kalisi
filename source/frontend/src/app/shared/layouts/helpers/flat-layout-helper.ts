@@ -58,26 +58,28 @@ export function flattenHierarchyWithEdges(
 
     // Generate CONTAINS edge from parent to this node
     if (parent) {
-      const parentGUID = parent.GUID!;
-      const childGUID = clone.GUID!;
+      const parentGUID = parent.GUID ?? parent.id;
+      const childGUID = clone.GUID ?? clone.id;
 
-      containsEdges.push({
-        id: `contains-${parentGUID}-${childGUID}`,
-        from: parentGUID,  // MUST use GUID
-        to: childGUID,     // MUST use GUID
-        fromGUID: parentGUID,
-        toGUID: childGUID,
-        label: 'CONTAINS',
-        style: {
-          stroke: '#6b7280',
-          strokeWidth: 2,
-          strokeDashArray: [5, 5]
-        },
-        metadata: {
-          relationType: 'CONTAINS',
-          isGenerated: true
-        }
-      });
+      if (parentGUID && childGUID) {
+        containsEdges.push({
+          id: `contains-${parentGUID}-${childGUID}`,
+          from: parentGUID,  // MUST use GUID (or fallback to id)
+          to: childGUID,     // MUST use GUID (or fallback to id)
+          fromGUID: parentGUID,
+          toGUID: childGUID,
+          label: 'CONTAINS',
+          style: {
+            stroke: '#6b7280',
+            strokeWidth: 2,
+            strokeDashArray: [5, 5]
+          },
+          metadata: {
+            relationType: 'CONTAINS',
+            isGenerated: true
+          }
+        });
+      }
     }
 
     // Recursively flatten children

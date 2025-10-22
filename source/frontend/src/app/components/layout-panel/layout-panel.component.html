@@ -92,5 +92,67 @@
         </div>
       </div>
     </div>
+
+    <!-- Per-Node Settings (shown when node is selected) -->
+    <div class="section section-node" *ngIf="hasNodeSelected()">
+      <div class="section-title">
+        <i class="pi pi-circle-fill node-icon"></i>
+        <span>Node: {{ getSelectedNodeName() }}</span>
+      </div>
+
+      <div class="control-group">
+        <div class="control-row">
+          <label class="control-label">
+            <span>Containment</span>
+            <span class="control-description">How to display this node's children</span>
+          </label>
+          <select
+            class="control-select"
+            [value]="nodeContainmentMode"
+            (change)="onNodeContainmentChange($any($event.target).value)">
+            <option value="inherit">Inherit from parent</option>
+            <option value="container">Container (nested)</option>
+            <option value="flat">Flat (grid)</option>
+          </select>
+        </div>
+
+        <div class="control-row">
+          <label class="control-label">
+            <span>Layout Strategy</span>
+            <span class="control-description">How to arrange this node's children</span>
+          </label>
+          <select
+            class="control-select"
+            [value]="nodeLayoutStrategy"
+            (change)="onNodeLayoutStrategyChange($any($event.target).value)">
+            <option value="inherit">Inherit from parent</option>
+            <option value="grid">Grid</option>
+            <option value="force" disabled>Force (coming soon)</option>
+            <option value="tree" disabled>Tree (coming soon)</option>
+            <option value="manual">Manual</option>
+          </select>
+        </div>
+
+        <div class="control-row control-row-checkbox">
+          <label class="checkbox-label">
+            <input
+              type="checkbox"
+              [(ngModel)]="applyToDescendants">
+            <span>Apply to all descendants</span>
+          </label>
+        </div>
+
+        <div class="control-row">
+          <button
+            class="control-button clear-button"
+            (click)="onClearNodeConfig()"
+            pTooltip="Reset to inherited settings"
+            tooltipPosition="top">
+            <i class="pi pi-undo"></i>
+            <span>Clear Node Config</span>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>

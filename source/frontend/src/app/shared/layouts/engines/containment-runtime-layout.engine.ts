@@ -80,14 +80,16 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
       rootIds = flatFrame.rootIds;
       generatedContainsEdges = flatFrame.containsEdges;
     } else {
-      // CONTAINERS MODE: Process hierarchically
+      // CONTAINERS MODE: Process hierarchically (but collect per-node CONTAINS edges)
+      const perNodeContainsEdges: Edge[] = [];
       processedNodes = snapshot.nodes
         .filter(node => !hiddenByCollapse.has(node.GUID ?? node.id))
-        .map(node => this.layoutContainer(node, layoutMetrics, runtimeConfig, hiddenByCollapse, collapsedNodes, nodeConfigManager));
+        .map(node => this.layoutContainer(node, layoutMetrics, runtimeConfig, hiddenByCollapse, collapsedNodes, nodeConfigManager, perNodeContainsEdges));
       processedNodes.forEach(root => this.updateWorldMetadata(root));
       rootIds = processedNodes
         .map(node => node.GUID ?? node.id)
         .filter((value): value is string => Boolean(value));
+      generatedContainsEdges = perNodeContainsEdges;
     }
 
     // Merge original edges with generated CONTAINS edges from flat mode
@@ -104,11 +106,17 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
       const normalisedType = relationTypeSource.toUpperCase();
       const isContainmentEdge = normalisedType ? CONTAINMENT_EDGE_TYPES.has(normalisedType) : false;
 
+      // CONTAINS edges are visible if:
+      // - Global mode is 'flat', OR
+      // - This is a generated edge from per-node flattening (has isGenerated metadata)
+      const isGeneratedContainsEdge = existingMetadata['isGenerated'] === true;
+      const shouldShowContainsEdge = runtimeConfig.containmentMode === 'flat' || isGeneratedContainsEdge;
+
       const metadata: Record<string, unknown> = {
         ...existingMetadata,
         relationType: existingMetadata['relationType'] ?? relationTypeSource,
         visible:
-          (runtimeConfig.containmentMode === 'flat' || !isContainmentEdge) &&
+          (shouldShowContainsEdge || !isContainmentEdge) &&
           !hiddenByCollapse.has(edge.from) &&
           !hiddenByCollapse.has(edge.to)
       };
@@ -186,7 +194,8 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     config: EngineRuntimeConfig,
     hiddenByCollapse: Set<string>,
     collapsedNodes: Set<string>,
-    nodeConfigManager?: NodeConfigManager
+    nodeConfigManager?: NodeConfigManager,
+    containsEdgeCollector?: Edge[]
   ): HierarchicalNode {
     const guid = node.GUID ?? node.id;
     const isCollapsed = guid ? collapsedNodes.has(guid) : false;
@@ -203,17 +212,63 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
 
     const visibleChildren = node.children.filter(child => !hiddenByCollapse.has(child.GUID ?? child.id));
 
-    // Recursively layout children first to get their sizes
-    const laidOutChildren = visibleChildren.map(child => this.layoutContainer(child, metrics, config, hiddenByCollapse, collapsedNodes, nodeConfigManager));
-
-    // Check for per-node layout override
+    // Check for per-node containment mode override
+    let effectiveContainmentMode = config.containmentMode;
     let effectiveLayoutMode = config.layoutMode;
+
     if (nodeConfigManager && guid) {
       const resolved = nodeConfigManager.getResolvedConfig(node);
+
+      // Per-node containment mode: 'container' = nested, 'flat' = flatten children
+      if (resolved.renderStyle.nodeMode === 'flat') {
+        effectiveContainmentMode = 'flat';
+      } else if (resolved.renderStyle.nodeMode === 'container' || resolved.renderStyle.nodeMode === 'compact') {
+        effectiveContainmentMode = 'containers';
+      }
+
+      // Per-node layout strategy
       if (resolved.layoutStrategy !== 'manual') {
         effectiveLayoutMode = resolved.layoutStrategy as 'grid' | 'force';
       }
     }
+
+    // If this node uses flat mode, use the EXISTING flattenHierarchyWithEdges helper
+    if (effectiveContainmentMode === 'flat' && visibleChildren.length > 0) {
+      const flatResult = flattenHierarchyWithEdges(visibleChildren, hiddenByCollapse);
+
+      // Apply grid layout
+      const cols = Math.ceil(Math.sqrt(flatResult.nodes.length));
+      let x = metrics.padding;
+      let y = metrics.padding + 40;
+
+      flatResult.nodes.forEach((flatNode, idx) => {
+        flatNode.x = x;
+        flatNode.y = y;
+        x += (flatNode.width ?? 180) + metrics.gap;
+        if ((idx + 1) % cols === 0) {
+          x = metrics.padding;
+          y += (flatNode.height ?? 100) + metrics.gap;
+        }
+      });
+
+      // Collect the generated CONTAINS edges
+      if (containsEdgeCollector) {
+        containsEdgeCollector.push(...flatResult.containsEdges);
+      }
+
+      return this.ensureDefaults({
+        ...node,
+        children: flatResult.nodes,
+        metadata: {
+          ...(node.metadata ?? {}),
+          perNodeFlattened: true,
+          generatedEdges: flatResult.containsEdges.length
+        }
+      });
+    }
+
+    // Recursively layout children first to get their sizes
+    const laidOutChildren = visibleChildren.map(child => this.layoutContainer(child, metrics, config, hiddenByCollapse, collapsedNodes, nodeConfigManager, containsEdgeCollector));
 
     // Create result object with calculated positions
     let result = {
@@ -235,7 +290,7 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     }
 
     // In 'containers' mode: resize parent to fit children
-    if (config.containmentMode === 'containers') {
+    if (effectiveContainmentMode === 'containers') {
       LayoutPrimitives.resizeToFitChildren(result, metrics.padding, metrics.padding);
     }
 
@@ -512,6 +567,7 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
   }
 
   // cloneNode removed - using shallow spread only
+
 
   /**
    * Layout in FLAT mode: Flatten hierarchy and layout as grid

@@ -35,6 +35,7 @@ import { RuntimeContainmentRenderer } from '../../shared/composable/renderers/ru
 import { RuntimeFlatRenderer } from '../../shared/composable/renderers/runtime-flat-renderer';
 // OverlayService removed - ViewGraph is single source of truth
 import { ViewState, createDefaultViewState } from '../../shared/canvas/state/view-state.model';
+import { NodeConfigManager, NodeLayoutConfig } from '../../shared/canvas/node-config-manager';
 
 @Component({
   selector: 'app-runtime-canvas',
@@ -95,6 +96,7 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   private historySubscription?: Subscription;
   private realtimeDeltaSubscription?: Subscription;
   private configSubscriptions: Subscription[] = [];
+  private eventHubSubscription?: Subscription;
   private runtimeConfigQueue: Promise<void> = Promise.resolve();
   private restoringHistory = false;
   private canUndoState = false;
@@ -149,8 +151,12 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     this.historySubscription?.unsubscribe();
     this.canvasHistoryService.unregisterCanvas(this.canvasId);
 
+    // Unregister from event hub
+    this.canvasEventHubService.unregisterCanvas(this.canvasId);
+
     // Unsubscribe from config changes
     this.configSubscriptions.forEach(sub => sub.unsubscribe());
+    this.eventHubSubscription?.unsubscribe();
 
     this.canvasRef.nativeElement.removeEventListener('wheel', this.onWheel.bind(this));
     this.engine?.destroy();
@@ -237,7 +243,71 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       this.engineDataChanged.emit();
     });
   }
-  
+
+  private handleNodeConfigChanged(event: any): void {
+    if (!event.nodeId || !event.config || !this.engine) {
+      return;
+    }
+
+    const runtime = (this.engine as any).layoutRuntime as CanvasLayoutRuntime;
+    if (!runtime) {
+      return;
+    }
+
+    const nodeConfigManager = runtime.getNodeConfigManager();
+    nodeConfigManager.setNodeConfig(event.nodeId, event.config);
+
+    // If we have GraphDataSet, reload it to restore hierarchy
+    const dataSet = runtime.getGraphDataSet();
+    const viewState = this.viewState;
+    if (dataSet && viewState) {
+      requestAnimationFrame(() => {
+        this.engine?.loadGraphDataSet(dataSet, viewState).then(() => {
+          this.canvasSnapshot = this.engine?.getData() ?? this.canvasSnapshot;
+          this.updateCameraInfo();
+          this.engineDataChanged.emit();
+        });
+      });
+    } else {
+      // No dataset - just run regular layout
+      requestAnimationFrame(() => {
+        this.engine?.runLayout().then(() => {
+          this.canvasSnapshot = this.engine?.getData() ?? this.canvasSnapshot;
+          this.updateCameraInfo();
+          this.engineDataChanged.emit();
+        });
+      });
+    }
+  }
+
+  private handleNodeConfigCleared(event: any): void {
+    if (!event.nodeId) {
+      return;
+    }
+
+    if (!this.engine) {
+      return;
+    }
+
+    // Get the node config manager from the layout runtime
+    const runtime = (this.engine as any).layoutRuntime as CanvasLayoutRuntime;
+    if (!runtime) {
+      return;
+    }
+
+    const nodeConfigManager = runtime.getNodeConfigManager();
+    nodeConfigManager.removeNodeConfig(event.nodeId);
+
+    // Trigger relayout asynchronously to avoid blocking UI
+    requestAnimationFrame(() => {
+      this.engine?.runLayout().then(() => {
+        this.canvasSnapshot = this.engine?.getData() ?? this.canvasSnapshot;
+        this.updateCameraInfo();
+        this.engineDataChanged.emit();
+      });
+    });
+  }
+
   // Panel width methods removed - no longer needed
 
   // Load data from Neo4j with fallback to hardcoded
@@ -620,6 +690,32 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       initialViewConfig
     );
 
+    // Register the engine's event bus with the event hub service
+    const eventBus = this.engine.getLayoutRuntime().getEventBus();
+    this.canvasEventHubService.registerCanvas(this.canvasId, eventBus);
+
+    // Subscribe to node config changes from event hub
+    this.eventHubSubscription?.unsubscribe();
+    this.eventHubSubscription = this.canvasEventHubService
+      .getHistory$(this.canvasId)
+      .subscribe(events => {
+        const latestConfigEvent = events
+          .filter(e => e.type === 'NodeConfigChanged')
+          .slice(-1)[0];
+
+        if (latestConfigEvent && !this.restoringHistory) {
+          this.handleNodeConfigChanged(latestConfigEvent);
+        }
+
+        const latestClearEvent = events
+          .filter(e => e.type === 'NodeConfigCleared')
+          .slice(-1)[0];
+
+        if (latestClearEvent && !this.restoringHistory) {
+          this.handleNodeConfigCleared(latestClearEvent);
+        }
+      });
+
     (window as any).__canvasEngine = this.engine;
 
     let initialSnapshot: CanvasData;
@@ -675,6 +771,17 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
         this.canvasHistoryService.record(this.canvasId, data);
       }
       this.canvasControlService.notifyStateChange();
+    });
+
+    // Register callback for expand events that need GraphDataSet reload
+    this.engine.setOnExpandWithDataSet((nodeGuid: string) => {
+      if (this.graphDataSet && this.viewState) {
+        this.engine?.loadGraphDataSet(this.graphDataSet, this.viewState).then(() => {
+          this.canvasSnapshot = this.engine?.getData() ?? this.canvasSnapshot;
+          this.updateCameraInfo();
+          this.engineDataChanged.emit();
+        });
+      }
     });
 
     this.engine.setOnSelectionChanged(node => {

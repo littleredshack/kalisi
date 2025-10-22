@@ -110,10 +110,17 @@ export interface NodeSelectionSnapshot {
   readonly kind: 'node';
   readonly id: string;
   readonly guid?: string;
+  readonly text?: string;
   readonly label: string;
   readonly type: string;
   readonly style: NodeStyleSnapshot;
   readonly overrides: NodeStyleOverrides;
+  readonly layoutConfig?: {
+    layoutStrategy?: string;
+    renderStyle?: {
+      nodeMode?: string;
+    };
+  };
 }
 
 // Events for interaction system

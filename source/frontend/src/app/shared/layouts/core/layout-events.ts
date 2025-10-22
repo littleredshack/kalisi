@@ -114,6 +114,21 @@ export type CanvasEvent =
       readonly source: CanvasEventSource;
       readonly timestamp: number;
       readonly config: RuntimeViewConfig;
+    }
+  | {
+      readonly type: 'NodeConfigChanged';
+      readonly canvasId: string;
+      readonly nodeId: string;
+      readonly source: CanvasEventSource;
+      readonly timestamp: number;
+      readonly config: Readonly<Record<string, unknown>>;
+    }
+  | {
+      readonly type: 'NodeConfigCleared';
+      readonly canvasId: string;
+      readonly nodeId: string;
+      readonly source: CanvasEventSource;
+      readonly timestamp: number;
     };
 
 export class CanvasEventBus {

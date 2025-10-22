@@ -30,6 +30,7 @@ export class RuntimeCanvasController {
   private animationFrameId: number | null = null;
   private onDataChangedCallback?: (data: CanvasData) => void;
   private onSelectionChanged?: (node: HierarchicalNode | null) => void;
+  private onExpandWithDataSetCallback?: (nodeGuid: string) => void;
   // Overlay system removed
 
   constructor(
@@ -55,7 +56,7 @@ export class RuntimeCanvasController {
     this.layoutRuntime = new CanvasLayoutRuntime(canvasId, initialData, {
       defaultEngine: engineId ?? 'containment-runtime',
       runLayoutOnInit: !hasSavedLayout, // Only run layout if we don't have saved positions
-      useWorker: false,
+      useWorker: false, // Keep worker disabled so console.logs work
       initialViewConfig
     });
     if (initialViewConfig) {
@@ -468,10 +469,14 @@ export class RuntimeCanvasController {
     const cornerRadius = overrides.cornerRadius ?? 8;
     const labelVisible = overrides.labelVisible ?? (metadata['labelVisible'] !== false);
 
+    // Include layoutConfig if it exists on the node
+    const layoutConfig = (node as any).layoutConfig;
+
     return {
       kind: 'node',
       id: node.GUID ?? node.id,
       guid: node.GUID ?? undefined,
+      text: node.text,
       label: node.text,
       type: node.type,
       style: {
@@ -482,7 +487,11 @@ export class RuntimeCanvasController {
         cornerRadius,
         labelVisible
       },
-      overrides: this.cloneOverrides(overrides)
+      overrides: this.cloneOverrides(overrides),
+      layoutConfig: layoutConfig ? {
+        layoutStrategy: layoutConfig.layoutStrategy,
+        renderStyle: layoutConfig.renderStyle
+      } : undefined
     };
   }
 
@@ -646,6 +655,10 @@ export class RuntimeCanvasController {
     if (this.onSelectionChanged) {
       this.onSelectionChanged(selected ?? null);
     }
+  }
+
+  setOnExpandWithDataSet(callback: (nodeGuid: string) => void): void {
+    this.onExpandWithDataSetCallback = callback;
   }
 
   /**
@@ -919,10 +932,23 @@ export class RuntimeCanvasController {
       this.hideAllDescendants(node);
       node.visible = true;
     } else {
+      // EXPANDING - need to restore hierarchy from source if we have per-node configs
+      const isExpanding = true;
       node.collapsed = false;
       this.restoreVisibilityState(node);
       if (node.metadata && node.metadata['_visibilitySnapshot']) {
         delete node.metadata['_visibilitySnapshot'];
+      }
+
+      // Check if we need to reload from source to restore hierarchy
+      const nodeConfigManager = this.layoutRuntime.getNodeConfigManager();
+      const hasPerNodeConfigs = nodeConfigManager.getConfiguredNodeIds().length > 0;
+      const graphDataSet = this.layoutRuntime.getGraphDataSet();
+
+      if (isExpanding && hasPerNodeConfigs && graphDataSet && this.onExpandWithDataSetCallback) {
+        // Trigger callback to reload from GraphDataSet
+        this.onExpandWithDataSetCallback(nodeGuid);
+        return;
       }
     }
 

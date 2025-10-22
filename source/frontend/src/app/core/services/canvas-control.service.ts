@@ -13,6 +13,7 @@ import {
   NodeSelectionSnapshot
 } from '../../shared/canvas/types';
 import { RuntimeViewConfig } from '../../shared/canvas/layout-runtime';
+import { NodeLayoutConfig } from '../../shared/canvas/node-config-manager';
 
 export interface CameraInfo {
   x: number;
@@ -328,6 +329,85 @@ export class CanvasControlService {
       }
     }
     this.refreshSelectionSnapshot();
+  }
+
+  /**
+   * Set per-node containment mode
+   * @param nodeId - The GUID of the node to configure
+   * @param mode - 'container' for nested containment, 'flat' to flatten children, 'inherit' to use parent setting
+   * @param applyToDescendants - If true, override all descendants
+   */
+  setNodeContainmentMode(nodeId: string | null, mode: 'container' | 'flat' | 'inherit', applyToDescendants = false): void {
+    const targetId = nodeId ?? this.selectionSubject.value?.id;
+    if (!targetId) {
+      return;
+    }
+
+    const canvasId = this.getActiveCanvasId();
+    if (canvasId) {
+      this.canvasEventHubService.emitEvent(canvasId, {
+        type: 'NodeConfigChanged' as const,
+        canvasId,
+        nodeId: targetId,
+        config: {
+          renderStyle: {
+            nodeMode: mode === 'inherit' ? 'inherit' : mode
+          },
+          applyToDescendants
+        } as any,
+        source: 'user' as const,
+        timestamp: Date.now()
+      });
+    }
+  }
+
+  /**
+   * Set per-node layout strategy
+   * @param nodeId - The GUID of the node to configure (null = use current selection)
+   * @param strategy - Layout strategy to use for this node's children
+   * @param applyToDescendants - If true, override all descendants
+   */
+  setNodeLayoutStrategy(nodeId: string | null, strategy: 'grid' | 'force' | 'tree' | 'manual' | 'inherit', applyToDescendants = false): void {
+    const targetId = nodeId ?? this.selectionSubject.value?.id;
+    if (!targetId) {
+      return;
+    }
+
+    const canvasId = this.getActiveCanvasId();
+    if (canvasId) {
+      this.canvasEventHubService.emitEvent(canvasId, {
+        type: 'NodeConfigChanged' as const,
+        canvasId,
+        nodeId: targetId,
+        config: {
+          layoutStrategy: strategy,
+          applyToDescendants
+        } as any,
+        source: 'user' as const,
+        timestamp: Date.now()
+      });
+    }
+  }
+
+  /**
+   * Remove node-specific configuration (revert to inherited/default)
+   */
+  clearNodeConfig(nodeId: string | null): void {
+    const targetId = nodeId ?? this.selectionSubject.value?.id;
+    if (!targetId) {
+      return;
+    }
+
+    const canvasId = this.getActiveCanvasId();
+    if (canvasId) {
+      this.canvasEventHubService.emitEvent(canvasId, {
+        type: 'NodeConfigCleared' as const,
+        canvasId,
+        nodeId: targetId,
+        source: 'user' as const,
+        timestamp: Date.now()
+      });
+    }
   }
 
   /**
