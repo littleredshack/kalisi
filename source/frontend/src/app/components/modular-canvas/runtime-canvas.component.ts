@@ -327,6 +327,8 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       if (viewNode.layout) {
         try {
           const savedLayoutData = JSON.parse(viewNode.layout);
+          console.log('[RuntimeCanvas] Loaded saved layout with', savedLayoutData?.nodes?.length, 'nodes');
+          console.log('[RuntimeCanvas] Sample loaded positions:', savedLayoutData?.nodes?.slice(0, 2).map((n: any) => ({ id: n.id, x: n.x, y: n.y })));
           if (savedLayoutData?.nodes?.length && dataset) {
             this.normaliseCanvasData(savedLayoutData);
             this.canvasSnapshot = savedLayoutData;
@@ -893,6 +895,9 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
             }
           };
 
+          console.log('[RuntimeCanvas] Saving layout with', savedLayout.nodes.length, 'nodes, containmentMode:', viewConfig.containmentMode);
+          console.log('[RuntimeCanvas] Sample node positions:', savedLayout.nodes.slice(0, 2).map(n => ({ id: n.id, x: n.x, y: n.y })));
+
           const layoutJson = JSON.stringify(savedLayout);
 
           // Create separate Auto Layout settings JSON
@@ -912,13 +917,17 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
           `;
           
           const result: any = await firstValueFrom(
-            this.http.post('/v0/cypher/unified', { 
+            this.http.post('/v0/cypher/unified', {
               query: updateQuery,
               parameters: {}
             })
           );
-          
+
+          console.log('[RuntimeCanvas] Save result:', result.success ? 'SUCCESS' : 'FAILED');
+
           if (result.success) {
+            // Verify what was actually saved
+            console.log('[RuntimeCanvas] Layout saved successfully, JSON length:', layoutJson.length);
             this.messageService.add({
               severity: 'success',
               summary: 'Layout Saved',
