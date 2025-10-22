@@ -16,7 +16,6 @@ export interface NodeOverlayPatch extends OverlayPatchBase {
   readonly layout?: Partial<NodeLayoutConfig>;
   readonly containmentMode?: 'containers' | 'flat' | 'inherit';
   readonly visibility?: 'visible' | 'hidden' | 'inherit';
-  readonly collapseState?: 'collapsed' | 'expanded' | 'inherit';
 }
 
 export interface EdgeOverlayPatch extends OverlayPatchBase {
@@ -29,7 +28,6 @@ export interface ResolvedNodeProfile {
   readonly layout: ResolvedConfig;
   readonly style: NodeStyleSnapshot;
   readonly visibility: 'visible' | 'hidden';
-  readonly collapseState: 'collapsed' | 'expanded';
 }
 
 export interface ResolvedEdgeProfile {
@@ -44,7 +42,6 @@ export interface OverlayResolutionOptions {
   readonly baseLayout: ResolvedConfig;
   readonly baseContainmentMode: 'containers' | 'flat';
   readonly baseVisibility: 'visible' | 'hidden';
-  readonly baseCollapseState: 'collapsed' | 'expanded';
 }
 
 export interface EdgeResolutionOptions {
@@ -52,3 +49,4 @@ export interface EdgeResolutionOptions {
   readonly baseStyle: EdgeStyleOverrides;
   readonly baseVisibility: 'visible' | 'hidden';
 }
+

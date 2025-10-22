@@ -7,7 +7,6 @@ export class OverlayResolver {
   resolveNode(options: OverlayResolutionOptions): ResolvedNodeProfile {
     let containmentMode = options.baseContainmentMode;
     let visibility = options.baseVisibility;
-    let collapseState: 'collapsed' | 'expanded' = options.baseCollapseState;
     const layout = {
       layoutStrategy: options.baseLayout.layoutStrategy,
       layoutOptions: { ...options.baseLayout.layoutOptions },
@@ -28,10 +27,6 @@ export class OverlayResolver {
 
       if (patch.visibility && patch.visibility !== 'inherit') {
         visibility = patch.visibility;
-      }
-
-      if (patch.collapseState && patch.collapseState !== 'inherit') {
-        collapseState = patch.collapseState;
       }
 
       if (patch.layout) {
@@ -78,7 +73,6 @@ export class OverlayResolver {
           style.labelVisible = patch.style.labelVisible;
         }
       }
-
     }
 
     layout.renderStyle.showContainsEdges = layout.renderStyle.nodeMode === 'flat';
@@ -87,8 +81,7 @@ export class OverlayResolver {
       containmentMode,
       layout,
       style,
-      visibility,
-      collapseState
+      visibility
     };
   }
 
