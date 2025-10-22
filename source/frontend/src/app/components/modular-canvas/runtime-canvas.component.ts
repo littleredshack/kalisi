@@ -629,6 +629,10 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       if (this.canvasSnapshot) {
         this.engine.getLayoutRuntime().setGraphDataSet(this.graphDataSet, false, 'system');
         this.engine.getLayoutRuntime().setViewConfig(this.viewState.layout.global);
+
+        // Sync service state with loaded viewConfig (for Layout Panel to show correct state)
+        this.syncServiceWithViewConfig(this.viewState.layout.global);
+
         // CRITICAL: Do NOT run layout - we want to preserve saved positions
         this.engine.setData(this.canvasSnapshot, false);
         initialSnapshot = this.engine.getData();
@@ -636,6 +640,8 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
         initialSnapshot = await this.engine.loadGraphDataSet(this.graphDataSet, this.viewState, {
           reason: 'initial'
         });
+        // Sync after loadGraphDataSet as well
+        this.syncServiceWithViewConfig(this.viewState.layout.global);
       }
     } else if (this.canvasSnapshot) {
       this.engine.setData(this.canvasSnapshot, false);
@@ -709,6 +715,13 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       layoutMode: currentConfig.layoutMode,
       edgeRouting: currentConfig.edgeRouting
     };
+  }
+
+  private syncServiceWithViewConfig(viewConfig: RuntimeViewConfig): void {
+    // Update service state to match loaded config (for UI panels to show correct state)
+    this.canvasControlService.setContainmentMode(viewConfig.containmentMode);
+    this.canvasControlService.setLayoutMode(viewConfig.layoutMode);
+    this.canvasControlService.setEdgeRouting(viewConfig.edgeRouting);
   }
 
   private readContainmentModeFromSelectedViewNode(): 'containers' | 'flat' | null {
