@@ -20,6 +20,7 @@ interface EngineRuntimeConfig {
 interface FlatLayoutFrame {
   readonly nodes: HierarchicalNode[];
   readonly rootIds: string[];
+  readonly containsEdges: Edge[];
 }
 
 const DEFAULT_PADDING = 48;
@@ -67,12 +68,15 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     let processedNodes: HierarchicalNode[];
     let rootIds: string[] | undefined;
 
+    let generatedContainsEdges: Edge[] = [];
+
     if (runtimeConfig.containmentMode === 'flat') {
-      // FLAT MODE: Flatten hierarchy (CONTAINS edges already exist in snapshot.edges from backend)
+      // FLAT MODE: Flatten hierarchy and generate CONTAINS edges from structure
       const visibleRoots = snapshot.nodes.filter(node => !hiddenByCollapse.has(node.GUID ?? node.id));
       const flatFrame = this.layoutFlatFromHierarchy(visibleRoots, layoutMetrics, runtimeConfig, hiddenByCollapse);
       processedNodes = flatFrame.nodes;
       rootIds = flatFrame.rootIds;
+      generatedContainsEdges = flatFrame.containsEdges;
     } else {
       // CONTAINERS MODE: Process hierarchically
       processedNodes = snapshot.nodes
@@ -84,7 +88,10 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
         .filter((value): value is string => Boolean(value));
     }
 
-    const edgesToRender = snapshot.edges.map(edge => {
+    // Merge original edges with generated CONTAINS edges from flat mode
+    const allEdges = [...snapshot.edges, ...generatedContainsEdges];
+
+    const edgesToRender = allEdges.map(edge => {
       const existingMetadata = edge.metadata ?? {};
       const relationTypeSource =
         typeof existingMetadata['relationType'] === 'string'
@@ -523,7 +530,8 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
 
     return {
       nodes: flatResult.nodes,
-      rootIds: Array.from(new Set(rootIds))
+      rootIds: Array.from(new Set(rootIds)),
+      containsEdges: flatResult.containsEdges
     };
   }
 }
