@@ -5,6 +5,7 @@ import { HierarchicalNode, Edge } from '../../canvas/types';
 import { LayoutPrimitives } from '../../canvas/layout-primitives';
 import { RuntimeViewConfig } from '../../canvas/layout-runtime';
 import { flattenHierarchyWithEdges, applyFlatGridLayout, setAbsoluteWorldPositions } from '../helpers/flat-layout-helper';
+import { NodeConfigManager } from '../../canvas/node-config-manager';
 
 interface ContainmentMetrics {
   readonly padding: number;
@@ -59,6 +60,7 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
 
     // Extract runtime config from engineOptions
     const runtimeConfig = this.extractRuntimeConfig(options.engineOptions);
+    const nodeConfigManager = options.engineOptions?.['nodeConfigManager'] as NodeConfigManager | undefined;
 
     const layoutMetrics: ContainmentMetrics = {
       padding: DEFAULT_PADDING,
@@ -81,7 +83,7 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
       // CONTAINERS MODE: Process hierarchically
       processedNodes = snapshot.nodes
         .filter(node => !hiddenByCollapse.has(node.GUID ?? node.id))
-        .map(node => this.layoutContainer(node, layoutMetrics, runtimeConfig, hiddenByCollapse, collapsedNodes));
+        .map(node => this.layoutContainer(node, layoutMetrics, runtimeConfig, hiddenByCollapse, collapsedNodes, nodeConfigManager));
       processedNodes.forEach(root => this.updateWorldMetadata(root));
       rootIds = processedNodes
         .map(node => node.GUID ?? node.id)
@@ -183,7 +185,8 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     metrics: ContainmentMetrics,
     config: EngineRuntimeConfig,
     hiddenByCollapse: Set<string>,
-    collapsedNodes: Set<string>
+    collapsedNodes: Set<string>,
+    nodeConfigManager?: NodeConfigManager
   ): HierarchicalNode {
     const clone = this.ensureDefaults(this.cloneNode(node));
     const guid = clone.GUID ?? clone.id;
@@ -204,15 +207,30 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     const visibleChildren = node.children.filter(child => !hiddenByCollapse.has(child.GUID ?? child.id));
 
     // Recursively layout children first to get their sizes
-    const laidOutChildren = visibleChildren.map(child => this.layoutContainer(child, metrics, config, hiddenByCollapse, collapsedNodes));
+    const laidOutChildren = visibleChildren.map(child => this.layoutContainer(child, metrics, config, hiddenByCollapse, collapsedNodes, nodeConfigManager));
 
-    // Apply layout algorithm based on layoutMode
-    if (config.layoutMode === 'grid') {
-      this.applyAdaptiveGrid(clone, laidOutChildren, metrics);
-    } else if (config.layoutMode === 'force') {
-      // TODO: Implement force-directed layout delegation
-      this.applyAdaptiveGrid(clone, laidOutChildren, metrics); // Fallback to grid for now
+    // Check for per-node layout override
+    let effectiveLayoutMode = config.layoutMode;
+    if (nodeConfigManager && clone.GUID) {
+      const resolved = nodeConfigManager.getResolvedConfig(clone);
+      if (resolved.layoutStrategy !== 'manual') {
+        effectiveLayoutMode = resolved.layoutStrategy as 'grid' | 'force';
+      }
     }
+
+    // Apply layout algorithm based on effective layout mode
+    if (effectiveLayoutMode === 'grid') {
+      this.applyAdaptiveGrid(clone, laidOutChildren, metrics);
+    } else if (effectiveLayoutMode === 'force') {
+      // TODO: Implement force-directed layout
+      this.applyAdaptiveGrid(clone, laidOutChildren, metrics); // Fallback to grid for now
+    } else if (effectiveLayoutMode === 'tree') {
+      // TODO: Implement tree layout
+      this.applyAdaptiveGrid(clone, laidOutChildren, metrics); // Fallback to grid for now
+    } else {
+      this.applyAdaptiveGrid(clone, laidOutChildren, metrics);
+    }
+
     clone.children = laidOutChildren;
 
     // In 'containers' mode: resize parent to fit children (visual containment)

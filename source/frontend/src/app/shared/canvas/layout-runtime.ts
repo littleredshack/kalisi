@@ -9,6 +9,7 @@ import { CanvasEventBus, CanvasEventSource } from '../layouts/core/layout-events
 import { LayoutWorkerBridge } from '../layouts/async/layout-worker-bridge';
 import { processRawDataToGraph, validateRawData } from '../layouts/utils/raw-data-processor';
 import { GraphDataSet, graphDataSetToRawDataInput } from '../graph/graph-data-set';
+import { NodeConfigManager, NodeLayoutConfig } from './node-config-manager';
 
 export interface CanvasLayoutRuntimeConfig {
   readonly defaultEngine?: string;
@@ -37,11 +38,13 @@ export class CanvasLayoutRuntime {
   private readonly defaultEngine: string;
   private readonly eventBus: CanvasEventBus;
   private graphDataSet: GraphDataSet | null = null;
+  private readonly nodeConfigManager: NodeConfigManager;
 
   constructor(canvasId: string, initialData: CanvasData, config: CanvasLayoutRuntimeConfig = {}) {
     this.canvasId = canvasId;
     this.orchestrator = registerDefaultLayoutEngines(new LayoutOrchestrator());
     this.workerBridge = new LayoutWorkerBridge(this.orchestrator, { useWorker: config.useWorker });
+    this.nodeConfigManager = new NodeConfigManager();
 
     const defaultProfile: RuntimeViewConfig = {
       containmentMode: 'containers',
@@ -103,6 +106,18 @@ export class CanvasLayoutRuntime {
 
   getViewConfig(): RuntimeViewConfig {
     return { ...this.runtimeConfig };
+  }
+
+  getNodeConfigManager(): NodeConfigManager {
+    return this.nodeConfigManager;
+  }
+
+  setNodeLayoutConfig(nodeId: string, config: NodeLayoutConfig): void {
+    this.nodeConfigManager.setNodeConfig(nodeId, config);
+  }
+
+  removeNodeLayoutConfig(nodeId: string): void {
+    this.nodeConfigManager.removeNodeConfig(nodeId);
   }
 
   setViewConfig(config: RuntimeViewConfigPatch): void {
@@ -168,7 +183,8 @@ export class CanvasLayoutRuntime {
       ...(options.engineOptions ?? {}),
       containmentMode: this.runtimeConfig.containmentMode,
       layoutMode: this.runtimeConfig.layoutMode,
-      edgeRouting: this.runtimeConfig.edgeRouting
+      edgeRouting: this.runtimeConfig.edgeRouting,
+      nodeConfigManager: this.nodeConfigManager
     };
 
     const result = await this.workerBridge.run(this.canvasId, baseGraph, {
@@ -245,44 +261,18 @@ export class CanvasLayoutRuntime {
   }
 
   private inferEngineFromData(data: CanvasData): string {
-    if (data.nodes.some(node => node.metadata?.['displayMode'] === 'tree')) {
-      return 'tree';
-    }
-    if (data.nodes.some(node => node.metadata?.['displayMode'] === 'containment-runtime')) {
-      return 'containment-runtime';
-    }
-    return 'containment-grid';
+    // Always use containment-runtime - it's the only engine
+    return 'containment-runtime';
   }
 
   private normaliseEngineName(engineName: string): string {
     const key = engineName.trim().toLowerCase();
-    switch (key) {
-      case 'tree':
-      case 'tree-table':
-      case 'code-model-tree':
-        return 'tree';
-      case 'force':
-      case 'force-directed':
-      case 'flat-graph':
-        return 'force-directed';
-      case 'containment-runtime':
-      case 'containment-live':
-        return 'containment-runtime';
-      case 'orthogonal':
-      case 'containment-orthogonal':
-        return 'orthogonal';
-      case 'containment-grid':
-      case 'grid':
-      case 'hierarchical':
-      case 'codebase-hierarchical':
-      case 'containment':
-        return 'containment-grid';
-      default:
-        if (key === 'tree' || key === 'orthogonal' || key === 'force-directed' || key === 'containment-grid') {
-          return key;
-        }
-        return 'containment-grid';
+    // Only containment-runtime exists now
+    if (key === 'containment-runtime' || key === 'containment-live' || key === 'runtime') {
+      return 'containment-runtime';
     }
+    // Default to containment-runtime
+    return 'containment-runtime';
   }
 
   private resolvePriority(options: LayoutRunOptions): LayoutPriority {

@@ -26,8 +26,6 @@ import { CanvasControlService, CanvasController, CameraInfo } from '../../core/s
 // CanvasViewStateService removed
 import { CanvasHistoryService } from '../../core/services/canvas-history.service';
 import { CanvasEventHubService } from '../../core/services/canvas-event-hub.service';
-import { LayoutModuleDescriptor, LayoutModuleRegistry } from '../../shared/layouts/layout-module-registry';
-import { ComponentFactoryResult } from '../../shared/canvas/component-factory';
 import { GraphLensRegistry, GraphLensDescriptor } from '../../shared/graph/lens-registry';
 import { ensureRelativeNodeCoordinates } from '../../shared/canvas/utils/relative-coordinates';
 import { CanvasLayoutRuntime, RuntimeViewConfig } from '../../shared/canvas/layout-runtime';
@@ -86,8 +84,6 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   private viewState: ViewState | null = null;
   private canvasSnapshot: CanvasData | null = null;
   private canvasId = 'modular-canvas';
-  private currentLayoutModule?: LayoutModuleDescriptor;
-  private currentRendererId?: string;
   private runtimeEngineId: string = 'containment-runtime';
   private availableLenses: ReadonlyArray<GraphLensDescriptor> = [];
   private currentLensId = 'full-graph';
@@ -589,10 +585,9 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
 
     // Simplified: Always use containment-runtime with runtime renderers
     this.runtimeEngineId = 'containment-runtime';
-    this.currentRendererId = 'runtime-containment-renderer';
 
-    this.containmentRenderer = new RuntimeContainmentRenderer();
-    this.flatRenderer = new RuntimeFlatRenderer();
+    this.containmentRenderer = ComponentFactory.createContainmentRenderer();
+    this.flatRenderer = ComponentFactory.createFlatRenderer();
 
     if (this.containmentRenderer && 'setViewNodeStateService' in this.containmentRenderer) {
       (this.containmentRenderer as any).setViewNodeStateService(this.viewNodeState);
