@@ -717,6 +717,11 @@ export class RuntimeCanvasController {
           this.onDataChangedCallback(this.layoutRuntime.getCanvasData());
         }
 
+        // Persist positional changes into the runtime model so subsequent layout runs
+        // start from the updated coordinates instead of the canonical dataset.
+        const latest = this.layoutRuntime.getCanvasData();
+        this.layoutRuntime.setCanvasData(latest, false, 'system');
+
         if (this.overlayService) {
           const nodeId = selectedNode.GUID ?? selectedNode.id;
           if (nodeId) {
