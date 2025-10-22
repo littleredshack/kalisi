@@ -320,14 +320,19 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
         return;
       }
 
+      // CRITICAL: Always fetch dataset first, even if we have saved layout
+      // The dataset is needed for containment mode toggling to rebuild hierarchy
+      const dataset = await this.neo4jDataService.fetchGraphDataSet(viewNode);
+
       if (viewNode.layout) {
         try {
           const savedLayoutData = JSON.parse(viewNode.layout);
-          if (savedLayoutData?.nodes?.length) {
+          if (savedLayoutData?.nodes?.length && dataset) {
             this.normaliseCanvasData(savedLayoutData);
             this.canvasSnapshot = savedLayoutData;
-            this.graphDataSet = null;
-            this.viewState = null;
+            // CRITICAL: Store dataset even when using saved layout
+            this.graphDataSet = dataset;
+            this.viewState = this.createInitialViewState(viewNode, dataset);
             await this.createEngineWithData();
             return;
           }
@@ -335,8 +340,6 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
           console.warn('[RuntimeCanvas] Failed to parse saved layout, falling back to live dataset', error);
         }
       }
-
-      const dataset = await this.neo4jDataService.fetchGraphDataSet(viewNode);
 
       if (dataset) {
         this.graphDataSet = dataset;
@@ -620,9 +623,18 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
 
     let initialSnapshot: CanvasData;
     if (this.graphDataSet && this.viewState) {
-      initialSnapshot = await this.engine.loadGraphDataSet(this.graphDataSet, this.viewState, {
-        reason: 'initial'
-      });
+      // If we also have a saved layout snapshot, use it for positions
+      // but still store the dataset for containment toggles
+      if (this.canvasSnapshot) {
+        this.engine.getLayoutRuntime().setGraphDataSet(this.graphDataSet, false, 'system');
+        this.engine.getLayoutRuntime().setViewConfig(this.viewState.layout.global);
+        this.engine.setData(this.canvasSnapshot, false);
+        initialSnapshot = this.engine.getData();
+      } else {
+        initialSnapshot = await this.engine.loadGraphDataSet(this.graphDataSet, this.viewState, {
+          reason: 'initial'
+        });
+      }
     } else if (this.canvasSnapshot) {
       this.engine.setData(this.canvasSnapshot, false);
       initialSnapshot = this.engine.getData();

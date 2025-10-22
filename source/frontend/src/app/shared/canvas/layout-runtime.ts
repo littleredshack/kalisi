@@ -114,11 +114,18 @@ export class CanvasLayoutRuntime {
 
     // CRITICAL: When containment mode changes, we MUST rebuild from original dataset
     // because flat mode destroys hierarchy (children = []), and we need to restore it
-    if (config.containmentMode && config.containmentMode !== previousMode && this.graphDataSet) {
-      console.log('[LayoutRuntime] Containment mode changed:', previousMode, '->', config.containmentMode, '- rebuilding from dataset');
-      const raw = graphDataSetToRawDataInput(this.graphDataSet);
-      this.setRawDataInternal(raw, false, 'system');
-      console.log('[LayoutRuntime] Rebuild complete, viewGraph.nodes:', this.viewGraph.nodes.length, 'roots with children');
+    if (config.containmentMode && config.containmentMode !== previousMode) {
+      console.log('[LayoutRuntime] Containment mode changed:', previousMode, '->', config.containmentMode);
+      console.log('[LayoutRuntime] graphDataSet available?', !!this.graphDataSet);
+
+      if (this.graphDataSet) {
+        console.log('[LayoutRuntime] Rebuilding from dataset...');
+        const raw = graphDataSetToRawDataInput(this.graphDataSet);
+        this.setRawDataInternal(raw, false, 'system');
+        console.log('[LayoutRuntime] Rebuild complete, viewGraph.nodes:', this.viewGraph.nodes.length, 'roots');
+      } else {
+        console.warn('[LayoutRuntime] Cannot rebuild - no graphDataSet available!');
+      }
     }
   }
 
@@ -131,6 +138,7 @@ export class CanvasLayoutRuntime {
 
   setGraphDataSet(dataset: GraphDataSet, runLayout = false, source: CanvasEventSource = 'system'): void {
     this.graphDataSet = dataset;
+    console.log('[LayoutRuntime] setGraphDataSet called, storing dataset with', dataset.nodes.length, 'nodes');
     const raw = graphDataSetToRawDataInput(dataset);
     this.setRawDataInternal(raw, runLayout, source);
   }

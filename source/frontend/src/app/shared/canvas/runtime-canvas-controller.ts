@@ -146,8 +146,15 @@ export class RuntimeCanvasController {
     options: { reason?: 'initial' | 'data-update' | 'engine-switch' | 'reflow' | 'user-command' } = {}
   ): Promise<CanvasData> {
     const reason = options.reason ?? 'initial';
+
+    console.log('[RuntimeCanvasController] loadGraphDataSet called with', dataset.nodes.length, 'nodes');
+
+    // CRITICAL: Must set view config BEFORE setGraphDataSet so containment mode is correct
     this.layoutRuntime.setViewConfig(viewState.layout.global);
+
+    // Store dataset in runtime so containment toggle can rebuild from it
     this.layoutRuntime.setGraphDataSet(dataset, false, 'system');
+
     const result = await this.layoutRuntime.runLayout({
       reason,
       source: 'system'
