@@ -54,8 +54,6 @@ export interface GraphRawData extends RawDataInput {
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
-import { GraphDataSet } from '../../shared/graph/graph-data-set';
-
 interface RuntimeGraphResponse {
   query_id: string;
   cypher: string;

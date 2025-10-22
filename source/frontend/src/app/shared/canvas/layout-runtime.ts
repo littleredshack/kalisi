@@ -1,4 +1,4 @@
-import { CanvasData, HierarchicalNode, Edge } from './types';
+import { CanvasData, HierarchicalNode, Edge, NodeStyleSnapshot, EdgeStyleOverrides } from './types';
 import { LayoutOrchestrator, LayoutPriority, LayoutRunOptions } from '../layouts/core/layout-orchestrator';
 import { registerDefaultLayoutEngines } from '../layouts/engine-registry';
 import { canvasDataToLayoutGraph, layoutGraphToHierarchical } from '../layouts/core/layout-graph-utils';
@@ -9,10 +9,11 @@ import { PresentationFrame, buildPresentationFrame } from '../render/presentatio
 import { CanvasEventBus, CanvasEventSource } from '../layouts/core/layout-events';
 import { LayoutWorkerBridge } from '../layouts/async/layout-worker-bridge';
 import { ensureRelativeNodeCoordinates } from './utils/relative-coordinates';
-import { OverlayStore } from './overlay/overlay-store';
-import { OverlayResolver } from './overlay/overlay-resolver';
-import { ResolvedConfig } from './node-config-manager';
 import { processRawDataToGraph, validateRawData } from '../layouts/utils/raw-data-processor';
+import { OverlayResolver } from './overlay/overlay-resolver';
+import { OverlayStore } from './overlay/overlay-store';
+import { ResolvedConfig } from './node-config-manager';
+import { GraphDataSet, graphDataSetToRawDataInput } from '../graph/graph-data-set';
 
 export interface CanvasLayoutRuntimeConfig {
   readonly defaultEngine?: string;
@@ -49,6 +50,7 @@ export class CanvasLayoutRuntime {
   private readonly store: GraphStore;
   private canvasData: CanvasData;
   private modelData: CanvasData;
+  private canonicalModelData: CanvasData;
   private readonly viewOverlay: RuntimeViewOverlay;
   private readonly eventBus: CanvasEventBus;
   private frame: PresentationFrame | null = null;
@@ -57,6 +59,7 @@ export class CanvasLayoutRuntime {
   private readonly defaultEngine: string;
   private overlayStore: OverlayStore | null = null;
   private overlayResolver: OverlayResolver | null = null;
+  private graphDataSet: GraphDataSet | null = null;
 
   constructor(canvasId: string, initialData: CanvasData, config: CanvasLayoutRuntimeConfig = {}) {
     this.canvasId = canvasId;
@@ -90,8 +93,9 @@ export class CanvasLayoutRuntime {
     }
 
     // Store canonical model as an immutable clone
+    this.canonicalModelData = this.cloneCanvasData(initialData);
     this.modelData = this.cloneCanvasData(initialData);
-    this.canvasData = initialData;
+    this.canvasData = this.cloneCanvasData(initialData);
 
     const initialEngine = this.normaliseEngineName(this.defaultEngine);
     this.orchestrator.setActiveEngine(canvasId, initialEngine);
@@ -175,6 +179,7 @@ export class CanvasLayoutRuntime {
   }
 
   setCanvasData(data: CanvasData, runLayout = false, source: CanvasEventSource = 'system'): void {
+    this.graphDataSet = null;
     // Treat incoming data as canonical model (no deep copies)
     this.modelData = this.cloneCanvasData(data);
     this.canvasData = data;
@@ -204,40 +209,20 @@ export class CanvasLayoutRuntime {
   }
 
   /**
-   * Apply a mutation function to nodes in the canonical model by GUID
-   * Used to keep modelData in sync with runtime overrides without replacing hierarchy.
-   */
-  updateModelNodesById(nodeIds: ReadonlyArray<string>, mutator: (node: HierarchicalNode) => void): void {
-    if (!nodeIds || nodeIds.length === 0) {
-      return;
-    }
-    const targetIds = new Set(
-      nodeIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
-    );
-    if (targetIds.size === 0) {
-      return;
-    }
-
-    const applyMutator = (nodes: HierarchicalNode[]): void => {
-      nodes.forEach(node => {
-        const guid = node.GUID ?? node.id;
-        if (guid && targetIds.has(guid)) {
-          mutator(node);
-        }
-        if (node.children && node.children.length > 0) {
-          applyMutator(node.children);
-        }
-      });
-    };
-
-    applyMutator(this.modelData.nodes);
-  }
-
-  /**
    * Set data from raw entities and relationships
    * Uses the current engine's processRawData() if available,
    * otherwise falls back to default transformation
    */
+  setGraphDataSet(dataset: GraphDataSet, runLayout = false, source: CanvasEventSource = 'system'): void {
+    this.graphDataSet = dataset;
+    const rawInput = graphDataSetToRawDataInput(dataset);
+    this.setRawData(rawInput, runLayout, source);
+  }
+
+  getGraphDataSet(): GraphDataSet | null {
+    return this.graphDataSet;
+  }
+
   setRawData(input: RawDataInput, runLayout = true, source: CanvasEventSource = 'system'): void {
     // Validate input
     const validation = validateRawData(input);
@@ -269,8 +254,9 @@ export class CanvasLayoutRuntime {
       camera: this.canvasData?.camera ?? undefined,
       metadata: snapshot.metadata
     });
-    this.modelData = canonical;
-    this.canvasData = canonical;
+    this.canonicalModelData = this.cloneCanvasData(canonical);
+    this.modelData = this.cloneCanvasData(canonical);
+    this.canvasData = this.cloneCanvasData(canonical);
 
     this.store.replace(graph);
 
@@ -312,6 +298,13 @@ export class CanvasLayoutRuntime {
   }
 
   async runLayout(options: LayoutRunOptions = {}): Promise<CanvasData> {
+    const preservedCamera = this.canvasData?.camera ? { ...this.canvasData.camera } : undefined;
+    this.modelData = this.cloneCanvasData(this.canonicalModelData);
+    if (preservedCamera) {
+      this.modelData.camera = preservedCamera;
+    }
+    this.applyOverlayProfiles(this.modelData);
+
     const normalisedEngine = options.engineName ? this.normaliseEngineName(options.engineName) : undefined;
     if (normalisedEngine) {
       this.orchestrator.setActiveEngine(this.canvasId, normalisedEngine, options.source ?? 'system');
@@ -348,13 +341,7 @@ export class CanvasLayoutRuntime {
       }
     });
 
-    const presentationOptions = this.overlayResolver ? {
-      overlayResolver: this.overlayResolver,
-      baseLayoutConfig: this.resolveBaseLayoutProfile(),
-      baseContainmentMode: this.viewOverlay.global.containmentMode
-    } : undefined;
-
-    this.frame = buildPresentationFrame(result, this.frame ?? undefined, this.lensId, presentationOptions);
+    this.frame = buildPresentationFrame(result, this.frame ?? undefined, this.lensId);
 
     if (this.frame) {
       const rendererId = this.viewOverlay.global.containmentMode === 'containers'
@@ -480,6 +467,192 @@ export class CanvasLayoutRuntime {
     };
   }
 
+  setOverlayStore(store: OverlayStore | null): void {
+    this.overlayStore = store;
+    this.overlayResolver = store ? new OverlayResolver(store) : null;
+  }
+
+  getOverlayResolver(): OverlayResolver | null {
+    return this.overlayResolver;
+  }
+
+  private applyOverlayProfiles(data: CanvasData): void {
+    if (!this.overlayResolver) {
+      return;
+    }
+
+    const clearFlags = (node: HierarchicalNode): void => {
+      if (node.metadata) {
+        delete node.metadata['hiddenByCollapse'];
+        delete node.metadata['badges'];
+      }
+      node.children?.forEach(child => clearFlags(child));
+    };
+    data.nodes.forEach(clearFlags);
+
+    const traverse = (node: HierarchicalNode, ancestors: string[]): void => {
+      const guid = node.GUID ?? node.id;
+      if (!guid) {
+        return;
+      }
+
+      const baseLayout = this.buildResolvedLayoutConfig(guid);
+      const baseContainment = baseLayout.renderStyle.nodeMode === 'flat' ? 'flat' : 'containers';
+
+      const profile = this.overlayResolver!.resolveNode({
+        nodeId: guid,
+        ancestorIds: ancestors,
+        baseStyle: this.buildNodeStyleSnapshot(node),
+        baseLayout,
+        baseContainmentMode: baseContainment,
+        baseVisibility: node.visible === false ? 'hidden' : 'visible',
+        basePosition: { x: node.x ?? 0, y: node.y ?? 0 },
+        baseSize: { width: node.width ?? 200, height: node.height ?? 120 },
+        baseCollapseState: 'expanded'
+      });
+
+      node.metadata = {
+        ...(node.metadata ?? {}),
+        resolvedProfile: profile,
+        collapseState: profile.collapseState
+      };
+
+      node.style = {
+        ...node.style,
+        fill: profile.style.fill,
+        stroke: profile.style.stroke,
+        icon: profile.style.icon
+      };
+
+      node.visible = profile.visibility !== 'hidden';
+      node.collapsed = profile.collapseState === 'collapsed';
+
+      if (profile.collapseState === 'collapsed') {
+        markDescendantsHidden(node.children ?? []);
+        const totalDescendants = countDescendants(node);
+        if (totalDescendants > 0) {
+          node.metadata['badges'] = [{ text: String(totalDescendants), color: 'rgba(30, 64, 175, 0.9)' }];
+        }
+      }
+
+      if (profile.geometry) {
+        const applies = profile.geometry.applyWhen === 'both' || profile.geometry.applyWhen === profile.containmentMode;
+        if (applies) {
+          const baseX = node.x ?? 0;
+          const baseY = node.y ?? 0;
+          const baseWidth = node.width ?? 200;
+          const baseHeight = node.height ?? 120;
+
+          if (profile.geometry.position) {
+            const { x, y } = profile.geometry.position;
+            if (profile.geometry.mode === 'relative') {
+              node.x = baseX + (x ?? 0);
+              node.y = baseY + (y ?? 0);
+            } else {
+              node.x = x ?? baseX;
+              node.y = y ?? baseY;
+            }
+          }
+
+          if (profile.geometry.size) {
+            const { width, height } = profile.geometry.size;
+            if (profile.geometry.mode === 'relative') {
+              node.width = baseWidth + (width ?? 0);
+              node.height = baseHeight + (height ?? 0);
+            } else {
+              node.width = width ?? baseWidth;
+              node.height = height ?? baseHeight;
+            }
+          }
+        }
+      }
+
+      const nextAncestors = [...ancestors, guid];
+      node.children?.forEach(child => traverse(child, nextAncestors));
+    };
+
+    data.nodes.forEach(root => traverse(root, []));
+
+    data.edges?.forEach(edge => {
+      const edgeProfile = this.overlayResolver!.resolveEdge({
+        edgeId: edge.id,
+        baseStyle: this.buildEdgeStyleSnapshot(edge),
+        baseVisibility: edge.metadata?.['visible'] === false ? 'hidden' : 'visible'
+      });
+
+      edge.style = {
+        ...edge.style,
+        stroke: edgeProfile.style.stroke ?? edge.style?.stroke ?? '#6ea8fe',
+        strokeWidth: edgeProfile.style.strokeWidth ?? edge.style?.strokeWidth ?? 2,
+        strokeDashArray: edgeProfile.style.strokeDashArray !== undefined
+          ? edgeProfile.style.strokeDashArray
+          : edge.style?.strokeDashArray ?? null
+      };
+
+      if (edgeProfile.style.label !== undefined) {
+        edge.label = edgeProfile.style.label ?? '';
+      }
+
+      edge.metadata = {
+        ...(edge.metadata ?? {}),
+        visible: edgeProfile.visibility !== 'hidden',
+        labelVisible: edgeProfile.style.labelVisible !== undefined ? edgeProfile.style.labelVisible : edge.metadata?.['labelVisible']
+      };
+    });
+
+    function markDescendantsHidden(children: HierarchicalNode[]): void {
+      children.forEach(child => {
+        child.metadata = {
+          ...(child.metadata ?? {}),
+          hiddenByCollapse: true
+        };
+        child.visible = false;
+        markDescendantsHidden(child.children ?? []);
+      });
+    }
+
+    function countDescendants(node: HierarchicalNode): number {
+      if (!node.children || node.children.length === 0) {
+        return 0;
+      }
+      return node.children.reduce((acc, child) => acc + 1 + countDescendants(child), 0);
+    }
+  }
+
+  private buildNodeStyleSnapshot(node: HierarchicalNode): NodeStyleSnapshot {
+    return {
+      fill: node.style.fill,
+      stroke: node.style.stroke,
+      icon: node.style.icon,
+      shape: (node.metadata?.['shape'] as NodeStyleSnapshot['shape']) ?? 'rounded',
+      cornerRadius: (node.metadata?.['cornerRadius'] as number | undefined) ?? 8,
+      labelVisible: node.metadata?.['labelVisible'] !== false
+    };
+  }
+
+  private buildEdgeStyleSnapshot(edge: Edge): EdgeStyleOverrides {
+    return {
+      stroke: edge.style?.stroke ?? '#6ea8fe',
+      strokeWidth: edge.style?.strokeWidth ?? 2,
+      strokeDashArray: edge.style?.strokeDashArray ?? undefined,
+      label: edge.label,
+      labelVisible: edge.metadata?.['labelVisible'] !== false
+    };
+  }
+
+  private buildResolvedLayoutConfig(nodeId: string): ResolvedConfig {
+    const runtimeConfig = this.resolveProfileForNode(nodeId);
+    return {
+      layoutStrategy: runtimeConfig.layoutMode === 'force' ? 'force' : 'grid',
+      layoutOptions: {},
+      renderStyle: {
+        nodeMode: runtimeConfig.containmentMode === 'flat' ? 'flat' : 'container',
+        edgeRouting: runtimeConfig.edgeRouting === 'straight' ? 'straight' : 'orthogonal',
+        showContainsEdges: runtimeConfig.containmentMode === 'flat'
+      }
+    };
+  }
+
   private serialiseOverlay(): SerializedViewOverlay {
     const overrides = Array.from(this.viewOverlay.overrides.entries()).map(([nodeId, patch]) => ({
       nodeId,
@@ -491,31 +664,6 @@ export class CanvasLayoutRuntime {
     return {
       global: { ...this.viewOverlay.global },
       overrides
-    };
-  }
-
-  setOverlayStore(store: OverlayStore | null): void {
-    this.overlayStore = store;
-    this.overlayResolver = store ? new OverlayResolver(store) : null;
-  }
-
-  getOverlayResolver(): OverlayResolver | null {
-    return this.overlayResolver;
-  }
-
-  private resolveBaseLayoutProfile(): ResolvedConfig {
-    const layoutMode = this.viewOverlay.global.layoutMode;
-    const containmentMode = this.viewOverlay.global.containmentMode;
-    const edgeRouting = this.viewOverlay.global.edgeRouting;
-
-    return {
-      layoutStrategy: layoutMode === 'force' ? 'force' : 'grid',
-      layoutOptions: {},
-      renderStyle: {
-        nodeMode: containmentMode === 'flat' ? 'flat' : 'container',
-        edgeRouting: edgeRouting === 'straight' ? 'straight' : 'orthogonal',
-        showContainsEdges: containmentMode === 'flat'
-      }
     };
   }
 }

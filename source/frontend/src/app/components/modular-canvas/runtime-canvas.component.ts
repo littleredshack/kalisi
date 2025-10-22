@@ -32,7 +32,6 @@ import { GraphLensRegistry, GraphLensDescriptor } from '../../shared/graph/lens-
 import { ensureRelativeNodeCoordinates } from '../../shared/canvas/utils/relative-coordinates';
 import { CanvasLayoutRuntime, RuntimeViewConfig } from '../../shared/canvas/layout-runtime';
 import { layoutGraphToHierarchical } from '../../shared/layouts/core/layout-graph-utils';
-import { RawDataInput } from '../../shared/layouts/core/layout-contract';
 import { ContainmentRuntimeLayoutEngine } from '../../shared/layouts/engines/containment-runtime-layout.engine';
 import { RuntimeContainmentRenderer } from '../../shared/composable/renderers/runtime-containment-renderer';
 import { RuntimeFlatRenderer } from '../../shared/composable/renderers/runtime-flat-renderer';
@@ -86,7 +85,6 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   private graphDataSet: GraphDataSet | null = null;
   private viewState: ViewState | null = null;
   private canvasSnapshot: CanvasData | null = null;
-  private data: CanvasData | null = null;
   private canvasId = 'modular-canvas';
   private currentLayoutModule?: LayoutModuleDescriptor;
   private currentRendererId?: string;
@@ -209,56 +207,6 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     this.updateRuntimeConfig(configPatch);
   }
 
-  private async fetchCanonicalViewData(viewNode: any): Promise<RawDataInput | null> {
-    try {
-      const result = await this.neo4jDataService.executeViewNodeQuery(viewNode);
-      this.rawViewNodeData = result;
-
-      const rawEntities = result.entities.map((entity: any) => {
-        const baseProperties = { ...(entity.properties ?? {}) };
-        if (entity.display) {
-          baseProperties['display'] = { ...(entity.display ?? {}) };
-        }
-        if (entity.labels) {
-          baseProperties['labels'] = [...entity.labels];
-        }
-
-        return {
-          id: entity.id ?? entity.guid ?? entity.GUID ?? this.generateGuid(),
-          name: entity.name ?? baseProperties['name'] ?? String(entity.id ?? entity.guid ?? 'node'),
-          type: baseProperties['type'] ?? 'node',
-          properties: baseProperties
-        };
-      });
-
-      const rawRelationships = result.relationships.map((rel: any) => {
-        const properties = { ...(rel.properties ?? {}) };
-        if (rel.display) {
-          properties['display'] = { ...(rel.display ?? {}) };
-        }
-
-        const source = rel.source ?? rel.source_guid ?? rel.sourceGuid ?? rel.from ?? rel.fromGUID;
-        const target = rel.target ?? rel.target_guid ?? rel.targetGuid ?? rel.to ?? rel.toGUID;
-
-        return {
-          id: rel.id ?? `${source}->${target}-${rel.type}`,
-          source: source,
-          target: target,
-          type: rel.type ?? properties['type'] ?? 'RELATED_TO',
-          properties
-        };
-      });
-
-      return {
-        entities: rawEntities,
-        relationships: rawRelationships
-      };
-    } catch (error) {
-      console.error('[RuntimeCanvas] Failed to fetch canonical data for view node:', error);
-      return null;
-    }
-  }
-
   private updateRuntimeConfig(configPatch: Partial<RuntimeViewConfig>): void {
 
     if (!this.engine) {
@@ -288,7 +236,7 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
 
     // Re-run layout to apply the new configuration
     this.engine.runLayout().then(() => {
-      this.data = this.engine?.getData() ?? this.data;
+      this.canvasSnapshot = this.engine?.getData() ?? this.canvasSnapshot;
       this.updateCameraInfo();
       this.engineDataChanged.emit();
     });
@@ -299,33 +247,33 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   // Load data from Neo4j with fallback to hardcoded
   private async loadData(): Promise<void> {
     try {
-      // FR-030: For ViewNodes, the data loading is handled in setViewNode()
-      // For non-ViewNode cases, load normally
       const selectedEntityId = this.getSelectedEntityId();
-      
+
       if (selectedEntityId && this.isViewNodeId(selectedEntityId)) {
-        // ViewNode data loading is handled separately in setViewNode()
-        this.data = this.createDefaultData(); // Temporary data
-        return; // Exit early, don't create engine yet
-      } else {
-        // Fallback to original test-modular loading
-        const neo4jData = await this.neo4jDataService.getViewGraph('test-modular');
-          
-        if (neo4jData.entities.length > 0) {
-          this.data = this.convertToHierarchicalFormat(neo4jData);
-        } else {
-          this.data = this.createDefaultData();
-        }
+        this.canvasSnapshot = this.createDefaultData();
+        this.graphDataSet = null;
+        this.viewState = null;
+        await this.createEngineWithData();
+        return;
       }
-      
-      // Create engine NOW that data is ready
-      this.createEngineWithData();
+
+      const neo4jData = await this.neo4jDataService.getViewGraph('test-modular');
+
+      if (neo4jData.entities.length > 0) {
+        this.canvasSnapshot = this.convertToHierarchicalFormat(neo4jData);
+      } else {
+        this.canvasSnapshot = this.createDefaultData();
+      }
+
+      this.graphDataSet = null;
+      this.viewState = null;
+      await this.createEngineWithData();
     } catch (error) {
       console.error('Neo4j query failed:', error);
-      this.data = this.createDefaultData();
-      
-      // Create engine with fallback data
-      this.createEngineWithData();
+      this.canvasSnapshot = this.createDefaultData();
+      this.graphDataSet = null;
+      this.viewState = null;
+      await this.createEngineWithData();
     }
   }
 
@@ -349,97 +297,78 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   // FR-030: Load data from ViewNode and recreate engine
   private async loadViewNodeData(viewNodeId: string): Promise<void> {
     try {
-      // Get all ViewNodes and find the one we need
       const viewNodes = await this.neo4jDataService.getAllViewNodes();
       const viewNode = viewNodes.find(vn => vn.id === viewNodeId);
-
 
       if (!viewNode) {
         return;
       }
-      // Store the viewNode for createEngineWithData to use
+
       this.selectedViewNode = viewNode;
       this.canvasId = viewNode.id || 'modular-canvas';
 
-      // Reset overlay state when switching to a new ViewNode
       this.overlayService.clear();
-
-      // Re-register canvas with control service using new ID
       this.canvasControlService.registerCanvas(this);
+      this.applyViewNodeAutoLayout(viewNode);
 
       if (viewNode.layout_engine === 'tree-table') {
-        const treeTableData = await this.neo4jDataService.fetchTreeTable(viewNode);
-        this.rawViewNodeData = {
-          entities: [{ treeTableData }],
-          relationships: []
-        } as any;
-        this.createEngineWithData();
+        await this.neo4jDataService.fetchTreeTable(viewNode);
+        this.canvasSnapshot = this.createEmptyCanvasData();
+        this.graphDataSet = null;
+        this.viewState = null;
+        await this.createEngineWithData();
         return;
       }
 
-      // Execute ViewNode query for canvas-based views
-      const result = await this.neo4jDataService.executeViewNodeQuery(viewNode);
-      const isRuntimeContainment = viewNode.layout_engine === 'containment-runtime';
-
-
-      if (result.entities.length > 0) {
-        if (isRuntimeContainment) {
-          this.data = this.createEmptyCanvasData();
-          this.rawViewNodeData = result;
-        } else if (viewNode.layout) {
-          try {
-            const savedLayoutData = JSON.parse(viewNode.layout);
-            if (savedLayoutData.nodes && savedLayoutData.nodes.length > 0) {
-              this.normaliseCanvasData(savedLayoutData);
-              this.data = savedLayoutData;
-              this.rawViewNodeData = null;
-            } else {
-              this.data = this.convertToHierarchicalFormat(result);
-              this.rawViewNodeData = result;
-            }
-          } catch (error) {
-            this.data = this.convertToHierarchicalFormat(result);
-            this.rawViewNodeData = result;
-          }
-        } else {
-          this.data = this.convertToHierarchicalFormat(result);
-          this.rawViewNodeData = result;
-        }
-
-        // After loading layout data, also load Auto Layout settings
-        const autoLayoutState = viewNode.autoLayoutSettings
-          ? JSON.parse(viewNode.autoLayoutSettings)
-          : { collapseBehavior: 'full-size', reflowBehavior: 'static' };
-
+      if (viewNode.layout) {
         try {
-          this.viewNodeState.setCollapseBehavior(autoLayoutState.collapseBehavior);
-          this.viewNodeState.setReflowBehavior(autoLayoutState.reflowBehavior);
+          const savedLayoutData = JSON.parse(viewNode.layout);
+          if (savedLayoutData?.nodes?.length) {
+            this.normaliseCanvasData(savedLayoutData);
+            this.canvasSnapshot = savedLayoutData;
+            this.graphDataSet = null;
+            this.viewState = null;
+            await this.createEngineWithData();
+            return;
+          }
         } catch (error) {
-          // Use defaults if parsing fails
-          this.viewNodeState.setCollapseBehavior('full-size');
-          this.viewNodeState.setReflowBehavior('static');
+          console.warn('[RuntimeCanvas] Failed to parse saved layout, falling back to live dataset', error);
         }
-        
-        // Create engine with ViewNode data
-        this.createEngineWithData();
-      } else {
-        // No data from query, use default data but still create engine with ViewNode settings
-        this.data = this.createDefaultData();
-        this.createEngineWithData();
       }
 
+      const dataset = await this.neo4jDataService.fetchGraphDataSet(viewNode);
+
+      if (dataset) {
+        this.graphDataSet = dataset;
+        this.viewState = this.createInitialViewState(viewNode, dataset);
+        this.canvasSnapshot = null;
+        await this.createEngineWithData();
+        return;
+      }
+
+      console.warn('[RuntimeCanvas] No dataset returned for ViewNode, falling back to legacy query path');
+      const legacyResult = await this.neo4jDataService.executeViewNodeQuery(viewNode);
+      if (legacyResult.entities.length > 0) {
+        this.canvasSnapshot = this.convertToHierarchicalFormat(legacyResult);
+      } else {
+        this.canvasSnapshot = this.createDefaultData();
+      }
+      this.graphDataSet = null;
+      this.viewState = null;
+      await this.createEngineWithData();
     } catch (error) {
       console.error('ViewNode data loading failed:', error);
-      // On error, still create engine with default data
-      this.data = this.createDefaultData();
-      this.createEngineWithData();
+      this.graphDataSet = null;
+      this.viewState = null;
+      this.canvasSnapshot = this.createDefaultData();
+      await this.createEngineWithData();
     }
   }
 
   // FR-030: Apply saved layout from ViewNode
   private convertToHierarchicalFormat(neo4jData: {entities: any[], relationships: any[]}): CanvasData {
     // Use runtime data processing instead of legacy layout engine
-    const seedData = this.data ?? this.createDefaultData();
+    const seedData = this.canvasSnapshot ?? this.createDefaultData();
     const tempRuntime = new CanvasLayoutRuntime(`${this.canvasId}-runtime`, seedData, {
       defaultEngine: 'containment-grid',
       runLayoutOnInit: false
@@ -628,9 +557,11 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
 }
 
 
-  private createEngineWithData(): void {
+  private async createEngineWithData(): Promise<void> {
     if (!this.canvasRef?.nativeElement) {
-      setTimeout(() => this.createEngineWithData(), 50);
+      setTimeout(() => {
+        void this.createEngineWithData();
+      }, 50);
       return;
     }
 
@@ -640,30 +571,23 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     this.historySubscription?.unsubscribe();
     this.canvasHistoryService.unregisterCanvas(this.canvasId);
     
-    // Set initial canvas size
     this.resizeCanvas();
-    
-    // Create engine with factory-based components using ViewNode properties
-    let layoutComponents: ComponentFactoryResult;
 
+    let layoutComponents: ComponentFactoryResult;
     if (this.selectedViewNode) {
-      // Use ViewNode properties to determine components
       layoutComponents = ComponentFactory.createFromViewNode(this.selectedViewNode);
     } else {
-      // Default components for non-ViewNode cases
       layoutComponents = ComponentFactory.createComponents('containment-grid', 'composable-hierarchical');
     }
 
-    const { renderer, module, runtimeEngine, rendererId } = layoutComponents;
+    const { module, runtimeEngine, rendererId } = layoutComponents;
     this.currentLayoutModule = module;
     this.currentRendererId = rendererId;
     this.runtimeEngineId = runtimeEngine;
 
-    // Create BOTH renderers for dynamic switching
     this.containmentRenderer = new RuntimeContainmentRenderer();
     this.flatRenderer = new RuntimeFlatRenderer();
 
-    // Inject ViewNodeStateService into both renderers
     if (this.containmentRenderer && 'setViewNodeStateService' in this.containmentRenderer) {
       (this.containmentRenderer as any).setViewNodeStateService(this.viewNodeState);
     }
@@ -680,84 +604,37 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       ? this.containmentRenderer
       : this.flatRenderer;
 
-    // If we have raw ViewNode data, process it with the selected layout engine
-    if (this.rawViewNodeData && this.selectedViewNode) {
-      // Check if we should use runtime data processing (Phase 2 migration)
-      const shouldUseRuntime = this.useRuntimeDataProcessing &&
-                               (this.runtimeEngineId === 'containment-grid' ||
-                                this.runtimeEngineId === 'orthogonal' ||
-                                this.runtimeEngineId === 'containment-runtime');
+    const seedData = this.canvasSnapshot ?? this.createEmptyCanvasData();
 
-      if (shouldUseRuntime) {
-
-        const tempRuntime = new CanvasLayoutRuntime(`${this.canvasId}-temp`, this.data!, {
-          defaultEngine: this.runtimeEngineId,
-          runLayoutOnInit: false
-        });
-
-        // Convert EntityModel[] to RawDataInput format
-        const rawDataInput: RawDataInput = {
-          entities: this.rawViewNodeData.entities.map((entity: any) => ({
-            id: entity.id,
-            name: entity.name,
-            type: entity.properties?.type ?? 'node',
-            properties: {
-              ...(entity.properties ?? {}),
-              position: { x: entity.x, y: entity.y },
-              size: { width: entity.width, height: entity.height },
-              color: entity.color,
-              stroke: entity.stroke,
-              icon: entity.icon,
-              badges: entity.badges,
-              labelVisible: entity.labelVisible,
-              parent: entity.parent
-            }
-          })),
-          relationships: this.rawViewNodeData.relationships.map((rel: any) => ({
-            id: rel.id,
-            source: rel.source,
-            target: rel.target,
-            type: rel.type,
-            properties: {
-              ...(rel.properties ?? {}),
-              color: rel.color,
-              width: rel.width,
-              dash: rel.dash,
-              label: rel.label,
-              labelVisible: rel.labelVisible
-            }
-          }))
-        };
-
-        tempRuntime.setRawData(rawDataInput, false, 'system');
-        const processedGraph = tempRuntime.getLayoutGraph();
-        const hierarchicalSnapshot = layoutGraphToHierarchical(processedGraph);
-
-        this.data = {
-          nodes: hierarchicalSnapshot.nodes,
-          edges: hierarchicalSnapshot.edges,
-          originalEdges: hierarchicalSnapshot.edges,
-          camera: this.data?.camera
-        };
-      }
-    }
-    
-    // Always use RuntimeCanvasController for this component
     this.engine = new RuntimeCanvasController(
       canvas,
       initialRenderer,
-      this.data!,
+      seedData,
       this.canvasId,
       this.runtimeEngineId,
       initialViewConfig,
       this.overlayService
     );
 
-    // Expose engine to window for debugging/testing
     (window as any).__canvasEngine = this.engine;
 
-    // Common setup for both controller types
-    this.canvasHistoryService.registerCanvas(this.canvasId, this.engine.getData());
+    let initialSnapshot: CanvasData;
+    if (this.graphDataSet && this.viewState) {
+      initialSnapshot = await this.engine.loadGraphDataSet(this.graphDataSet, this.viewState, {
+        reason: 'initial'
+      });
+    } else if (this.canvasSnapshot) {
+      this.engine.setData(this.canvasSnapshot, false);
+      initialSnapshot = this.engine.getData();
+    } else {
+      const fallback = this.createDefaultData();
+      this.engine.setData(fallback, false);
+      initialSnapshot = fallback;
+    }
+
+    this.canvasSnapshot = initialSnapshot;
+
+    this.canvasHistoryService.registerCanvas(this.canvasId, initialSnapshot);
     this.historySubscription = this.canvasHistoryService
       .state$(this.canvasId)
       .subscribe(state => {
@@ -768,9 +645,10 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     this.refreshHistoryState();
 
     this.centerOnInitialNode();
+    this.updateCameraInfo();
 
-    // Setup data change callback
     this.engine.setOnDataChanged((data) => {
+      this.canvasSnapshot = data;
       this.updateCameraInfo();
       this.notifyDataChanged();
       if (!this.restoringHistory) {
@@ -779,7 +657,6 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       this.canvasControlService.notifyStateChange();
     });
 
-    // Setup selection change callback for HUD panels and Node Style Panel
     this.engine.setOnSelectionChanged(node => {
       let snapshot: NodeSelectionSnapshot | null = null;
       if (node && this.engine) {
@@ -790,10 +667,8 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
 
     this.canvasControlService.notifyStateChange();
 
-    // Setup realtime graph delta subscription if we have a ViewNode
     this.setupRealtimeSubscription();
 
-    // Watch for canvas container size changes
     const resizeObserver = new ResizeObserver(() => {
       this.resizeCanvas();
     });
@@ -844,6 +719,38 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     }
 
     return null;
+  }
+
+  private createInitialViewState(viewNode: any, dataset: GraphDataSet): ViewState {
+    const baseConfig = this.canvasControlService.getRuntimeViewConfig();
+    const state = createDefaultViewState(
+      viewNode.id ?? this.canvasId,
+      dataset.id,
+      baseConfig
+    );
+
+    if (viewNode.renderer) {
+      return {
+        ...state,
+        rendererId: viewNode.renderer ?? state.rendererId
+      };
+    }
+
+    return state;
+  }
+
+  private applyViewNodeAutoLayout(viewNode: any): void {
+    const autoLayoutState = viewNode.autoLayoutSettings
+      ? JSON.parse(viewNode.autoLayoutSettings)
+      : { collapseBehavior: 'full-size', reflowBehavior: 'static' };
+
+    try {
+      this.viewNodeState.setCollapseBehavior(autoLayoutState.collapseBehavior);
+      this.viewNodeState.setReflowBehavior(autoLayoutState.reflowBehavior);
+    } catch (error) {
+      this.viewNodeState.setCollapseBehavior('full-size');
+      this.viewNodeState.setReflowBehavior('static');
+    }
   }
 
   /**
@@ -1219,7 +1126,7 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
 
   private centerOnInitialNode(): void {
     // TODO: Implement centering for RuntimeCanvasController
-    if (!this.engine || !this.data?.nodes?.length) {
+    if (!this.engine || !this.canvasSnapshot?.nodes?.length) {
       return;
     }
     this.updateCameraInfo();

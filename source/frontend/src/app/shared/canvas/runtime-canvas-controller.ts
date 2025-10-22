@@ -7,6 +7,8 @@ import { GraphDelta } from '../../core/services/neo4j-realtime.service';
 import { RawDataInput } from '../layouts/core/layout-contract';
 import { OverlayService } from './overlay/overlay.service';
 import { Subscription } from 'rxjs';
+import { GraphDataSet } from '../graph/graph-data-set';
+import { ViewState } from './state/view-state.model';
 
 /**
  * Clean controller for runtime-based layouts.
@@ -123,6 +125,32 @@ export class RuntimeCanvasController {
       source: 'user'
     });
     if (result.camera) {
+      this.cameraSystem.setCamera(result.camera);
+    }
+
+    if (this.onDataChangedCallback) {
+      this.onDataChangedCallback(result);
+    }
+
+    return result;
+  }
+
+  async loadGraphDataSet(
+    dataset: GraphDataSet,
+    viewState: ViewState,
+    options: { reason?: 'initial' | 'data-update' | 'engine-switch' | 'reflow' | 'user-command' } = {}
+  ): Promise<CanvasData> {
+    const reason = options.reason ?? 'initial';
+    this.layoutRuntime.setViewConfig(viewState.layout.global);
+    this.layoutRuntime.setGraphDataSet(dataset, false, 'system');
+    const result = await this.layoutRuntime.runLayout({
+      reason,
+      source: 'system'
+    });
+
+    if (viewState.camera) {
+      this.cameraSystem.setCamera(viewState.camera);
+    } else if (result.camera) {
       this.cameraSystem.setCamera(result.camera);
     }
 
@@ -686,12 +714,16 @@ export class RuntimeCanvasController {
     if (event.type === 'drag-update' && result && (result as any).dragHandled) {
       const selectedNode = this.interactionHandler.getSelectedNode();
       if (selectedNode) {
-        // Node has been modified directly - just update runtime and callbacks
-        const data = this.layoutRuntime.getCanvasData();
-        this.layoutRuntime.setCanvasData(data, false);
-
-        if (this.onDataChangedCallback) {
-          this.onDataChangedCallback(data);
+        if (this.overlayService) {
+          const nodeId = selectedNode.GUID ?? selectedNode.id;
+          if (nodeId) {
+            const applyWhen = this.layoutRuntime.getViewConfig().containmentMode === 'flat' ? 'flat' : 'containers';
+            this.overlayService.applyNodeGeometry(nodeId, {
+              position: { x: selectedNode.x ?? 0, y: selectedNode.y ?? 0 },
+              mode: 'absolute',
+              applyWhen
+            });
+          }
         }
       }
     }
@@ -699,12 +731,16 @@ export class RuntimeCanvasController {
     if (event.type === 'drag-stop') {
       const selectedNode = this.interactionHandler.getSelectedNode();
       if (selectedNode) {
-        // Node has been modified directly - just update runtime and callbacks
-        const data = this.layoutRuntime.getCanvasData();
-        this.layoutRuntime.setCanvasData(data, false);
-
-        if (this.onDataChangedCallback) {
-          this.onDataChangedCallback(data);
+        if (this.overlayService) {
+          const nodeId = selectedNode.GUID ?? selectedNode.id;
+          if (nodeId) {
+            const applyWhen = this.layoutRuntime.getViewConfig().containmentMode === 'flat' ? 'flat' : 'containers';
+            this.overlayService.applyNodeGeometry(nodeId, {
+              position: { x: selectedNode.x ?? 0, y: selectedNode.y ?? 0 },
+              mode: 'absolute',
+              applyWhen
+            });
+          }
         }
       }
     }
@@ -813,10 +849,17 @@ export class RuntimeCanvasController {
     // Update selection position tracking
     this.interactionHandler.updateSelectedNodeWorldPos(this.interactionHandler.getAbsolutePosition(node, data.nodes));
 
-    // Update data
-    this.layoutRuntime.setCanvasData(data, false);
-    if (this.onDataChangedCallback) {
-      this.onDataChangedCallback(data);
+    if (this.overlayService) {
+      const nodeId = node.GUID ?? node.id;
+      if (nodeId) {
+        const applyWhen = this.layoutRuntime.getViewConfig().containmentMode === 'flat' ? 'flat' : 'containers';
+        this.overlayService.applyNodeGeometry(nodeId, {
+          position: { x: node.x ?? 0, y: node.y ?? 0 },
+          size: { width: node.width ?? 0, height: node.height ?? 0 },
+          mode: 'absolute',
+          applyWhen
+        });
+      }
     }
   }
 
@@ -829,58 +872,22 @@ export class RuntimeCanvasController {
     const node = this.findNodeByGuid(data.nodes, nodeGuid);
     if (!node) return;
 
-    const targetCollapsed = !node.collapsed;
+    const currentlyCollapsed =
+      node.metadata?.['resolvedProfile']?.collapseState === 'collapsed' || node.collapsed;
+    const nextState = currentlyCollapsed ? 'expanded' : 'collapsed';
 
-    if (!targetCollapsed) {
-      // EXPANDING - Restore previous visibility state
-      node.collapsed = false;
-      const lockedPosition = (node as any)._lockedPosition;
-      if (lockedPosition) {
-        node.x = lockedPosition.x;
-        node.y = lockedPosition.y;
-        (node as any)._userLocked = true;
+    if (this.overlayService) {
+      // When collapsing, save the CURRENT expanded size from layout output as a geometry override
+      // This preserves the size across layout runs (which start from immutable canonical data)
+      if (nextState === 'collapsed' && node.width && node.height) {
+        this.overlayService.applyNodeGeometry(nodeGuid, {
+          size: { width: node.width, height: node.height },
+          mode: 'absolute',
+          applyWhen: 'containers'
+        }, 'system');
       }
 
-      // Restore visibility state from snapshot
-      this.restoreVisibilityState(node);
-
-      const childBounds = this.calculateChildBounds(node.children.filter(c => c.visible));
-      const requiredWidth = childBounds.maxX + 40;
-      const requiredHeight = childBounds.maxY + 40;
-
-      if (requiredWidth > node.width || requiredHeight > node.height) {
-        node.width = Math.max(node.width, requiredWidth);
-        node.height = Math.max(node.height, requiredHeight);
-      }
-    } else {
-      // COLLAPSING - Save current visibility state before hiding
-      this.saveVisibilityState(node);
-
-      (node as any)._lockedPosition = { x: node.x, y: node.y };
-      node.collapsed = true;
-      if (node.children && node.children.length > 0) {
-        node.children.forEach(child => {
-          child.visible = false;
-          child.collapsed = true;
-          this.hideAllDescendants(child);
-        });
-      }
-    }
-
-    // CRITICAL: Recompute edges with inheritance
-    data.edges = this.computeEdgesWithInheritance(data.originalEdges || data.edges);
-
-    this.layoutRuntime.setCanvasData(data, false);
-
-    // Update selected node position if needed
-    const selectedNode = this.interactionHandler.getSelectedNode();
-    if (selectedNode) {
-      const worldPos = this.interactionHandler.getAbsolutePosition(selectedNode, data.nodes);
-      this.interactionHandler.updateSelectedNodeWorldPos(worldPos);
-    }
-
-    if (this.onDataChangedCallback) {
-      this.onDataChangedCallback(data);
+      this.overlayService.applyNodeCollapse(nodeGuid, nextState);
     }
   }
 
