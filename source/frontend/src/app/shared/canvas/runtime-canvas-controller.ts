@@ -329,7 +329,7 @@ export class RuntimeCanvasController {
 
   /**
    * Get current camera
-   */
+  */
   getCamera(): Camera {
     return this.cameraSystem.getCamera();
   }
@@ -339,6 +339,7 @@ export class RuntimeCanvasController {
    */
   setCamera(camera: Camera): void {
     this.cameraSystem.setCamera(camera);
+    this.persistCameraToData();
   }
 
   /**
@@ -750,10 +751,10 @@ export class RuntimeCanvasController {
 
     if (viewState.camera) {
       result.camera = { ...viewState.camera };
-      this.cameraSystem.setCamera(viewState.camera);
+      this.setCamera(viewState.camera);
       applied = true;
     } else if (result.camera) {
-      this.cameraSystem.setCamera(result.camera);
+      this.setCamera(result.camera);
       applied = true;
     } else if (reason === 'initial') {
       const centered = this.centerCameraOnGraph(result);
@@ -795,7 +796,7 @@ export class RuntimeCanvasController {
     };
 
     data.camera = newCamera;
-    this.cameraSystem.setCamera(newCamera);
+    this.setCamera(newCamera);
     return true;
   }
 
@@ -849,6 +850,11 @@ export class RuntimeCanvasController {
     return result;
   }
 
+  private persistCameraToData(): void {
+    const data = this.layoutRuntime.getCanvasData();
+    data.camera = { ...this.cameraSystem.getCamera() };
+  }
+
   /**
    * Pan the camera
    * PORTED FROM ComposableHierarchicalCanvasEngine
@@ -859,6 +865,7 @@ export class RuntimeCanvasController {
     this.cameraSystem.startPan(0, 0);
     this.cameraSystem.updatePan(deltaX, deltaY);
     this.cameraSystem.stopPan();
+    this.persistCameraToData();
   }
 
   /**
@@ -867,6 +874,7 @@ export class RuntimeCanvasController {
    */
   zoom(screenX: number, screenY: number, zoomDelta: number): void {
     this.cameraSystem.zoom(screenX, screenY, zoomDelta);
+    this.persistCameraToData();
   }
 
   /**
