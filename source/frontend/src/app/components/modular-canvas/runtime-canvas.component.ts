@@ -311,14 +311,7 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       this.canvasControlService.registerCanvas(this);
       this.applyViewNodeAutoLayout(viewNode);
 
-      if (viewNode.layout_engine === 'tree-table') {
-        await this.neo4jDataService.fetchTreeTable(viewNode);
-        this.canvasSnapshot = this.createEmptyCanvasData();
-        this.graphDataSet = null;
-        this.viewState = null;
-        await this.createEngineWithData();
-        return;
-      }
+      // Tree-table removed - only containment-runtime supported
 
       // CRITICAL: Always fetch dataset first, even if we have saved layout
       // The dataset is needed for containment mode toggling to rebuild hierarchy
@@ -595,17 +588,9 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     
     this.resizeCanvas();
 
-    let layoutComponents: ComponentFactoryResult;
-    if (this.selectedViewNode) {
-      layoutComponents = ComponentFactory.createFromViewNode(this.selectedViewNode);
-    } else {
-      layoutComponents = ComponentFactory.createComponents('containment-grid', 'composable-hierarchical');
-    }
-
-    const { module, runtimeEngine, rendererId } = layoutComponents;
-    this.currentLayoutModule = module;
-    this.currentRendererId = rendererId;
-    this.runtimeEngineId = runtimeEngine;
+    // Simplified: Always use containment-runtime with runtime renderers
+    this.runtimeEngineId = 'containment-runtime';
+    this.currentRendererId = 'runtime-containment-renderer';
 
     this.containmentRenderer = new RuntimeContainmentRenderer();
     this.flatRenderer = new RuntimeFlatRenderer();
@@ -617,7 +602,7 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       (this.flatRenderer as any).setViewNodeStateService(this.viewNodeState);
     }
 
-    const initialViewConfig = this.resolveInitialViewConfig(layoutComponents);
+    const initialViewConfig = this.resolveInitialViewConfig();
 
     // Only set containment mode in the service if we DON'T have saved layout
     // If we have saved layout, the viewState already contains the correct mode
@@ -711,7 +696,7 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     resizeObserver.observe(canvas.parentElement!);
   }
 
-  private resolveInitialViewConfig(layoutComponents: ComponentFactoryResult): Partial<RuntimeViewConfig> {
+  private resolveInitialViewConfig(): Partial<RuntimeViewConfig> {
     // PRIORITY: If we have a saved viewState, use its config (from saved layout)
     if (this.viewState?.layout?.global) {
       return {
@@ -721,14 +706,9 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       };
     }
 
-    // Otherwise, infer from ViewNode properties or defaults
-    const usesContainmentRuntime = layoutComponents.runtimeEngine === 'containment-runtime';
-    let containmentMode: 'containers' | 'flat' = usesContainmentRuntime ? 'flat' : 'containers';
-
+    // Default to containers mode for containment-runtime
     const viewNodeMode = this.readContainmentModeFromSelectedViewNode();
-    if (viewNodeMode) {
-      containmentMode = viewNodeMode;
-    }
+    const containmentMode: 'containers' | 'flat' = viewNodeMode ?? 'containers';
 
     const currentConfig = this.canvasControlService.getRuntimeViewConfig();
     return {

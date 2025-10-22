@@ -21,7 +21,6 @@ import { ViewSpecificStateService } from './core/services/view-specific-state.se
 import { ViewNodeStateService, LibraryItem as ViewLibraryItem } from './core/services/view-node-state.service';
 import { ThemeService } from './core/services/theme.service';
 import { ActivityBarComponent } from './components/activity-bar/activity-bar.component';
-import { ModularCanvasComponent } from './components/modular-canvas/modular-canvas.component';
 import { RuntimeCanvasComponent } from './components/modular-canvas/runtime-canvas.component';
 import { ChatRhsPanelComponent } from './components/chat-rhs-panel/chat-rhs-panel.component';
 import { PropertiesRhsPanelComponent } from './components/properties-rhs-panel/properties-rhs-panel.component';
@@ -76,7 +75,6 @@ const LIBRARY_ITEMS: LibraryItem[] = [
     RadioButtonModule,
     GraphViewComponent,
     ActivityBarComponent,
-    ModularCanvasComponent,
     RuntimeCanvasComponent,
     ChatRhsPanelComponent,
     PropertiesRhsPanelComponent,
@@ -214,14 +212,8 @@ const LIBRARY_ITEMS: LibraryItem[] = [
               </select>
             </div>
             <app-runtime-canvas
-              *ngIf="useRuntimeCanvas"
               #runtimeCanvas
               (engineDataChanged)="updateDebugPanelData()"></app-runtime-canvas>
-            <app-modular-canvas
-              *ngIf="!useRuntimeCanvas"
-              #modularCanvas
-              (engineDataChanged)="updateDebugPanelData()"
-              (presetChanged)="onPresetResolved($event)"></app-modular-canvas>
           </div>
         </div>
       </div>
@@ -981,7 +973,7 @@ export class LandingShellComponent implements OnInit, OnDestroy {
   canvasEdges: any[] = [];
   presets: ReadonlyArray<ViewPresetDescriptor> = ViewPresetRegistry.list();
   activePresetId: string = this.presets[0]?.id ?? 'containment-insight';
-  @ViewChild(ModularCanvasComponent) modularCanvasComponent?: ModularCanvasComponent;
+  // ModularCanvasComponent removed - only RuntimeCanvasComponent used
   
   // Library selection state
   selectedLibraryItem: string | null = null;
@@ -1469,7 +1461,7 @@ export class LandingShellComponent implements OnInit, OnDestroy {
 
   onPresetChange(presetId: string) {
     this.activePresetId = presetId;
-    this.modularCanvasComponent?.setPreset(presetId);
+    // modularCanvasComponent removed
   }
 
   onPresetResolved(resolved: ResolvedViewPreset | null): void {
