@@ -8,6 +8,7 @@ export interface ViewState {
   readonly layout: {
     readonly global: RuntimeViewConfig;
   };
+  readonly rendererId?: string;
   readonly camera?: Camera;
 }
 
