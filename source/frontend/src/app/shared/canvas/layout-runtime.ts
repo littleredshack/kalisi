@@ -112,10 +112,13 @@ export class CanvasLayoutRuntime {
       ...config
     } as RuntimeViewConfig;
 
-    // If containment mode changed, rebuild from original dataset to restore hierarchy
+    // CRITICAL: When containment mode changes, we MUST rebuild from original dataset
+    // because flat mode destroys hierarchy (children = []), and we need to restore it
     if (config.containmentMode && config.containmentMode !== previousMode && this.graphDataSet) {
+      console.log('[LayoutRuntime] Containment mode changed:', previousMode, '->', config.containmentMode, '- rebuilding from dataset');
       const raw = graphDataSetToRawDataInput(this.graphDataSet);
       this.setRawDataInternal(raw, false, 'system');
+      console.log('[LayoutRuntime] Rebuild complete, viewGraph.nodes:', this.viewGraph.nodes.length, 'roots with children');
     }
   }
 
@@ -152,6 +155,8 @@ export class CanvasLayoutRuntime {
     const baseGraph = canvasDataToLayoutGraph(this.viewGraph, nextVersion);
     this.store.replace(baseGraph);
 
+    console.log('[LayoutRuntime] Running layout with mode:', this.runtimeConfig.containmentMode, 'nodes:', this.viewGraph.nodes.length);
+
     const normalisedEngine = options.engineName ? this.normaliseEngineName(options.engineName) : undefined;
     if (normalisedEngine) {
       this.orchestrator.setActiveEngine(this.canvasId, normalisedEngine, options.source ?? 'system');
@@ -164,6 +169,8 @@ export class CanvasLayoutRuntime {
       edgeRouting: this.runtimeConfig.edgeRouting
     };
 
+    console.log('[LayoutRuntime] Engine options:', engineOptions);
+
     const result = await this.workerBridge.run(this.canvasId, baseGraph, {
       ...options,
       engineName: normalisedEngine,
@@ -173,6 +180,9 @@ export class CanvasLayoutRuntime {
 
     this.store.update(result);
     this.applyLayoutResult(result, preservedCamera);
+
+    console.log('[LayoutRuntime] Layout complete, result nodes:', this.viewGraph.nodes.length);
+
     return this.viewGraph;
   }
 
