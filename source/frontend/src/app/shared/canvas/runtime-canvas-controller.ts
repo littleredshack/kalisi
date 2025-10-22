@@ -148,15 +148,7 @@ export class RuntimeCanvasController {
       source: 'system'
     });
 
-    if (viewState.camera) {
-      this.cameraSystem.setCamera(viewState.camera);
-    } else if (result.camera) {
-      this.cameraSystem.setCamera(result.camera);
-    }
-
-    if (this.onDataChangedCallback) {
-      this.onDataChangedCallback(result);
-    }
+    this.applyInitialCamera(result, viewState, reason);
 
     return result;
   }
@@ -744,6 +736,114 @@ export class RuntimeCanvasController {
 
     if (event.type === 'double-click') {
       // Double-click handled by interaction handler
+    }
+
+    return result;
+  }
+
+  private applyInitialCamera(
+    result: CanvasData,
+    viewState: ViewState,
+    reason: 'initial' | 'data-update' | 'engine-switch' | 'reflow' | 'user-command'
+  ): void {
+    let applied = false;
+
+    if (viewState.camera) {
+      result.camera = { ...viewState.camera };
+      this.cameraSystem.setCamera(viewState.camera);
+      applied = true;
+    } else if (result.camera) {
+      this.cameraSystem.setCamera(result.camera);
+      applied = true;
+    } else if (reason === 'initial') {
+      const centered = this.centerCameraOnGraph(result);
+      if (centered) {
+        applied = true;
+      }
+    }
+
+    if (applied && this.onDataChangedCallback) {
+      this.onDataChangedCallback(result);
+    } else if (!applied && this.onDataChangedCallback) {
+      // Ensure initial data broadcast even if camera unchanged
+      this.onDataChangedCallback(result);
+    }
+  }
+
+  private centerCameraOnGraph(data: CanvasData): boolean {
+    const bounds = this.computeVisibleBounds(data.nodes);
+    if (!bounds) {
+      return false;
+    }
+
+    const currentCamera = this.cameraSystem.getCamera();
+    const zoom = currentCamera.zoom || 1;
+    const viewportWidth = this.canvas.width / zoom;
+    const viewportHeight = this.canvas.height / zoom;
+
+    const centerX = (bounds.minX + bounds.maxX) / 2;
+    const centerY = (bounds.minY + bounds.maxY) / 2;
+
+    if (!isFinite(centerX) || !isFinite(centerY)) {
+      return false;
+    }
+
+    const newCamera = {
+      x: centerX - viewportWidth / 2,
+      y: centerY - viewportHeight / 2,
+      zoom
+    };
+
+    data.camera = newCamera;
+    this.cameraSystem.setCamera(newCamera);
+    return true;
+  }
+
+  private computeVisibleBounds(
+    nodes: HierarchicalNode[],
+    offsetX = 0,
+    offsetY = 0,
+    bounds?: { minX: number; minY: number; maxX: number; maxY: number }
+  ): { minX: number; minY: number; maxX: number; maxY: number } | null {
+    if (!nodes || nodes.length === 0) {
+      return bounds ?? null;
+    }
+
+    let result =
+      bounds ??
+      {
+        minX: Number.POSITIVE_INFINITY,
+        minY: Number.POSITIVE_INFINITY,
+        maxX: Number.NEGATIVE_INFINITY,
+        maxY: Number.NEGATIVE_INFINITY
+      };
+    let found = false;
+
+    for (const node of nodes) {
+      if (node.visible === false) {
+        continue;
+      }
+
+      const x = offsetX + (node.x ?? 0);
+      const y = offsetY + (node.y ?? 0);
+      const width = node.width ?? 0;
+      const height = node.height ?? 0;
+
+      result.minX = Math.min(result.minX, x);
+      result.minY = Math.min(result.minY, y);
+      result.maxX = Math.max(result.maxX, x + width);
+      result.maxY = Math.max(result.maxY, y + height);
+      found = true;
+
+      if (node.children && node.children.length > 0) {
+        result =
+          this.computeVisibleBounds(node.children, x, y, result) ??
+          result;
+      }
+    }
+
+    if (!found) {
+      return bounds ?? null;
     }
 
     return result;
