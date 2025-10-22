@@ -35,7 +35,7 @@ import { layoutGraphToHierarchical } from '../../shared/layouts/core/layout-grap
 import { ContainmentRuntimeLayoutEngine } from '../../shared/layouts/engines/containment-runtime-layout.engine';
 import { RuntimeContainmentRenderer } from '../../shared/composable/renderers/runtime-containment-renderer';
 import { RuntimeFlatRenderer } from '../../shared/composable/renderers/runtime-flat-renderer';
-import { OverlayService } from '../../shared/canvas/overlay/overlay.service';
+// OverlayService removed - ViewGraph is single source of truth
 import { ViewState, createDefaultViewState } from '../../shared/canvas/state/view-state.model';
 
 @Component({
@@ -120,7 +120,7 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     private canvasHistoryService: CanvasHistoryService,
     private canvasEventHubService: CanvasEventHubService,
     private neo4jRealtimeService: Neo4jRealtimeService,
-    private overlayService: OverlayService
+    // overlayService removed
   ) {
     // Engine-only mode - no reactive effects
     this.availableLenses = GraphLensRegistry.list();
@@ -307,7 +307,7 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       this.selectedViewNode = viewNode;
       this.canvasId = viewNode.id || 'modular-canvas';
 
-      this.overlayService.clear();
+      // overlayService.clear() removed
       this.canvasControlService.registerCanvas(this);
       this.applyViewNodeAutoLayout(viewNode);
 
@@ -623,8 +623,7 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       seedData,
       this.canvasId,
       this.runtimeEngineId,
-      initialViewConfig,
-      this.overlayService
+      initialViewConfig
     );
 
     (window as any).__canvasEngine = this.engine;

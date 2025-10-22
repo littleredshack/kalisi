@@ -31,7 +31,7 @@ import { ViewType } from './core/models/view.models';
 import { SettingsComponent } from './settings/settings.component';
 import { TreeTableComponent } from './shared/tree-table/tree-table.component';
 import { ViewPresetRegistry, ViewPresetDescriptor } from './shared/graph/view-presets';
-import { ResolvedViewPreset } from './shared/canvas/presets/preset-manager';
+// Preset manager removed
 
 // Library Item Configuration
 interface LibraryItem {
@@ -1464,7 +1464,7 @@ export class LandingShellComponent implements OnInit, OnDestroy {
     // modularCanvasComponent removed
   }
 
-  onPresetResolved(resolved: ResolvedViewPreset | null): void {
+  onPresetResolved(resolved: any): void {
     if (!resolved) {
       return;
     }

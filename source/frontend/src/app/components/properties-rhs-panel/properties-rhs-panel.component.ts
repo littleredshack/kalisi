@@ -11,7 +11,7 @@ import {
 } from '../../core/services/canvas-control.service';
 import { Observable, combineLatest, map, startWith } from 'rxjs';
 import { ViewPresetDescriptor } from '../../shared/graph/view-presets';
-import { ResolvedViewPreset } from '../../shared/canvas/presets/preset-manager';
+// Preset manager removed
 
 interface LevelOption {
   label: string;
@@ -97,7 +97,7 @@ export class PropertiesRhsPanelComponent implements OnInit, OnDestroy, OnChanges
   graphLensOptions$: Observable<SelectOptionState<GraphLensOption>>;
   levelOptions$: Observable<LevelOption[]>;
   presetOptions$: Observable<ReadonlyArray<ViewPresetDescriptor>>;
-  activePreset$: Observable<ResolvedViewPreset | null>;
+  activePreset$: Observable<any>;
   readonly selection$: Observable<CanvasSelectionSnapshot | null>;
   readonly panelState$: Observable<PanelViewModel>;
 
@@ -160,7 +160,7 @@ export class PropertiesRhsPanelComponent implements OnInit, OnDestroy, OnChanges
       levels: this.levelOptions$.pipe(startWith([] as LevelOption[])),
       selection: this.selection$,
       presetOptions: this.presetOptions$.pipe(startWith([] as ReadonlyArray<ViewPresetDescriptor>)),
-      activePreset: this.activePreset$.pipe(startWith(null as ResolvedViewPreset | null))
+      activePreset: this.activePreset$.pipe(startWith(null as any))
     }).pipe(
       map(({ hasCanvas, camera, autoState, canUndo, canRedo, layout, lens, levels, selection, presetOptions, activePreset }) => ({
         hasCanvas,
@@ -179,7 +179,7 @@ export class PropertiesRhsPanelComponent implements OnInit, OnDestroy, OnChanges
 
   private buildPresetPanelState(
     options: ReadonlyArray<ViewPresetDescriptor>,
-    active: ResolvedViewPreset | null
+    active: any
   ): PresetPanelState {
     const optionList = options.map(option => ({
       id: option.id,

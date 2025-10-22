@@ -1,6 +1,6 @@
 import { HierarchicalNode, Edge, Camera, Point, Bounds, NodeEvent } from './types';
 import { PresentationFrame } from '../render/presentation-frame';
-import { ResolvedViewPreset } from './presets/preset-manager';
+// Preset system removed
 
 // Base interface for all renderers
 export interface IRenderer {
@@ -22,7 +22,6 @@ export interface IRenderer {
   // Renderer-specific configuration
   getName(): string;
   getDefaultNodeStyle(type: string): any;
-  configurePreset?(preset: ResolvedViewPreset | null): void;
 }
 
 // Abstract base renderer with common functionality
@@ -117,9 +116,5 @@ export abstract class BaseRenderer implements IRenderer {
 
   invalidateCache(_affectedNodeIds?: ReadonlyArray<string>): void {
     // Default no-op; specific renderers can override
-  }
-
-  configurePreset(_preset: ResolvedViewPreset | null): void {
-    // Optional hook for subclasses
   }
 }

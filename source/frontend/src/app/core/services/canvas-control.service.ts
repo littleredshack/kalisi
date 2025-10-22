@@ -4,7 +4,7 @@ import { CanvasEventHubService } from './canvas-event-hub.service';
 import { LayoutModuleRegistry } from '../../shared/layouts/layout-module-registry';
 import { GraphLensRegistry } from '../../shared/graph/lens-registry';
 import { ViewPresetDescriptor, ViewPresetRegistry } from '../../shared/graph/view-presets';
-import { ResolvedViewPreset } from '../../shared/canvas/presets/preset-manager';
+// Preset manager removed - using stub type
 import {
   CanvasData,
   NodeStyleOverrides,
@@ -36,7 +36,7 @@ export interface CanvasController {
   setGraphLens?(lensId: string): void;
   getAvailableGraphLenses?(): string[];
   setActivePreset?(presetId: string, overrides?: Partial<ViewPresetDescriptor> | null): void;
-  getActivePreset?(): ResolvedViewPreset | null;
+  getActivePreset?(): any;
   undo(): void;
   redo(): void;
   canUndo(): boolean;
@@ -84,7 +84,7 @@ export class CanvasControlService {
   private readonly canRedoSubject = new BehaviorSubject<boolean>(false);
   private readonly selectionSubject = new BehaviorSubject<CanvasSelectionSnapshot | null>(null);
   private readonly presetOptionsSubject = new BehaviorSubject<ReadonlyArray<ViewPresetDescriptor>>(ViewPresetRegistry.list());
-  private readonly activePresetSubject = new BehaviorSubject<ResolvedViewPreset | null>(null);
+  private readonly activePresetSubject = new BehaviorSubject<any>(null);
 
   // Runtime view configuration observables
   private readonly containmentModeSubject = new BehaviorSubject<'containers' | 'flat'>('flat');
@@ -414,7 +414,7 @@ export class CanvasControlService {
     this.updateState();
   }
 
-  setActivePresetSnapshot(snapshot: ResolvedViewPreset | null): void {
+  setActivePresetSnapshot(snapshot: any): void {
     this.activePresetSubject.next(snapshot);
   }
 

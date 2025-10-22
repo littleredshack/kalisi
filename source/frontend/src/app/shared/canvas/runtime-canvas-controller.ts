@@ -5,7 +5,7 @@ import { CameraSystem } from './camera';
 import { CanvasInteractionHandler } from './canvas-interaction-handler';
 import { GraphDelta } from '../../core/services/neo4j-realtime.service';
 import { RawDataInput } from '../layouts/core/layout-contract';
-import { OverlayService } from './overlay/overlay.service';
+// OverlayService removed
 import { Subscription } from 'rxjs';
 import { GraphDataSet } from '../graph/graph-data-set';
 import { ViewState } from './state/view-state.model';
@@ -30,9 +30,7 @@ export class RuntimeCanvasController {
   private animationFrameId: number | null = null;
   private onDataChangedCallback?: (data: CanvasData) => void;
   private onSelectionChanged?: (node: HierarchicalNode | null) => void;
-  private readonly overlayService?: OverlayService;
-  private overlaySubscription?: Subscription;
-  private overlayUpdateQueue: Promise<void> = Promise.resolve();
+  // Overlay system removed
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -40,8 +38,7 @@ export class RuntimeCanvasController {
     initialData: CanvasData,
     canvasId: string,
     engineId?: string,
-    initialViewConfig?: Partial<RuntimeViewConfig>,
-    overlayService?: OverlayService
+    initialViewConfig?: Partial<RuntimeViewConfig>
   ) {
     this.canvasId = canvasId;
     this.canvas = canvas;
@@ -65,11 +62,7 @@ export class RuntimeCanvasController {
       this.layoutRuntime.setViewConfig(initialViewConfig);
     }
 
-    if (overlayService) {
-      this.overlayService = overlayService;
-      // Overlay integration removed - ViewGraph is now the single source of truth
-      // Subscription removed to prevent spurious layout runs
-    }
+    // Overlay service removed
 
     // Set initial camera from data
     if (initialData.camera) {
@@ -568,7 +561,7 @@ export class RuntimeCanvasController {
     return results;
   }
 
-  // Overlay refresh removed - ViewGraph mutations are immediate, no refresh needed
+  // Overlay system removed
 
   private mergeNodeStyleOverrides(node: HierarchicalNode, overrides: Partial<NodeStyleOverrides>): void {
     if (!overrides) return;
@@ -1455,8 +1448,6 @@ export class RuntimeCanvasController {
    * Clean up resources
    */
   destroy(): void {
-    this.overlaySubscription?.unsubscribe();
-    this.overlayUpdateQueue = Promise.resolve();
     if (this.animationFrameId !== null) {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
