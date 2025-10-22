@@ -621,7 +621,11 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     }
 
     const initialViewConfig = this.resolveInitialViewConfig(layoutComponents);
-    if (initialViewConfig.containmentMode) {
+
+    // Only set containment mode in the service if we DON'T have saved layout
+    // If we have saved layout, the viewState already contains the correct mode
+    // and we don't want to trigger subscriptions that will run layout
+    if (initialViewConfig.containmentMode && !this.canvasSnapshot) {
       this.canvasControlService.setContainmentMode(initialViewConfig.containmentMode);
     }
 
