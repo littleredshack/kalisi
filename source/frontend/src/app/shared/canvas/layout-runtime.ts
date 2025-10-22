@@ -135,7 +135,6 @@ export class CanvasLayoutRuntime {
 
   setGraphDataSet(dataset: GraphDataSet, runLayout = false, source: CanvasEventSource = 'system'): void {
     this.graphDataSet = dataset;
-    console.log('[LayoutRuntime] setGraphDataSet called, storing dataset with', dataset.nodes.length, 'nodes');
     const raw = graphDataSetToRawDataInput(dataset);
     this.setRawDataInternal(raw, runLayout, source);
   }
@@ -155,9 +154,6 @@ export class CanvasLayoutRuntime {
 
   async runLayout(options: LayoutRunOptions = {}): Promise<CanvasData> {
     const preservedCamera = this.viewGraph?.camera;
-
-    console.log('[LayoutRuntime] runLayout called, reason:', options.reason, 'source:', options.source);
-    console.log('[LayoutRuntime] Current nodes before layout:', this.viewGraph.nodes.length, 'mode:', this.runtimeConfig.containmentMode);
 
     const nextVersion = this.store.current.version + 1;
     const baseGraph = canvasDataToLayoutGraph(this.viewGraph, nextVersion);
@@ -184,9 +180,6 @@ export class CanvasLayoutRuntime {
 
     this.store.update(result);
     this.applyLayoutResult(result, preservedCamera);
-
-    console.log('[LayoutRuntime] Layout complete, result nodes:', this.viewGraph.nodes.length);
-
     return this.viewGraph;
   }
 

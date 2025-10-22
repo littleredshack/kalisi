@@ -327,10 +327,6 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       if (viewNode.layout) {
         try {
           const savedLayoutData = JSON.parse(viewNode.layout);
-          console.log('[RuntimeCanvas] Loading saved layout from ViewNode:', viewNode.id);
-          console.log('[RuntimeCanvas] Loaded saved layout with', savedLayoutData?.nodes?.length, 'nodes');
-          console.log('[RuntimeCanvas] Saved layout JSON (first 200 chars):', viewNode.layout.substring(0, 200));
-          console.log('[RuntimeCanvas] Sample loaded positions:', savedLayoutData?.nodes?.slice(0, 2).map((n: any) => ({ id: n.id, x: n.x, y: n.y })));
           if (savedLayoutData?.nodes?.length && dataset) {
             this.normaliseCanvasData(savedLayoutData);
             this.canvasSnapshot = savedLayoutData;
@@ -652,25 +648,20 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       // If we also have a saved layout snapshot, use it for positions
       // but still store the dataset for containment toggles
       if (this.canvasSnapshot) {
-        console.log('[RuntimeCanvas] Using saved snapshot with dataset');
         this.engine.getLayoutRuntime().setGraphDataSet(this.graphDataSet, false, 'system');
         this.engine.getLayoutRuntime().setViewConfig(this.viewState.layout.global);
         // CRITICAL: Do NOT run layout - we want to preserve saved positions
         this.engine.setData(this.canvasSnapshot, false);
         initialSnapshot = this.engine.getData();
-        console.log('[RuntimeCanvas] Snapshot loaded WITHOUT running layout - positions preserved');
       } else {
-        console.log('[RuntimeCanvas] No saved snapshot, running layout to generate positions');
         initialSnapshot = await this.engine.loadGraphDataSet(this.graphDataSet, this.viewState, {
           reason: 'initial'
         });
       }
     } else if (this.canvasSnapshot) {
-      console.log('[RuntimeCanvas] Using snapshot only (no dataset)');
       this.engine.setData(this.canvasSnapshot, false);
       initialSnapshot = this.engine.getData();
     } else {
-      console.log('[RuntimeCanvas] Using fallback default data');
       const fallback = this.createDefaultData();
       this.engine.setData(fallback, false);
       initialSnapshot = fallback;
@@ -907,12 +898,7 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
             }
           };
 
-          console.log('[RuntimeCanvas] Saving layout to ViewNode:', this.selectedViewNode.id);
-          console.log('[RuntimeCanvas] Saving layout with', savedLayout.nodes.length, 'nodes, containmentMode:', viewConfig.containmentMode);
-          console.log('[RuntimeCanvas] Sample node positions:', savedLayout.nodes.slice(0, 2).map(n => ({ id: n.id, x: n.x, y: n.y })));
-
           const layoutJson = JSON.stringify(savedLayout);
-          console.log('[RuntimeCanvas] JSON to save (first 200 chars):', layoutJson.substring(0, 200));
 
           // Create separate Auto Layout settings JSON
           const autoLayoutSettings = {
@@ -937,11 +923,7 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
             })
           );
 
-          console.log('[RuntimeCanvas] Save result:', result.success ? 'SUCCESS' : 'FAILED');
-
           if (result.success) {
-            // Verify what was actually saved
-            console.log('[RuntimeCanvas] Layout saved successfully, JSON length:', layoutJson.length);
             this.messageService.add({
               severity: 'success',
               summary: 'Layout Saved',
