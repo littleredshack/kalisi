@@ -327,7 +327,9 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       if (viewNode.layout) {
         try {
           const savedLayoutData = JSON.parse(viewNode.layout);
+          console.log('[RuntimeCanvas] Loading saved layout from ViewNode:', viewNode.id);
           console.log('[RuntimeCanvas] Loaded saved layout with', savedLayoutData?.nodes?.length, 'nodes');
+          console.log('[RuntimeCanvas] Saved layout JSON (first 200 chars):', viewNode.layout.substring(0, 200));
           console.log('[RuntimeCanvas] Sample loaded positions:', savedLayoutData?.nodes?.slice(0, 2).map((n: any) => ({ id: n.id, x: n.x, y: n.y })));
           if (savedLayoutData?.nodes?.length && dataset) {
             this.normaliseCanvasData(savedLayoutData);
@@ -895,10 +897,12 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
             }
           };
 
+          console.log('[RuntimeCanvas] Saving layout to ViewNode:', this.selectedViewNode.id);
           console.log('[RuntimeCanvas] Saving layout with', savedLayout.nodes.length, 'nodes, containmentMode:', viewConfig.containmentMode);
           console.log('[RuntimeCanvas] Sample node positions:', savedLayout.nodes.slice(0, 2).map(n => ({ id: n.id, x: n.x, y: n.y })));
 
           const layoutJson = JSON.stringify(savedLayout);
+          console.log('[RuntimeCanvas] JSON to save (first 200 chars):', layoutJson.substring(0, 200));
 
           // Create separate Auto Layout settings JSON
           const autoLayoutSettings = {
