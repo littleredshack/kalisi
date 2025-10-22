@@ -112,16 +112,16 @@ export class CanvasLayoutRuntime {
       ...config
     } as RuntimeViewConfig;
 
-    // CRITICAL: When containment mode changes, rebuild from original dataset
-    // because flat mode destroys hierarchy (children = []), and we need to restore it
+    // When containment mode changes, rebuild from original dataset to restore hierarchy
+    // Flat mode destroys hierarchy (children = []), so we need to rebuild from source
     if (config.containmentMode && config.containmentMode !== previousMode && this.graphDataSet) {
-      // Preserve style overrides and other user-applied metadata before rebuilding
+      // Preserve style overrides before rebuilding
       const styleOverrides = this.extractStyleOverrides(this.viewGraph.nodes);
 
       const raw = graphDataSetToRawDataInput(this.graphDataSet);
       this.setRawDataInternal(raw, false, 'system');
 
-      // Reapply style overrides after rebuild
+      // Reapply preserved style overrides
       this.applyStyleOverrides(this.viewGraph.nodes, styleOverrides);
     }
   }
