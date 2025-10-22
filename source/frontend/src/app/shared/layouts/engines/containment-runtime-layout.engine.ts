@@ -188,20 +188,17 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     collapsedNodes: Set<string>,
     nodeConfigManager?: NodeConfigManager
   ): HierarchicalNode {
-    const clone = this.ensureDefaults(this.cloneNode(node));
-    const guid = clone.GUID ?? clone.id;
+    const guid = node.GUID ?? node.id;
     const isCollapsed = guid ? collapsedNodes.has(guid) : false;
 
     if (!node.children || node.children.length === 0) {
-      clone.children = [];
-      return clone;
+      // Return shallow copy with defaults
+      return this.ensureDefaults({ ...node, children: [] });
     }
 
     if (isCollapsed) {
-      // When collapsed, preserve the node's current size (from canonical data)
-      // Don't resize - children are hidden but the container keeps its expanded size
-      clone.children = [];
-      return clone;
+      // Collapsed: preserve size, hide children
+      return this.ensureDefaults({ ...node, children: [] });
     }
 
     const visibleChildren = node.children.filter(child => !hiddenByCollapse.has(child.GUID ?? child.id));
@@ -211,35 +208,38 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
 
     // Check for per-node layout override
     let effectiveLayoutMode = config.layoutMode;
-    if (nodeConfigManager && clone.GUID) {
-      const resolved = nodeConfigManager.getResolvedConfig(clone);
+    if (nodeConfigManager && guid) {
+      const resolved = nodeConfigManager.getResolvedConfig(node);
       if (resolved.layoutStrategy !== 'manual') {
         effectiveLayoutMode = resolved.layoutStrategy as 'grid' | 'force';
       }
     }
 
+    // Create result object with calculated positions
+    let result = {
+      ...node,
+      children: laidOutChildren
+    };
+
     // Apply layout algorithm based on effective layout mode
     if (effectiveLayoutMode === 'grid') {
-      this.applyAdaptiveGrid(clone, laidOutChildren, metrics);
+      this.applyAdaptiveGrid(result, laidOutChildren, metrics);
     } else if (effectiveLayoutMode === 'force') {
       // TODO: Implement force-directed layout
-      this.applyAdaptiveGrid(clone, laidOutChildren, metrics); // Fallback to grid for now
+      this.applyAdaptiveGrid(result, laidOutChildren, metrics);
     } else if (effectiveLayoutMode === 'tree') {
       // TODO: Implement tree layout
-      this.applyAdaptiveGrid(clone, laidOutChildren, metrics); // Fallback to grid for now
+      this.applyAdaptiveGrid(result, laidOutChildren, metrics);
     } else {
-      this.applyAdaptiveGrid(clone, laidOutChildren, metrics);
+      this.applyAdaptiveGrid(result, laidOutChildren, metrics);
     }
 
-    clone.children = laidOutChildren;
-
-    // In 'containers' mode: resize parent to fit children (visual containment)
-    // In 'flat' mode: skip resize, let nodes have independent sizes
+    // In 'containers' mode: resize parent to fit children
     if (config.containmentMode === 'containers') {
-      LayoutPrimitives.resizeToFitChildren(clone, metrics.padding, metrics.padding);
+      LayoutPrimitives.resizeToFitChildren(result, metrics.padding, metrics.padding);
     }
 
-    return clone;
+    return this.ensureDefaults(result);
   }
 
   private addInheritedEdges(
@@ -511,14 +511,7 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     node.children?.forEach(child => this.updateWorldMetadata(child, { x: worldX, y: worldY }));
   }
 
-  private cloneNode(node: HierarchicalNode): HierarchicalNode {
-    return {
-      ...node,
-      style: node.style ? { ...node.style } : node.style,
-      metadata: node.metadata ? { ...node.metadata } : undefined,
-      children: node.children ? node.children.map(child => this.cloneNode(child)) : []
-    };
-  }
+  // cloneNode removed - using shallow spread only
 
   /**
    * Layout in FLAT mode: Flatten hierarchy and layout as grid

@@ -7,23 +7,8 @@ export interface HierarchicalGraphSnapshot {
   readonly metadata: LayoutGraphMetadata;
 }
 
-function cloneNode(node: HierarchicalNode): HierarchicalNode {
-  return {
-    ...node,
-    style: node.style ? { ...node.style } : node.style,
-    metadata: node.metadata ? { ...node.metadata } : undefined,
-    children: node.children ? node.children.map(child => cloneNode(child)) : []
-  };
-}
-
-function cloneEdge(edge: Edge): Edge {
-  return {
-    ...edge,
-    metadata: edge.metadata ? { ...edge.metadata } : undefined,
-    style: edge.style ? { ...edge.style } : edge.style,
-    waypoints: edge.waypoints ? edge.waypoints.map(point => ({ ...point })) : undefined
-  };
-}
+// cloneNode and cloneEdge removed - no longer needed
+// Engines now work with readonly references and create new objects
 
 function createNodeFromLayout(layoutNode: LayoutNode): HierarchicalNode {
   return {
@@ -243,9 +228,11 @@ function createEdgeRecord(edge: Edge): LayoutEdge {
 }
 
 export function canvasDataToLayoutGraph(data: CanvasData, layoutVersion = 1): LayoutGraph {
+  // NO CLONING - engine receives readonly view of ViewGraph
+  // Engine contract: must NOT mutate input, must return new objects
   const snapshot: HierarchicalGraphSnapshot = {
-    nodes: data.nodes.map(node => cloneNode(node)),
-    edges: (data.originalEdges ?? data.edges).map(edge => cloneEdge(edge)),
+    nodes: data.nodes,  // Direct reference
+    edges: data.originalEdges ?? data.edges,  // Direct reference
     metadata: {
       rootIds: collectRootGuids(data.nodes),
       layoutVersion
@@ -254,16 +241,7 @@ export function canvasDataToLayoutGraph(data: CanvasData, layoutVersion = 1): La
   return hierarchicalToLayoutGraph(snapshot);
 }
 
-export function layoutResultToCanvasData(result: LayoutResult, previous?: CanvasData): CanvasData {
-  const snapshot = layoutGraphToHierarchical(result.graph);
-  const camera = result.camera ?? previous?.camera;
-  return {
-    nodes: snapshot.nodes.map(node => cloneNode(node)),
-    edges: snapshot.edges.map(edge => cloneEdge(edge)),
-    originalEdges: snapshot.edges.map(edge => cloneEdge(edge)),
-    camera
-  };
-}
+// layoutResultToCanvasData removed - was unused dead code
 
 function collectRootGuids(nodes: HierarchicalNode[]): string[] {
   return nodes

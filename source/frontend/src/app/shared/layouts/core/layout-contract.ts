@@ -37,10 +37,14 @@ export interface LayoutGraphMetadata extends Readonly<Record<string, unknown>> {
   readonly layoutVersion?: number;
 }
 
+/**
+ * LayoutGraph is READONLY - engines must NOT mutate
+ * Engines create NEW objects and return them in LayoutResult
+ */
 export interface LayoutGraph {
-  readonly nodes: Readonly<Record<string, LayoutNode>>;
-  readonly edges: Readonly<Record<string, LayoutEdge>>;
-  readonly metadata: LayoutGraphMetadata;
+  readonly nodes: Readonly<Record<string, Readonly<LayoutNode>>>;
+  readonly edges: Readonly<Record<string, Readonly<LayoutEdge>>>;
+  readonly metadata: Readonly<LayoutGraphMetadata>;
 }
 
 export interface LayoutCapabilities {
