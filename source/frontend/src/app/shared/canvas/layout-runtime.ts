@@ -112,20 +112,17 @@ export class CanvasLayoutRuntime {
       ...config
     } as RuntimeViewConfig;
 
-    // CRITICAL: When containment mode changes, we MUST rebuild from original dataset
+    // CRITICAL: When containment mode changes, rebuild from original dataset
     // because flat mode destroys hierarchy (children = []), and we need to restore it
-    if (config.containmentMode && config.containmentMode !== previousMode) {
-      console.log('[LayoutRuntime] Containment mode changed:', previousMode, '->', config.containmentMode);
-      console.log('[LayoutRuntime] graphDataSet available?', !!this.graphDataSet);
+    if (config.containmentMode && config.containmentMode !== previousMode && this.graphDataSet) {
+      // Preserve style overrides and other user-applied metadata before rebuilding
+      const styleOverrides = this.extractStyleOverrides(this.viewGraph.nodes);
 
-      if (this.graphDataSet) {
-        console.log('[LayoutRuntime] Rebuilding from dataset...');
-        const raw = graphDataSetToRawDataInput(this.graphDataSet);
-        this.setRawDataInternal(raw, false, 'system');
-        console.log('[LayoutRuntime] Rebuild complete, viewGraph.nodes:', this.viewGraph.nodes.length, 'roots');
-      } else {
-        console.warn('[LayoutRuntime] Cannot rebuild - no graphDataSet available!');
-      }
+      const raw = graphDataSetToRawDataInput(this.graphDataSet);
+      this.setRawDataInternal(raw, false, 'system');
+
+      // Reapply style overrides after rebuild
+      this.applyStyleOverrides(this.viewGraph.nodes, styleOverrides);
     }
   }
 
@@ -314,5 +311,55 @@ export class CanvasLayoutRuntime {
     }
 
     return 'normal';
+  }
+
+  private extractStyleOverrides(nodes: HierarchicalNode[]): Map<string, Record<string, unknown>> {
+    const overrides = new Map<string, Record<string, unknown>>();
+
+    const collect = (nodeList: HierarchicalNode[]) => {
+      nodeList.forEach(node => {
+        const guid = node.GUID ?? node.id;
+        if (guid && node.metadata?.['styleOverrides']) {
+          overrides.set(guid, node.metadata['styleOverrides'] as Record<string, unknown>);
+        }
+        if (node.children) {
+          collect(node.children);
+        }
+      });
+    };
+
+    collect(nodes);
+    return overrides;
+  }
+
+  private applyStyleOverrides(nodes: HierarchicalNode[], overrides: Map<string, Record<string, unknown>>): void {
+    const apply = (nodeList: HierarchicalNode[]) => {
+      nodeList.forEach(node => {
+        const guid = node.GUID ?? node.id;
+        if (guid && overrides.has(guid)) {
+          if (!node.metadata) {
+            node.metadata = {};
+          }
+          node.metadata['styleOverrides'] = overrides.get(guid);
+
+          // Apply overrides to node style
+          const styleOverrides = overrides.get(guid) as any;
+          if (styleOverrides.fill !== undefined) {
+            node.style.fill = styleOverrides.fill;
+          }
+          if (styleOverrides.stroke !== undefined) {
+            node.style.stroke = styleOverrides.stroke;
+          }
+          if (styleOverrides.icon !== undefined) {
+            node.style.icon = styleOverrides.icon;
+          }
+        }
+        if (node.children) {
+          apply(node.children);
+        }
+      });
+    };
+
+    apply(nodes);
   }
 }
