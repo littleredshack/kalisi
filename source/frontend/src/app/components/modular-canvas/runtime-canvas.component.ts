@@ -648,19 +648,25 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       // If we also have a saved layout snapshot, use it for positions
       // but still store the dataset for containment toggles
       if (this.canvasSnapshot) {
+        console.log('[RuntimeCanvas] Using saved snapshot with dataset');
         this.engine.getLayoutRuntime().setGraphDataSet(this.graphDataSet, false, 'system');
         this.engine.getLayoutRuntime().setViewConfig(this.viewState.layout.global);
+        // CRITICAL: Do NOT run layout - we want to preserve saved positions
         this.engine.setData(this.canvasSnapshot, false);
         initialSnapshot = this.engine.getData();
+        console.log('[RuntimeCanvas] Snapshot loaded WITHOUT running layout - positions preserved');
       } else {
+        console.log('[RuntimeCanvas] No saved snapshot, running layout to generate positions');
         initialSnapshot = await this.engine.loadGraphDataSet(this.graphDataSet, this.viewState, {
           reason: 'initial'
         });
       }
     } else if (this.canvasSnapshot) {
+      console.log('[RuntimeCanvas] Using snapshot only (no dataset)');
       this.engine.setData(this.canvasSnapshot, false);
       initialSnapshot = this.engine.getData();
     } else {
+      console.log('[RuntimeCanvas] Using fallback default data');
       const fallback = this.createDefaultData();
       this.engine.setData(fallback, false);
       initialSnapshot = fallback;
