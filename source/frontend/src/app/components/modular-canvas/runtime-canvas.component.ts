@@ -332,7 +332,25 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
             this.canvasSnapshot = savedLayoutData;
             // CRITICAL: Store dataset even when using saved layout
             this.graphDataSet = dataset;
-            this.viewState = this.createInitialViewState(viewNode, dataset);
+
+            // Restore saved viewConfig if present (containment mode, layout mode, etc.)
+            if (savedLayoutData.viewConfig) {
+              this.viewState = {
+                ...this.createInitialViewState(viewNode, dataset),
+                layout: {
+                  global: {
+                    containmentMode: savedLayoutData.viewConfig.containmentMode ?? 'containers',
+                    layoutMode: savedLayoutData.viewConfig.layoutMode ?? 'grid',
+                    edgeRouting: savedLayoutData.viewConfig.edgeRouting ?? 'orthogonal'
+                  },
+                  overrides: new Map()
+                },
+                camera: savedLayoutData.camera
+              };
+            } else {
+              this.viewState = this.createInitialViewState(viewNode, dataset);
+            }
+
             await this.createEngineWithData();
             return;
           }
@@ -688,6 +706,16 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
   }
 
   private resolveInitialViewConfig(layoutComponents: ComponentFactoryResult): Partial<RuntimeViewConfig> {
+    // PRIORITY: If we have a saved viewState, use its config (from saved layout)
+    if (this.viewState?.layout?.global) {
+      return {
+        containmentMode: this.viewState.layout.global.containmentMode,
+        layoutMode: this.viewState.layout.global.layoutMode,
+        edgeRouting: this.viewState.layout.global.edgeRouting
+      };
+    }
+
+    // Otherwise, infer from ViewNode properties or defaults
     const usesContainmentRuntime = layoutComponents.runtimeEngine === 'containment-runtime';
     let containmentMode: 'containers' | 'flat' = usesContainmentRuntime ? 'flat' : 'containers';
 
@@ -853,7 +881,19 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       if (this.selectedViewNode) {
         try {
           const currentData = this.engine.getData();
-          const layoutJson = JSON.stringify(currentData);
+
+          // Include ViewGraph state: containment mode, layout config, camera, positions, styles
+          const viewConfig = this.engine.getLayoutRuntime().getViewConfig();
+          const savedLayout = {
+            ...currentData,
+            viewConfig: {
+              containmentMode: viewConfig.containmentMode,
+              layoutMode: viewConfig.layoutMode,
+              edgeRouting: viewConfig.edgeRouting
+            }
+          };
+
+          const layoutJson = JSON.stringify(savedLayout);
 
           // Create separate Auto Layout settings JSON
           const autoLayoutSettings = {
