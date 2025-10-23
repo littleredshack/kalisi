@@ -697,11 +697,20 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
         this.engine.getLayoutRuntime().setGraphDataSet(this.graphDataSet, false, 'system');
         this.engine.getLayoutRuntime().setViewConfig(this.viewState.layout.global);
 
+        // CRITICAL: Restore per-node configs to NodeConfigManager
+        if (this.viewState.layout.perNode) {
+          const nodeConfigManager = this.engine.getLayoutRuntime().getNodeConfigManager();
+          Object.entries(this.viewState.layout.perNode).forEach(([nodeId, config]) => {
+            nodeConfigManager.setNodeConfig(nodeId, config);
+          });
+        }
+
         // Sync service state with loaded viewConfig (for Layout Panel to show correct state)
         this.syncServiceWithViewConfig(this.viewState.layout.global);
 
-        // CRITICAL: Do NOT run layout - we want to preserve saved positions
+        // CRITICAL: Run layout to regenerate metadata.flattenedChildren from perNode configs
         this.engine.setData(this.canvasSnapshot, false);
+        await this.engine.runLayout(); // ← Regenerate flattened metadata
         initialSnapshot = this.engine.getData();
       } else {
         initialSnapshot = await this.engine.loadGraphDataSet(this.graphDataSet, this.viewState, {
