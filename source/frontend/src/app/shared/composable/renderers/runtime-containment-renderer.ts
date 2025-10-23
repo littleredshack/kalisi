@@ -244,8 +244,12 @@ export class RuntimeContainmentRenderer extends BaseRenderer {
       this.nodeBoundsCache.set(id, absolute);
       this.flattenedNodeBounds.push({ id, bounds: absolute });
 
-      if (!node.collapsed && node.children && node.children.length > 0) {
-        this.collectNodeBounds(node.children, { x: absolute.x, y: absolute.y });
+      // Check for flattened children in metadata first (per-node flatten mode)
+      if (!node.collapsed) {
+        const childrenToBound = (node.metadata?.['flattenedChildren'] as HierarchicalNode[] | undefined) || node.children;
+        if (childrenToBound && childrenToBound.length > 0) {
+          this.collectNodeBounds(childrenToBound, { x: absolute.x, y: absolute.y });
+        }
       }
     });
   }

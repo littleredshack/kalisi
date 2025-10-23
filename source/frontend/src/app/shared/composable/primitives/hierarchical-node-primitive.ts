@@ -160,11 +160,16 @@ export class HierarchicalNodePrimitive {
       }
     }
 
-    // Recursively render children if not collapsed - EXACT same recursion
-    if (!node.collapsed && node.children && node.children.length > 0) {
-      node.children.forEach(child => {
-        this.draw(ctx, child, worldX, worldY, camera, collapseBehavior);
-      });
+    // Recursively render children if not collapsed
+    // Check for flattened children in metadata first (per-node flatten mode)
+    if (!node.collapsed) {
+      const childrenToRender = (node.metadata?.['flattenedChildren'] as HierarchicalNode[] | undefined) || node.children;
+
+      if (childrenToRender && childrenToRender.length > 0) {
+        childrenToRender.forEach(child => {
+          this.draw(ctx, child, worldX, worldY, camera, collapseBehavior);
+        });
+      }
     }
   }
 

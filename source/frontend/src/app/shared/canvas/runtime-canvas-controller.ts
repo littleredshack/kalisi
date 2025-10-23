@@ -30,7 +30,6 @@ export class RuntimeCanvasController {
   private animationFrameId: number | null = null;
   private onDataChangedCallback?: (data: CanvasData) => void;
   private onSelectionChanged?: (node: HierarchicalNode | null) => void;
-  private onReloadNeededCallback?: () => void;
   // Overlay system removed
 
   constructor(
@@ -139,90 +138,17 @@ export class RuntimeCanvasController {
   ): Promise<CanvasData> {
     const reason = options.reason ?? 'initial';
 
-    // CRITICAL: Preserve ALL visual state before reload
-    // GraphDataSet = data only, ALL visual properties must be preserved
-    const currentData = this.layoutRuntime.getCanvasData();
-    const visualState = new Map<string, {
-      x: number;
-      y: number;
-      width: number;
-      height: number;
-      style: { fill: string; stroke: string; icon?: string };
-      collapsed?: boolean;
-      selected?: boolean;
-      visible?: boolean;
-      metadata?: Record<string, any>;
-    }>();
-
-    const captureVisual = (nodes: HierarchicalNode[]) => {
-      nodes.forEach(node => {
-        const guid = node.GUID ?? node.id;
-        if (guid) {
-          visualState.set(guid, {
-            x: node.x,
-            y: node.y,
-            width: node.width,
-            height: node.height,
-            style: { ...node.style }, // Preserve colors and styling
-            collapsed: node.collapsed,
-            selected: node.selected,
-            visible: node.visible,
-            metadata: node.metadata ? { ...node.metadata } : undefined
-          });
-        }
-        if (node.children) captureVisual(node.children);
-      });
-    };
-    captureVisual(currentData.nodes);
-
-    // CRITICAL: Must set view config BEFORE setGraphDataSet so containment mode is correct
+    // Set view config before loading dataset
     this.layoutRuntime.setViewConfig(viewState.layout.global);
 
-    // Store dataset in runtime so containment toggle can rebuild from it
+    // Store dataset in runtime
     this.layoutRuntime.setGraphDataSet(dataset, false, 'system');
 
+    // Run layout - hierarchy preserved via metadata.flattenedChildren, no visual state preservation needed
     const result = await this.layoutRuntime.runLayout({
       reason,
       source: 'system'
     });
-
-    // Restore preserved visual state
-    const restoreVisual = (nodes: HierarchicalNode[]) => {
-      nodes.forEach(node => {
-        const guid = node.GUID ?? node.id;
-        const saved = guid ? visualState.get(guid) : null;
-        if (saved) {
-          // Restore all visual properties
-          node.x = saved.x;
-          node.y = saved.y;
-          node.width = saved.width;
-          node.height = saved.height;
-          node.style = { ...saved.style }; // Restore colors and styling
-          if (saved.collapsed !== undefined) {
-            node.collapsed = saved.collapsed;
-          }
-          if (saved.selected !== undefined) {
-            node.selected = saved.selected;
-          }
-          if (saved.visible !== undefined) {
-            node.visible = saved.visible;
-          }
-          // Preserve metadata including _visibilitySnapshot
-          if (saved.metadata) {
-            node.metadata = {
-              ...(node.metadata || {}),
-              ...saved.metadata
-            };
-          }
-        }
-        if (node.children) restoreVisual(node.children);
-      });
-    };
-    restoreVisual(result.nodes);
-
-    // CRITICAL: Recompute edge inheritance for collapsed nodes
-    // Use result.edges (which includes generated CONTAINS edges) not originalEdges
-    result.edges = this.computeEdgesWithInheritance(result.edges);
 
     this.applyInitialCamera(result, viewState, reason);
 
@@ -729,9 +655,6 @@ export class RuntimeCanvasController {
     }
   }
 
-  setOnReloadNeeded(callback: () => void): void {
-    this.onReloadNeededCallback = callback;
-  }
 
 
   /**
@@ -1013,18 +936,7 @@ export class RuntimeCanvasController {
       }
     }
 
-    // Check if we need GraphDataSet reload to restore hierarchy
-    const viewState = this.layoutRuntime.getCurrentViewState();
-    const hasPerNodeConfigs = viewState?.layout?.perNode && Object.keys(viewState.layout.perNode).length > 0;
-    const graphDataSet = this.layoutRuntime.getGraphDataSet();
-
-    if (hasPerNodeConfigs && graphDataSet && this.onReloadNeededCallback) {
-      // Trigger reload to restore hierarchy with per-node configs
-      this.onReloadNeededCallback();
-      return;
-    }
-
-    // Standard collapse/expand without per-node configs
+    // No GraphDataSet reload needed - hierarchy preserved in node.children
     const baseEdges = data.originalEdges || data.edges;
     data.edges = this.computeEdgesWithInheritance(baseEdges);
 
@@ -1034,8 +946,8 @@ export class RuntimeCanvasController {
       reason: 'user-command',
       source: 'system'
     }).then(updated => {
-      const base = updated.originalEdges || updated.edges;
-      updated.edges = this.computeEdgesWithInheritance(base);
+      // Use updated.edges (includes generated CONTAINS edges from metadata) as base
+      updated.edges = this.computeEdgesWithInheritance(updated.edges);
       this.layoutRuntime.setCanvasData(updated, false, 'system');
       if (this.onDataChangedCallback) {
         this.onDataChangedCallback(updated);

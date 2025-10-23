@@ -92,8 +92,24 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
       generatedContainsEdges = perNodeContainsEdges;
     }
 
-    // Merge original edges with generated CONTAINS edges from flat mode
-    const allEdges = [...snapshot.edges, ...generatedContainsEdges];
+    // Collect generated edges from flattened nodes' metadata
+    const collectGeneratedEdges = (nodes: HierarchicalNode[]): Edge[] => {
+      const collected: Edge[] = [];
+      nodes.forEach(node => {
+        const flattenedEdges = node.metadata?.['flattenedEdges'] as Edge[] | undefined;
+        if (flattenedEdges) {
+          collected.push(...flattenedEdges);
+        }
+        if (node.children) {
+          collected.push(...collectGeneratedEdges(node.children));
+        }
+      });
+      return collected;
+    };
+    const metadataGeneratedEdges = collectGeneratedEdges(processedNodes);
+
+    // Merge original edges with generated CONTAINS edges
+    const allEdges = [...snapshot.edges, ...generatedContainsEdges, ...metadataGeneratedEdges];
 
     const edgesToRender = allEdges.map(edge => {
       const existingMetadata = edge.metadata ?? {};
@@ -269,6 +285,8 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
 
   /**
    * Layout node in FLAT mode - children become siblings with CONTAINS edges
+   * NON-DESTRUCTIVE: Original hierarchy preserved in node.children
+   * Flattened representation stored in metadata.flattenedChildren
    */
   private layoutNodeAsFlat(
     node: HierarchicalNode,
@@ -288,13 +306,15 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
       containsEdgeCollector.push(...flatResult.containsEdges);
     }
 
-    // Create result with flattened children
+    // CRITICAL: Keep original children intact, store flattened view in metadata
     const result = {
       ...node,
-      children: flatResult.nodes,
+      children: node.children,  // ← PRESERVE original hierarchy
       metadata: {
         ...(node.metadata ?? {}),
-        perNodeFlattened: true
+        perNodeFlattened: true,
+        flattenedChildren: flatResult.nodes,        // ← Visual transform
+        flattenedEdges: flatResult.containsEdges    // ← Generated edges
       }
     };
 
