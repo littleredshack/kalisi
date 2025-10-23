@@ -417,6 +417,7 @@ export class RuntimeCanvasController {
    * Start the render loop
    */
   private startRenderLoop(): void {
+    let frameCount = 0;
     const render = () => {
       const ctx = this.canvas.getContext('2d');
       if (!ctx) {
@@ -429,6 +430,17 @@ export class RuntimeCanvasController {
       // Get current data from layout runtime
       const data = this.layoutRuntime.getCanvasData();
       const camera = this.cameraSystem.getCamera();
+
+      // Debug first frame only
+      if (frameCount === 0) {
+        const flatNode = data.nodes.find(n => n.metadata?.['perNodeFlattened']);
+        if (flatNode) {
+          const flatChildren = flatNode.metadata?.['flattenedChildren'] as any[] || [];
+          console.log('[RenderLoop] Frame 0 - data from layoutRuntime.getCanvasData():',
+            flatChildren.map(c => ({ id: c.GUID || c.id, x: c.x, y: c.y })));
+        }
+        frameCount++;
+      }
 
       // Render directly - NO transformations
       this.renderer.render(ctx, data.nodes, data.edges, camera);

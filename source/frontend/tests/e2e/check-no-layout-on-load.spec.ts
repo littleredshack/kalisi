@@ -1,13 +1,23 @@
 import { test, expect } from '@playwright/test';
 
-test('verify no layout runs after loading saved positions', async ({ page }) => {
-  const logs: string[] = [];
+test('debug: trace unwanted layout calls after load', async ({ page }) => {
+  const layoutCalls: Array<{ time: number; reason: string; stack?: string }> = [];
+  let initCompleteTime = 0;
 
   page.on('console', msg => {
     const text = msg.text();
-    if (text.includes('[RuntimeCanvas]') || text.includes('[LayoutRuntime]')) {
-      logs.push(text);
-      console.log('BROWSER:', text);
+
+    if (text.includes('[Init] Final snapshot edges')) {
+      initCompleteTime = Date.now();
+      console.log('✓ Init completed at:', initCompleteTime);
+    }
+
+    if (text.includes('[LayoutRuntime] runLayout called')) {
+      const match = text.match(/reason: (\w+)/);
+      layoutCalls.push({
+        time: Date.now(),
+        reason: match ? match[1] : 'unknown'
+      });
     }
   });
 
@@ -16,7 +26,7 @@ test('verify no layout runs after loading saved positions', async ({ page }) => 
 
   const exploreButton = page.getByRole('button', { name: /explore/i });
   await exploreButton.click();
-  await page.waitForTimeout(5000);
+  await page.waitForTimeout(3000);
 
   const chevron = page.locator('text=Test Architecture Set').locator('..').locator('.tree-toggle');
   await chevron.click();
@@ -24,34 +34,30 @@ test('verify no layout runs after loading saved positions', async ({ page }) => 
 
   const runtimeMergeItem = page.getByText('Containment - Runtime Merge');
   await runtimeMergeItem.click();
-  await page.waitForTimeout(6000);
+  await page.waitForTimeout(6000); // Wait for everything to settle
 
-  console.log('\n=== CHECKING LOGS ===\n');
+  console.log('\n=== LAYOUT CALLS DURING LOAD ===');
+  layoutCalls.forEach(call => {
+    const afterInit = initCompleteTime > 0 ? (call.time - initCompleteTime) : 'N/A';
+    console.log(`Reason: ${call.reason}, Time after init: ${afterInit}ms`);
+  });
 
-  // Find the "Snapshot loaded" log
-  const snapshotLoadedIndex = logs.findIndex(log => log.includes('Snapshot loaded, positions should be preserved'));
+  // Check for unwanted layout calls
+  const layoutsAfterInit = layoutCalls.filter((call, idx) => {
+    return initCompleteTime > 0 && call.time > initCompleteTime + 100;
+  });
 
-  if (snapshotLoadedIndex === -1) {
-    console.log('ERROR: Snapshot loaded log not found');
-    throw new Error('Snapshot not loaded');
-  }
+  console.log('\n=== ANALYSIS ===');
+  console.log('Total layout calls:', layoutCalls.length);
+  console.log('Layouts AFTER init complete:', layoutsAfterInit.length);
 
-  // Check if runLayout was called AFTER snapshot loaded
-  const logsAfterSnapshot = logs.slice(snapshotLoadedIndex + 1);
-  const layoutCalledAfter = logsAfterSnapshot.filter(log => log.includes('runLayout called'));
-
-  console.log('\n=== RESULT ===');
-  console.log('Logs after snapshot loaded:', logsAfterSnapshot.length);
-  console.log('runLayout calls after snapshot:', layoutCalledAfter.length);
-
-  if (layoutCalledAfter.length === 0) {
-    console.log('✅ SUCCESS: No runLayout calls after loading saved positions');
-  } else {
-    console.log('❌ FAIL: runLayout was called', layoutCalledAfter.length, 'times after loading');
-    layoutCalledAfter.forEach((log, i) => {
-      console.log(`  ${i + 1}.`, log);
+  if (layoutsAfterInit.length > 0) {
+    console.log('\n❌ UNWANTED LAYOUT CALLS AFTER INIT:');
+    layoutsAfterInit.forEach(call => {
+      console.log(`  - Reason: ${call.reason}`);
     });
   }
 
-  expect(layoutCalledAfter.length).toBe(0);
+  // Should only have initial layout, nothing after
+  expect(layoutsAfterInit.length).toBe(0);
 });

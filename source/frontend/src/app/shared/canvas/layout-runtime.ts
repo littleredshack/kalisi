@@ -191,6 +191,7 @@ export class CanvasLayoutRuntime {
 
   async runLayout(options: LayoutRunOptions = {}): Promise<CanvasData> {
     console.log('[LayoutRuntime] runLayout called, reason:', options.reason || 'unknown');
+    console.log('[LayoutRuntime] Call stack:', new Error().stack?.split('\n').slice(1, 5).join('\n'));
     const preservedCamera = this.viewGraph?.camera;
 
     const nextVersion = this.store.current.version + 1;
