@@ -383,14 +383,14 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
           const savedLayoutData = JSON.parse(viewNode.layout);
 
           // Debug: Check what we're loading
-          const flattenedNode = savedLayoutData.nodes?.find((n: any) => n.metadata?.perNodeFlattened);
+          const flattenedNode = savedLayoutData.nodes?.find((n: any) => n.metadata?.['perNodeFlattened']);
           if (flattenedNode) {
             console.log('[LOAD] Flattened node metadata:', {
               id: flattenedNode.GUID || flattenedNode.id,
-              hasFlattenedChildren: !!flattenedNode.metadata?.flattenedChildren,
-              hasFlattenedEdges: !!flattenedNode.metadata?.flattenedEdges,
-              flattenedChildCount: flattenedNode.metadata?.flattenedChildren?.length || 0,
-              flattenedEdgeCount: flattenedNode.metadata?.flattenedEdges?.length || 0
+              hasFlattenedChildren: !!flattenedNode.metadata?.['flattenedChildren'],
+              hasFlattenedEdges: !!flattenedNode.metadata?.['flattenedEdges'],
+              flattenedChildCount: flattenedNode.metadata?.['flattenedChildren']?.length || 0,
+              flattenedEdgeCount: flattenedNode.metadata?.['flattenedEdges']?.length || 0
             });
           }
 
@@ -1033,14 +1033,14 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
           };
 
           // Debug: Check what we're actually saving
-          const flattenedNode = savedLayout.nodes.find((n: any) => n.metadata?.perNodeFlattened);
+          const flattenedNode = savedLayout.nodes.find((n: any) => n.metadata?.['perNodeFlattened']);
           if (flattenedNode) {
             console.log('[SAVE] Flattened node metadata:', {
               id: flattenedNode.GUID || flattenedNode.id,
-              hasFlattenedChildren: !!flattenedNode.metadata?.flattenedChildren,
-              hasFlattenedEdges: !!flattenedNode.metadata?.flattenedEdges,
-              flattenedChildCount: flattenedNode.metadata?.flattenedChildren?.length || 0,
-              flattenedEdgeCount: flattenedNode.metadata?.flattenedEdges?.length || 0
+              hasFlattenedChildren: !!flattenedNode.metadata?.['flattenedChildren'],
+              hasFlattenedEdges: !!flattenedNode.metadata?.['flattenedEdges'],
+              flattenedChildCount: flattenedNode.metadata?.['flattenedChildren']?.length || 0,
+              flattenedEdgeCount: flattenedNode.metadata?.['flattenedEdges']?.length || 0
             });
           }
 
