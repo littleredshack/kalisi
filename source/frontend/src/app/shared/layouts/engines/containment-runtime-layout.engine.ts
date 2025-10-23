@@ -256,15 +256,20 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
         containsEdgeCollector.push(...flatResult.containsEdges);
       }
 
-      return this.ensureDefaults({
+      // Create result with flattened children
+      const result = {
         ...node,
         children: flatResult.nodes,
         metadata: {
           ...(node.metadata ?? {}),
-          perNodeFlattened: true,
-          generatedEdges: flatResult.containsEdges.length
+          perNodeFlattened: true
         }
-      });
+      };
+
+      // Resize parent to fit flattened children
+      LayoutPrimitives.resizeToFitChildren(result, metrics.padding, metrics.padding);
+
+      return this.ensureDefaults(result);
     }
 
     // Recursively layout children first to get their sizes

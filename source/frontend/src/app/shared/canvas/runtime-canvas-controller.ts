@@ -139,6 +139,25 @@ export class RuntimeCanvasController {
   ): Promise<CanvasData> {
     const reason = options.reason ?? 'initial';
 
+    // CRITICAL: Preserve current visual state (positions/sizes) before reload
+    const currentData = this.layoutRuntime.getCanvasData();
+    const visualState = new Map<string, { x: number; y: number; width: number; height: number }>();
+
+    const captureVisual = (nodes: HierarchicalNode[]) => {
+      nodes.forEach(node => {
+        const guid = node.GUID ?? node.id;
+        if (guid) {
+          visualState.set(guid, {
+            x: node.x,
+            y: node.y,
+            width: node.width,
+            height: node.height
+          });
+        }
+        if (node.children) captureVisual(node.children);
+      });
+    };
+    captureVisual(currentData.nodes);
 
     // CRITICAL: Must set view config BEFORE setGraphDataSet so containment mode is correct
     this.layoutRuntime.setViewConfig(viewState.layout.global);
@@ -150,6 +169,22 @@ export class RuntimeCanvasController {
       reason,
       source: 'system'
     });
+
+    // Restore preserved visual state
+    const restoreVisual = (nodes: HierarchicalNode[]) => {
+      nodes.forEach(node => {
+        const guid = node.GUID ?? node.id;
+        const saved = guid ? visualState.get(guid) : null;
+        if (saved) {
+          node.x = saved.x;
+          node.y = saved.y;
+          node.width = saved.width;
+          node.height = saved.height;
+        }
+        if (node.children) restoreVisual(node.children);
+      });
+    };
+    restoreVisual(result.nodes);
 
     this.applyInitialCamera(result, viewState, reason);
 
