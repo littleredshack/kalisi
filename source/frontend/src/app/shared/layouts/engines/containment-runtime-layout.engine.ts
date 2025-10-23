@@ -346,7 +346,14 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     // Create result with positioned children
     const result = {
       ...node,
-      children: laidOutChildren
+      children: laidOutChildren,
+      metadata: {
+        ...(node.metadata ?? {}),
+        // CRITICAL: Clear flattened metadata when in hierarchical mode
+        flattenedChildren: undefined,
+        flattenedEdges: undefined,
+        perNodeFlattened: false
+      }
     };
 
     // Apply layout strategy to position children within parent
