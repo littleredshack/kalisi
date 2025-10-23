@@ -139,9 +139,17 @@ export class RuntimeCanvasController {
   ): Promise<CanvasData> {
     const reason = options.reason ?? 'initial';
 
-    // CRITICAL: Preserve current visual state (positions/sizes) before reload
+    // CRITICAL: Preserve current visual state (positions/sizes/collapse/selection) before reload
     const currentData = this.layoutRuntime.getCanvasData();
-    const visualState = new Map<string, { x: number; y: number; width: number; height: number }>();
+    const visualState = new Map<string, {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      collapsed?: boolean;
+      selected?: boolean;
+      visible?: boolean;
+    }>();
 
     const captureVisual = (nodes: HierarchicalNode[]) => {
       nodes.forEach(node => {
@@ -151,7 +159,10 @@ export class RuntimeCanvasController {
             x: node.x,
             y: node.y,
             width: node.width,
-            height: node.height
+            height: node.height,
+            collapsed: node.collapsed,
+            selected: node.selected,
+            visible: node.visible
           });
         }
         if (node.children) captureVisual(node.children);
@@ -180,6 +191,15 @@ export class RuntimeCanvasController {
           node.y = saved.y;
           node.width = saved.width;
           node.height = saved.height;
+          if (saved.collapsed !== undefined) {
+            node.collapsed = saved.collapsed;
+          }
+          if (saved.selected !== undefined) {
+            node.selected = saved.selected;
+          }
+          if (saved.visible !== undefined) {
+            node.visible = saved.visible;
+          }
         }
         if (node.children) restoreVisual(node.children);
       });
