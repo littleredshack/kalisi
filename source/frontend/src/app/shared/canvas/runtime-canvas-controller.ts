@@ -926,27 +926,51 @@ export class RuntimeCanvasController {
 
     const currentlyCollapsed = node.collapsed === true;
 
+    // Check if ANY node has per-node configs - if so, always reload from GraphDataSet
+    const nodeConfigManager = this.layoutRuntime.getNodeConfigManager();
+    const hasAnyPerNodeConfigs = nodeConfigManager.getConfiguredNodeIds().length > 0;
+    const graphDataSet = this.layoutRuntime.getGraphDataSet();
+
+    if (hasAnyPerNodeConfigs && graphDataSet && this.onExpandWithDataSetCallback) {
+      // Reload from GraphDataSet to preserve all per-node configurations
+      // Toggle the collapse state first, then reload
+      if (!currentlyCollapsed) {
+        this.saveVisibilityState(node);
+        node.collapsed = true;
+        this.hideAllDescendants(node);
+        node.visible = true;
+      } else {
+        node.collapsed = false;
+        this.restoreVisibilityState(node);
+        if (node.metadata && node.metadata['_visibilitySnapshot']) {
+          delete node.metadata['_visibilitySnapshot'];
+        }
+      }
+
+      this.onExpandWithDataSetCallback(nodeGuid);
+      return;
+    }
+
     if (!currentlyCollapsed) {
       this.saveVisibilityState(node);
       node.collapsed = true;
       this.hideAllDescendants(node);
       node.visible = true;
     } else {
-      // EXPANDING - need to restore hierarchy from source if we have per-node configs
-      const isExpanding = true;
+      // EXPANDING - need to restore hierarchy from source if THIS node has per-node flatten config
       node.collapsed = false;
       this.restoreVisibilityState(node);
       if (node.metadata && node.metadata['_visibilitySnapshot']) {
         delete node.metadata['_visibilitySnapshot'];
       }
 
-      // Check if we need to reload from source to restore hierarchy
+      // Check if ANY node has per-node flatten configs (not just this one)
       const nodeConfigManager = this.layoutRuntime.getNodeConfigManager();
-      const hasPerNodeConfigs = nodeConfigManager.getConfiguredNodeIds().length > 0;
+      const hasAnyPerNodeConfigs = nodeConfigManager.getConfiguredNodeIds().length > 0;
       const graphDataSet = this.layoutRuntime.getGraphDataSet();
 
-      if (isExpanding && hasPerNodeConfigs && graphDataSet && this.onExpandWithDataSetCallback) {
-        // Trigger callback to reload from GraphDataSet
+      if (hasAnyPerNodeConfigs && graphDataSet && this.onExpandWithDataSetCallback) {
+        // Reload from GraphDataSet to preserve all per-node flatten configurations
         this.onExpandWithDataSetCallback(nodeGuid);
         return;
       }
