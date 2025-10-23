@@ -139,13 +139,15 @@ export class RuntimeCanvasController {
   ): Promise<CanvasData> {
     const reason = options.reason ?? 'initial';
 
-    // CRITICAL: Preserve current visual state (positions/sizes/collapse/selection/metadata) before reload
+    // CRITICAL: Preserve ALL visual state before reload
+    // GraphDataSet = data only, ALL visual properties must be preserved
     const currentData = this.layoutRuntime.getCanvasData();
     const visualState = new Map<string, {
       x: number;
       y: number;
       width: number;
       height: number;
+      style: { fill: string; stroke: string; icon?: string };
       collapsed?: boolean;
       selected?: boolean;
       visible?: boolean;
@@ -161,6 +163,7 @@ export class RuntimeCanvasController {
             y: node.y,
             width: node.width,
             height: node.height,
+            style: { ...node.style }, // Preserve colors and styling
             collapsed: node.collapsed,
             selected: node.selected,
             visible: node.visible,
@@ -189,10 +192,12 @@ export class RuntimeCanvasController {
         const guid = node.GUID ?? node.id;
         const saved = guid ? visualState.get(guid) : null;
         if (saved) {
+          // Restore all visual properties
           node.x = saved.x;
           node.y = saved.y;
           node.width = saved.width;
           node.height = saved.height;
+          node.style = { ...saved.style }; // Restore colors and styling
           if (saved.collapsed !== undefined) {
             node.collapsed = saved.collapsed;
           }
