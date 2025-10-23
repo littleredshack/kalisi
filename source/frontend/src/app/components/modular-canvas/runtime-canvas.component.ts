@@ -382,7 +382,18 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
         try {
           const savedLayoutData = JSON.parse(viewNode.layout);
 
-          // Debug: Check what we're loading
+          // Verify we're loading complete CanvasData
+          console.log('[LOAD] Loading saved CanvasData:', {
+            nodeCount: savedLayoutData.nodes?.length || 0,
+            edgeCount: savedLayoutData.edges?.length || 0,
+            originalEdgeCount: savedLayoutData.originalEdges?.length || 0,
+            hasCamera: !!savedLayoutData.camera,
+            hasMetadata: !!savedLayoutData.metadata,
+            hasViewConfig: !!savedLayoutData.viewConfig,
+            perNodeConfigCount: Object.keys(savedLayoutData.viewConfig?.perNode || {}).length
+          });
+
+          // Check flattened node metadata
           const flattenedNode = savedLayoutData.nodes?.find((n: any) => n.metadata?.['perNodeFlattened']);
           if (flattenedNode) {
             console.log('[LOAD] Flattened node metadata:', {
@@ -1019,20 +1030,38 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
         try {
           const currentData = this.engine.getData();
 
-          // Include ViewGraph state: containment mode, layout config, perNode configs, camera, positions, styles
+          // ARCHITECTURAL CONTRACT: Save ENTIRE CanvasData
+          // This includes:
+          // - nodes (with ALL metadata including flattenedChildren/flattenedEdges)
+          // - edges (including generated CONTAINS edges)
+          // - originalEdges
+          // - camera
+          // - metadata
           const viewConfig = this.engine.getLayoutRuntime().getViewConfig();
           const currentViewState = this.engine.getLayoutRuntime().getCurrentViewState();
+
           const savedLayout = {
-            ...currentData,
+            ...currentData,  // ← Everything: nodes, edges, originalEdges, camera, metadata
             viewConfig: {
               containmentMode: viewConfig.containmentMode,
               layoutMode: viewConfig.layoutMode,
               edgeRouting: viewConfig.edgeRouting,
-              perNode: currentViewState.layout.perNode ?? {} // ← Save per-node configs!
+              perNode: currentViewState.layout.perNode ?? {}
             }
           };
 
-          // Debug: Check what we're actually saving
+          // Verify we're saving complete CanvasData
+          console.log('[SAVE] Saving complete CanvasData:', {
+            nodeCount: savedLayout.nodes?.length || 0,
+            edgeCount: savedLayout.edges?.length || 0,
+            originalEdgeCount: savedLayout.originalEdges?.length || 0,
+            hasCamera: !!savedLayout.camera,
+            hasMetadata: !!savedLayout.metadata,
+            hasViewConfig: !!savedLayout.viewConfig,
+            perNodeConfigCount: Object.keys(savedLayout.viewConfig?.perNode || {}).length
+          });
+
+          // Check flattened node metadata
           const flattenedNode = savedLayout.nodes.find((n: any) => n.metadata?.['perNodeFlattened']);
           if (flattenedNode) {
             console.log('[SAVE] Flattened node metadata:', {
