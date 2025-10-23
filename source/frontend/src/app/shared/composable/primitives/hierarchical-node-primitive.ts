@@ -169,7 +169,9 @@ export class HierarchicalNodePrimitive {
       if (parentHasFlattenedChildren) {
         // Render flattened children ONLY - they already include all descendants
         const flatChildren = parentHasFlattenedChildren as HierarchicalNode[];
-        flatChildren.forEach(child => {
+        console.log('[Render] Parent has flattened children, rendering', flatChildren.length, 'nodes WITHOUT recursion');
+        flatChildren.forEach((child, idx) => {
+          console.log(`[Render] Drawing flat child ${idx}:`, child.GUID || child.id, 'at', child.x, child.y);
           // Don't recurse into child's children - they're already in the flat list
           this.drawSingleNode(ctx, child, worldX, worldY, camera, collapseBehavior);
         });
