@@ -393,15 +393,17 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
             perNodeConfigCount: Object.keys(savedLayoutData.viewConfig?.perNode || {}).length
           });
 
-          // Check flattened node metadata
+          // Check flattened node metadata WITH ACTUAL POSITIONS
           const flattenedNode = savedLayoutData.nodes?.find((n: any) => n.metadata?.['perNodeFlattened']);
           if (flattenedNode) {
+            const flatChildren = flattenedNode.metadata?.['flattenedChildren'] || [];
             console.log('[LOAD] Flattened node metadata:', {
               id: flattenedNode.GUID || flattenedNode.id,
               hasFlattenedChildren: !!flattenedNode.metadata?.['flattenedChildren'],
               hasFlattenedEdges: !!flattenedNode.metadata?.['flattenedEdges'],
-              flattenedChildCount: flattenedNode.metadata?.['flattenedChildren']?.length || 0,
-              flattenedEdgeCount: flattenedNode.metadata?.['flattenedEdges']?.length || 0
+              flattenedChildCount: flatChildren.length,
+              flattenedEdgeCount: flattenedNode.metadata?.['flattenedEdges']?.length || 0,
+              firstChildPosition: flatChildren[0] ? { x: flatChildren[0].x, y: flatChildren[0].y } : null
             });
           }
 
@@ -830,9 +832,13 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     layoutRuntime.viewState$.subscribe(viewState => {
       // Check if perNode configs changed (keys OR values)
       const currentState = JSON.stringify(viewState.layout.perNode || {});
+      console.log('[ViewState] Subscription fired, previousState:', previousPerNodeState ? 'exists' : 'empty', 'currentState:', currentState);
+
       if (previousPerNodeState && previousPerNodeState !== currentState) {
+        console.log('[ViewState] Config changed - running layout (THIS WILL RESET POSITIONS!)');
         // PerNode configs changed - run layout (hierarchy preserved in metadata, no reload needed)
         this.engine?.runLayout().then(() => {
+          console.log('[ViewState] Layout complete - positions regenerated');
           this.canvasSnapshot = this.engine?.getData() ?? this.canvasSnapshot;
           this.updateCameraInfo();
           this.engineDataChanged.emit();
@@ -1069,15 +1075,17 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
             perNodeConfigCount: Object.keys(savedLayout.viewConfig?.perNode || {}).length
           });
 
-          // Check flattened node metadata
+          // Check flattened node metadata WITH ACTUAL POSITIONS
           const flattenedNode = savedLayout.nodes.find((n: any) => n.metadata?.['perNodeFlattened']);
           if (flattenedNode) {
+            const flatChildren = flattenedNode.metadata?.['flattenedChildren'] || [];
             console.log('[SAVE] Flattened node metadata:', {
               id: flattenedNode.GUID || flattenedNode.id,
               hasFlattenedChildren: !!flattenedNode.metadata?.['flattenedChildren'],
               hasFlattenedEdges: !!flattenedNode.metadata?.['flattenedEdges'],
-              flattenedChildCount: flattenedNode.metadata?.['flattenedChildren']?.length || 0,
-              flattenedEdgeCount: flattenedNode.metadata?.['flattenedEdges']?.length || 0
+              flattenedChildCount: flatChildren.length,
+              flattenedEdgeCount: flattenedNode.metadata?.['flattenedEdges']?.length || 0,
+              firstChildPosition: flatChildren[0] ? { x: flatChildren[0].x, y: flatChildren[0].y } : null
             });
           }
 
