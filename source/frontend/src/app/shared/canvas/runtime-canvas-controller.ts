@@ -1094,7 +1094,9 @@ export class RuntimeCanvasController {
       if (node.GUID === guid || node.id === guid) {
         return node;
       }
-      const found = this.findNodeByGuid(node.children || [], guid);
+      // Check flattened children in metadata first (per-node flatten mode)
+      const childrenToSearch = (node.metadata?.['flattenedChildren'] as HierarchicalNode[] | undefined) || node.children || [];
+      const found = this.findNodeByGuid(childrenToSearch, guid);
       if (found) {
         return found;
       }
@@ -1112,7 +1114,9 @@ export class RuntimeCanvasController {
       nodes.forEach(node => {
         node.selected = false;
         node.dragging = false;
-        clearSelection(node.children || []);
+        // Check flattened children in metadata first (per-node flatten mode)
+        const childrenToClear = (node.metadata?.['flattenedChildren'] as HierarchicalNode[] | undefined) || node.children || [];
+        clearSelection(childrenToClear);
       });
     };
     clearSelection(data.nodes);
@@ -1446,8 +1450,10 @@ export class RuntimeCanvasController {
     const collectRecursive = (currentNodes: HierarchicalNode[]) => {
       currentNodes.forEach(node => {
         allNodes.push(node);
-        if (node.children && node.children.length > 0) {
-          collectRecursive(node.children);
+        // Check flattened children in metadata first (per-node flatten mode)
+        const childrenToCollect = (node.metadata?.['flattenedChildren'] as HierarchicalNode[] | undefined) || node.children;
+        if (childrenToCollect && childrenToCollect.length > 0) {
+          collectRecursive(childrenToCollect);
         }
       });
     };
