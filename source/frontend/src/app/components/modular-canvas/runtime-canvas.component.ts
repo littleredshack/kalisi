@@ -363,7 +363,7 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
             // CRITICAL: Store dataset even when using saved layout
             this.graphDataSet = dataset;
 
-            // Restore saved viewConfig if present (containment mode, layout mode, etc.)
+            // Restore saved viewConfig if present (containment mode, layout mode, perNode configs, etc.)
             if (savedLayoutData.viewConfig) {
               this.viewState = {
                 ...this.createInitialViewState(viewNode, dataset),
@@ -372,7 +372,8 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
                     containmentMode: savedLayoutData.viewConfig.containmentMode ?? 'containers',
                     layoutMode: savedLayoutData.viewConfig.layoutMode ?? 'grid',
                     edgeRouting: savedLayoutData.viewConfig.edgeRouting ?? 'orthogonal'
-                  }
+                  },
+                  perNode: savedLayoutData.viewConfig.perNode ?? {} // ← Restore per-node configs!
                 },
                 camera: savedLayoutData.camera
               };
@@ -957,14 +958,16 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
         try {
           const currentData = this.engine.getData();
 
-          // Include ViewGraph state: containment mode, layout config, camera, positions, styles
+          // Include ViewGraph state: containment mode, layout config, perNode configs, camera, positions, styles
           const viewConfig = this.engine.getLayoutRuntime().getViewConfig();
+          const currentViewState = this.engine.getLayoutRuntime().getCurrentViewState();
           const savedLayout = {
             ...currentData,
             viewConfig: {
               containmentMode: viewConfig.containmentMode,
               layoutMode: viewConfig.layoutMode,
-              edgeRouting: viewConfig.edgeRouting
+              edgeRouting: viewConfig.edgeRouting,
+              perNode: currentViewState.layout.perNode ?? {} // ← Save per-node configs!
             }
           };
 
