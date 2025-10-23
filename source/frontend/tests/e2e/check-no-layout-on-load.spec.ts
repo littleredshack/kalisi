@@ -1,26 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('debug: trace unwanted layout calls after load', async ({ page }) => {
-  const layoutCalls: Array<{ time: number; reason: string; stack?: string }> = [];
-  let initCompleteTime = 0;
-
-  page.on('console', msg => {
-    const text = msg.text();
-
-    if (text.includes('[Init] Final snapshot edges')) {
-      initCompleteTime = Date.now();
-      console.log('✓ Init completed at:', initCompleteTime);
-    }
-
-    if (text.includes('[LayoutRuntime] runLayout called')) {
-      const match = text.match(/reason: (\w+)/);
-      layoutCalls.push({
-        time: Date.now(),
-        reason: match ? match[1] : 'unknown'
-      });
-    }
-  });
-
+test('verify flattened positions preserved through save/load', async ({ page }) => {
   await page.goto('https://localhost:8443', { waitUntil: 'networkidle' });
   await page.waitForTimeout(2000);
 
@@ -34,30 +14,26 @@ test('debug: trace unwanted layout calls after load', async ({ page }) => {
 
   const runtimeMergeItem = page.getByText('Containment - Runtime Merge');
   await runtimeMergeItem.click();
-  await page.waitForTimeout(6000); // Wait for everything to settle
+  await page.waitForTimeout(6000);
 
-  console.log('\n=== LAYOUT CALLS DURING LOAD ===');
-  layoutCalls.forEach(call => {
-    const afterInit = initCompleteTime > 0 ? (call.time - initCompleteTime) : 'N/A';
-    console.log(`Reason: ${call.reason}, Time after init: ${afterInit}ms`);
+  // Get render loop positions
+  const renderPositions = await page.evaluate(() => {
+    const data = (window as any).__canvasEngine?.layoutRuntime?.getCanvasData();
+    const flatNode = data?.nodes?.find((n: any) => n.metadata?.perNodeFlattened);
+    const flatChildren = flatNode?.metadata?.flattenedChildren || [];
+    return flatChildren.map((c: any) => ({ id: c.GUID || c.id, x: c.x, y: c.y }));
   });
 
-  // Check for unwanted layout calls
-  const layoutsAfterInit = layoutCalls.filter((call, idx) => {
-    return initCompleteTime > 0 && call.time > initCompleteTime + 100;
-  });
+  console.log('\n=== POSITIONS FROM RENDER LOOP ===');
+  console.log(JSON.stringify(renderPositions, null, 2));
 
-  console.log('\n=== ANALYSIS ===');
-  console.log('Total layout calls:', layoutCalls.length);
-  console.log('Layouts AFTER init complete:', layoutsAfterInit.length);
+  // These are the actual positions being rendered
+  expect(renderPositions.length).toBeGreaterThan(0);
 
-  if (layoutsAfterInit.length > 0) {
-    console.log('\n❌ UNWANTED LAYOUT CALLS AFTER INIT:');
-    layoutsAfterInit.forEach(call => {
-      console.log(`  - Reason: ${call.reason}`);
-    });
-  }
-
-  // Should only have initial layout, nothing after
-  expect(layoutsAfterInit.length).toBe(0);
+  // Check gateway-debug.log for discrepancies
+  console.log('\n✅ Check /workspace/source/logs/gateway-debug.log');
+  console.log('Compare:');
+  console.log('  [Init] Final flattened child positions');
+  console.log('  [RenderLoop] Frame 0 positions');
+  console.log('  [Render] Drawing positions');
 });

@@ -393,23 +393,14 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
             perNodeConfigCount: Object.keys(savedLayoutData.viewConfig?.perNode || {}).length
           });
 
-          // DETAILED: Check actual positions being loaded
-          const flattenedNode = savedLayoutData.nodes?.find((n: any) => n.metadata?.['perNodeFlattened']);
-          if (flattenedNode) {
-            const flatChildren = flattenedNode.metadata?.['flattenedChildren'] || [];
-            console.log('[LOAD] Flattened node metadata:', {
-              id: flattenedNode.GUID || flattenedNode.id,
-              flattenedChildCount: flatChildren.length,
-              flattenedEdgeCount: flattenedNode.metadata?.['flattenedEdges']?.length || 0,
-              allChildPositions: flatChildren.map((c: any) => ({
-                id: c.GUID || c.id,
-                x: c.x,
-                y: c.y,
-                width: c.width,
-                height: c.height
-              }))
-            });
-            console.log('[LOAD] Sample of loaded metadata:', JSON.stringify(flattenedNode.metadata, null, 2).substring(0, 500));
+          // CRITICAL: Check CANONICAL positions in node.children (not metadata)
+          const parentNode = savedLayoutData.nodes?.find((n: any) => n.GUID === 'parent-1');
+          if (parentNode) {
+            console.log('[LOAD] Parent node.children positions (CANONICAL):', (parentNode.children || []).map((c: any) => ({
+              id: c.GUID || c.id,
+              x: c.x,
+              y: c.y
+            })));
           }
 
           if (savedLayoutData?.nodes?.length && dataset) {
@@ -1060,18 +1051,20 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
         try {
           const currentData = this.engine.getData();
 
-          // ARCHITECTURAL CONTRACT: Save ENTIRE CanvasData
-          // This includes:
-          // - nodes (with ALL metadata including flattenedChildren/flattenedEdges)
-          // - edges (including generated CONTAINS edges)
-          // - originalEdges
-          // - camera
-          // - metadata
+          // ARCHITECTURAL CONTRACT: Save nodes, edges, camera, viewConfig
+          // DO NOT save metadata.flattenedChildren (references can't survive JSON)
+          // They will be regenerated on load from ViewState.layout.perNode
+          const nodesToSave = this.stripTransientMetadata(currentData.nodes);
+
           const viewConfig = this.engine.getLayoutRuntime().getViewConfig();
           const currentViewState = this.engine.getLayoutRuntime().getCurrentViewState();
 
           const savedLayout = {
-            ...currentData,  // ← Everything: nodes, edges, originalEdges, camera, metadata
+            nodes: nodesToSave,
+            edges: currentData.edges,
+            originalEdges: currentData.originalEdges,
+            camera: currentData.camera,
+            metadata: currentData.metadata,
             viewConfig: {
               containmentMode: viewConfig.containmentMode,
               layoutMode: viewConfig.layoutMode,
