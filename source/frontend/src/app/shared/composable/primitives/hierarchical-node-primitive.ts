@@ -161,16 +161,105 @@ export class HierarchicalNodePrimitive {
     }
 
     // Recursively render children if not collapsed
-    // Check for flattened children in metadata first (per-node flatten mode)
+    // CRITICAL: If node has flattenedChildren in metadata, ONLY render those (don't also render node.children)
+    // Otherwise we get duplicates since flattenedChildren contains REFERENCES to same objects
     if (!node.collapsed) {
-      const childrenToRender = (node.metadata?.['flattenedChildren'] as HierarchicalNode[] | undefined) || node.children;
+      const parentHasFlattenedChildren = node.metadata?.['flattenedChildren'];
 
-      if (childrenToRender && childrenToRender.length > 0) {
-        childrenToRender.forEach(child => {
-          this.draw(ctx, child, worldX, worldY, camera, collapseBehavior);
+      if (parentHasFlattenedChildren) {
+        // Render flattened children ONLY - they already include all descendants
+        const flatChildren = parentHasFlattenedChildren as HierarchicalNode[];
+        flatChildren.forEach(child => {
+          // Don't recurse into child's children - they're already in the flat list
+          this.drawSingleNode(ctx, child, worldX, worldY, camera, collapseBehavior);
         });
+      } else {
+        // Normal hierarchical rendering
+        if (node.children && node.children.length > 0) {
+          node.children.forEach(child => {
+            this.draw(ctx, child, worldX, worldY, camera, collapseBehavior);
+          });
+        }
       }
     }
+  }
+
+  /**
+   * Draw a single node without recursing into children
+   */
+  private static drawSingleNode(
+    ctx: CanvasRenderingContext2D,
+    node: HierarchicalNode,
+    parentX: number,
+    parentY: number,
+    camera: Camera,
+    collapseBehavior: CollapseBehavior
+  ): void {
+    // Same as draw() but without the recursive children rendering at the end
+    if (node.visible === false) return;
+
+    const shouldShrink = !collapseBehavior || collapseBehavior === 'shrink';
+    const baseWidth = Number.isFinite(node.width) ? Number(node.width) : 180;
+    const baseHeight = Number.isFinite(node.height) ? Number(node.height) : 100;
+    const nodeWidth = shouldShrink ? baseWidth : baseWidth;
+    const nodeHeight = shouldShrink ? baseHeight : baseHeight;
+
+    const worldX = parentX + node.x;
+    const worldY = parentY + node.y;
+    const screenX = (worldX - camera.x) * camera.zoom;
+    const screenY = (worldY - camera.y) * camera.zoom;
+    const screenWidth = nodeWidth * camera.zoom;
+    const screenHeight = nodeHeight * camera.zoom;
+
+    if (screenX + screenWidth < 0 || screenX > ctx.canvas.width ||
+        screenY + screenHeight < 0 || screenY > ctx.canvas.height) {
+      return;
+    }
+
+    const metadata = node.metadata as Record<string, unknown> | undefined;
+    const overrides = (metadata?.['styleOverrides'] as any) ?? undefined;
+    const shape = overrides?.shape ?? 'rounded';
+    const cornerRadius = Math.max(0, overrides?.cornerRadius ?? 8) * camera.zoom;
+
+    ctx.fillStyle = node.style.fill;
+    ctx.strokeStyle = node.style.stroke;
+    ctx.lineWidth = 2;
+
+    // Use DrawingPrimitives.drawShape
+    const DrawingPrimitives = (globalThis as any).DrawingPrimitives || {
+      drawShape: (ctx: any, x: number, y: number, w: number, h: number, shape: string, radius: number) => {
+        ctx.beginPath();
+        if (shape === 'rounded') {
+          const r = Math.min(radius, w / 2, h / 2);
+          ctx.moveTo(x + r, y);
+          ctx.lineTo(x + w - r, y);
+          ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+          ctx.lineTo(x + w, y + h - r);
+          ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+          ctx.lineTo(x + r, y + h);
+          ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+          ctx.lineTo(x, y + r);
+          ctx.quadraticCurveTo(x, y, x + r, y);
+        } else {
+          ctx.rect(x, y, w, h);
+        }
+        ctx.closePath();
+      }
+    };
+
+    DrawingPrimitives.drawShape(ctx, screenX, screenY, screenWidth, screenHeight, shape, cornerRadius);
+    ctx.fill();
+    ctx.stroke();
+
+    // Draw label
+    const labelVisible = metadata?.['labelVisible'] !== false;
+    if (labelVisible) {
+      ctx.fillStyle = '#e6edf3';
+      ctx.font = `${14 * camera.zoom}px Arial`;
+      ctx.fillText(node.text, screenX + 12 * camera.zoom, screenY + 30 * camera.zoom);
+    }
+
+    // NO recursive children rendering here
   }
 
   /**
