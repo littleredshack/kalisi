@@ -44,12 +44,14 @@ export abstract class BaseRenderer implements IRenderer {
       for (const node of nodeList) {
         // SKIP INVISIBLE NODES: Don't hit-test hidden children
         if (node.visible === false) continue;
-        
+
         const path = [...currentPath, node];
-        
+
         // Test children first (only if not collapsed)
+        // Check for flattened children in metadata (per-node flatten mode)
         if (!node.collapsed) {
-          const childResult = testNode(node.children, path);
+          const childrenToTest = (node.metadata?.['flattenedChildren'] as HierarchicalNode[] | undefined) || node.children;
+          const childResult = testNode(childrenToTest, path);
           if (childResult) return childResult;
         }
         
