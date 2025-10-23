@@ -337,7 +337,8 @@ export class CanvasInteractionHandler {
         return null; // Path is stale/invalid
       }
       result.push(node);
-      currentNodes = node.children ?? [];
+      // Check flattened children in metadata first (per-node flatten mode)
+      currentNodes = ((node.metadata?.['flattenedChildren'] as HierarchicalNode[] | undefined) || node.children) ?? [];
     }
 
     return result;
@@ -381,7 +382,9 @@ export class CanvasInteractionHandler {
           this.nodePathCache.set(targetGuid, guidPath);
           return path;
         }
-        const found = traverse(node.children ?? [], path);
+        // Check flattened children in metadata first (per-node flatten mode)
+        const childrenToTraverse = ((node.metadata?.['flattenedChildren'] as HierarchicalNode[] | undefined) || node.children) ?? [];
+        const found = traverse(childrenToTraverse, path);
         if (found) {
           return found;
         }

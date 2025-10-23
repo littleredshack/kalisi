@@ -50,15 +50,17 @@ export abstract class BaseRenderer implements IRenderer {
         // Test children first (only if not collapsed)
         // Check for flattened children in metadata (per-node flatten mode)
         if (!node.collapsed) {
-          const childrenToTest = (node.metadata?.['flattenedChildren'] as HierarchicalNode[] | undefined) || node.children;
+          const flattenedChildren = node.metadata?.['flattenedChildren'] as HierarchicalNode[] | undefined;
+          const childrenToTest = flattenedChildren || node.children;
+
           const childResult = testNode(childrenToTest, path);
           if (childResult) return childResult;
         }
-        
+
         // Then test this node
         const bounds = this.getNodeBounds(node);
         const worldPos = this.getAbsolutePositionFromPath(path);
-        
+
         if (worldX >= worldPos.x && worldX <= worldPos.x + bounds.width &&
             worldY >= worldPos.y && worldY <= worldPos.y + bounds.height) {
           return {
@@ -71,7 +73,7 @@ export abstract class BaseRenderer implements IRenderer {
       }
       return null;
     };
-    
+
     return testNode(nodes);
   }
 
