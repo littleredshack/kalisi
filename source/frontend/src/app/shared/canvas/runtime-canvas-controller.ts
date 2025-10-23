@@ -184,8 +184,16 @@ export class RuntimeCanvasController {
    * Merges incremental changes into the current graph while preserving visibility and selection state
    */
   applyDelta(delta: GraphDelta, options: { recordHistory?: boolean } = {}): void {
+    console.log('[Delta] Received delta:', {
+      nodesUpdated: delta.nodesUpdated?.length || 0,
+      nodesCreated: delta.nodesCreated?.length || 0,
+      nodesDeleted: delta.nodesDeleted?.length || 0
+    });
+
     const currentData = this.layoutRuntime.getCanvasData();
     const allNodes = this.getAllNodesFlat(currentData.nodes);
+
+    console.log('[Delta] getAllNodesFlat returned', allNodes.length, 'nodes');
 
     // Track if we need to run layout (if new nodes lack positions)
     let needsLayout = false;
@@ -195,6 +203,7 @@ export class RuntimeCanvasController {
       delta.nodesUpdated.forEach(update => {
         const node = allNodes.find(n => (n as any).GUID === update.guid);
         if (node) {
+          console.log('[Delta] Updating node', update.guid, 'properties:', update.properties);
           // Merge properties - update both the property and the display field
           Object.keys(update.properties).forEach(key => {
             if (!['x', 'y', 'width', 'height', 'children', 'selected', 'visible', 'collapsed'].includes(key)) {
@@ -202,6 +211,7 @@ export class RuntimeCanvasController {
               // If updating name, also update text for display
               if (key === 'name') {
                 node.text = update.properties[key] as string;
+                console.log('[Delta] Updated node.text to:', node.text);
               }
             }
           });
