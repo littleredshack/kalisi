@@ -206,6 +206,10 @@ export class RuntimeCanvasController {
     };
     restoreVisual(result.nodes);
 
+    // CRITICAL: Recompute edge inheritance for collapsed nodes
+    // Use result.edges (which includes generated CONTAINS edges) not originalEdges
+    result.edges = this.computeEdgesWithInheritance(result.edges);
+
     this.applyInitialCamera(result, viewState, reason);
 
     return result;
