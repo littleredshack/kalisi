@@ -190,6 +190,7 @@ export class CanvasLayoutRuntime {
   }
 
   async runLayout(options: LayoutRunOptions = {}): Promise<CanvasData> {
+    console.log('[LayoutRuntime] runLayout called, reason:', options.reason || 'unknown');
     const preservedCamera = this.viewGraph?.camera;
 
     const nextVersion = this.store.current.version + 1;
@@ -257,6 +258,7 @@ export class CanvasLayoutRuntime {
   }
 
   private applyLayoutResult(result: LayoutResult, preservedCamera?: Camera): void {
+    console.log('[LayoutRuntime] applyLayoutResult - OVERWRITING viewGraph.nodes');
     const snapshot = layoutGraphToHierarchical(result.graph);
 
     // Direct mutation - no cloning
@@ -268,6 +270,14 @@ export class CanvasLayoutRuntime {
     this.viewGraph.edges = snapshot.edges;
     this.viewGraph.camera = preservedCamera ?? result.camera ?? this.viewGraph.camera;
     this.viewGraph.metadata = snapshot.metadata;
+
+    // Debug: Check if we're overwriting flattened positions
+    const flatNode = snapshot.nodes.find(n => n.metadata?.['perNodeFlattened']);
+    if (flatNode) {
+      const flatChildren = flatNode.metadata?.['flattenedChildren'] as any[] || [];
+      console.log('[LayoutRuntime] After applyLayoutResult, flattened child positions:',
+        flatChildren.map(c => ({ id: c.GUID || c.id, x: c.x, y: c.y })));
+    }
 
     this.frame = result;
   }
