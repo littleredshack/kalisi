@@ -405,7 +405,8 @@ export class CanvasInteractionHandler {
 
     const findParent = (nodes: HierarchicalNode[]): HierarchicalNode | null => {
       for (const node of nodes) {
-        const childList = node.children ?? [];
+        // Check flattened children in metadata first (per-node flatten mode)
+        const childList = (node.metadata?.['flattenedChildren'] as HierarchicalNode[] | undefined) || node.children ?? [];
         if (childList.some(matchesTarget)) {
           return node;
         }
