@@ -745,11 +745,12 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
 
     // Subscribe to ViewState changes to trigger layout when perNode configs change
     const layoutRuntime = this.engine.getLayoutRuntime();
-    let previousPerNodeKeys = '';
+    let previousPerNodeState = '';
     let isUpdating = false;
     layoutRuntime.viewState$.subscribe(viewState => {
-      const currentKeys = JSON.stringify(Object.keys(viewState.layout.perNode || {}).sort());
-      if (previousPerNodeKeys && previousPerNodeKeys !== currentKeys && !isUpdating) {
+      // Check if perNode configs changed (keys OR values)
+      const currentState = JSON.stringify(viewState.layout.perNode || {});
+      if (previousPerNodeState && previousPerNodeState !== currentState && !isUpdating) {
         // PerNode configs changed - reload from GraphDataSet to restore hierarchy
         if (this.graphDataSet && this.viewState) {
           isUpdating = true;
@@ -761,7 +762,7 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
           });
         }
       }
-      previousPerNodeKeys = currentKeys;
+      previousPerNodeState = currentState;
     });
 
     // Set up reload callback for collapse/expand with per-node configs
