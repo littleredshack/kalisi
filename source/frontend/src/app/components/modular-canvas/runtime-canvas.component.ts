@@ -739,12 +739,14 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     // CRITICAL: Restore per-node configs BEFORE setting up subscriptions
     // This initializes the ViewState with perNode configs from saved layout
     if (this.viewState?.layout?.perNode) {
+      console.log('[Init] Restoring', Object.keys(this.viewState.layout.perNode).length, 'perNode configs');
       const nodeConfigManager = this.engine.getLayoutRuntime().getNodeConfigManager();
       Object.entries(this.viewState.layout.perNode).forEach(([nodeId, config]) => {
         // setNodeConfig updates ViewState via BehaviorSubject
         // Subscriptions aren't set up yet, so no double-layout trigger
         nodeConfigManager.setNodeConfig(nodeId, config);
       });
+      console.log('[Init] perNode configs restored');
     }
 
     (window as any).__canvasEngine = this.engine;
@@ -770,11 +772,17 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
           this.viewState.layout.perNode ?? {}
         );
 
+        console.log('[Init] needsMetadataRegeneration:', needsMetadataRegeneration);
+
         if (needsMetadataRegeneration) {
+          console.log('[Init] Running layout to regenerate metadata');
           await this.engine.runLayout(); // ← Regenerate metadata only if needed
+        } else {
+          console.log('[Init] Skipping layout - metadata exists with saved positions');
         }
 
         initialSnapshot = this.engine.getData();
+        console.log('[Init] Final snapshot edges:', initialSnapshot.edges.length);
       } else {
         initialSnapshot = await this.engine.loadGraphDataSet(this.graphDataSet, this.viewState, {
           reason: 'initial'
