@@ -64,8 +64,8 @@ export function flattenHierarchyWithEdges(
       if (parentGUID && childGUID) {
         containsEdges.push({
           id: `contains-${parentGUID}-${childGUID}`,
-          from: parentGUID,  // MUST use GUID (or fallback to id)
-          to: childGUID,     // MUST use GUID (or fallback to id)
+          from: parentGUID,
+          to: childGUID,
           fromGUID: parentGUID,
           toGUID: childGUID,
           label: 'CONTAINS',
@@ -82,9 +82,9 @@ export function flattenHierarchyWithEdges(
       }
     }
 
-    // Recursively flatten children
+    // Recursively flatten children (passing node as parent, not clone)
     if (node.children && node.children.length > 0) {
-      node.children.forEach(child => flatten(child, clone));
+      node.children.forEach(child => flatten(child, node));
     }
   };
 
