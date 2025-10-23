@@ -92,7 +92,15 @@ export class RuntimeCanvasController {
     }
 
     currentData.nodes = data.nodes;
-    currentData.edges = this.computeEdgesWithInheritance(currentData.originalEdges);
+
+    // CRITICAL: If loaded data has edges (including generated CONTAINS edges), use them
+    // Don't recompute from scratch - that loses metadata-generated edges
+    if (data.edges && data.edges.length > 0) {
+      currentData.edges = this.computeEdgesWithInheritance(data.edges);
+    } else {
+      currentData.edges = this.computeEdgesWithInheritance(currentData.originalEdges);
+    }
+
     currentData.metadata = data.metadata;
 
     if (data.camera) {
