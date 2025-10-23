@@ -139,7 +139,7 @@ export class RuntimeCanvasController {
   ): Promise<CanvasData> {
     const reason = options.reason ?? 'initial';
 
-    // CRITICAL: Preserve current visual state (positions/sizes/collapse/selection) before reload
+    // CRITICAL: Preserve current visual state (positions/sizes/collapse/selection/metadata) before reload
     const currentData = this.layoutRuntime.getCanvasData();
     const visualState = new Map<string, {
       x: number;
@@ -149,6 +149,7 @@ export class RuntimeCanvasController {
       collapsed?: boolean;
       selected?: boolean;
       visible?: boolean;
+      metadata?: Record<string, any>;
     }>();
 
     const captureVisual = (nodes: HierarchicalNode[]) => {
@@ -162,7 +163,8 @@ export class RuntimeCanvasController {
             height: node.height,
             collapsed: node.collapsed,
             selected: node.selected,
-            visible: node.visible
+            visible: node.visible,
+            metadata: node.metadata ? { ...node.metadata } : undefined
           });
         }
         if (node.children) captureVisual(node.children);
@@ -199,6 +201,13 @@ export class RuntimeCanvasController {
           }
           if (saved.visible !== undefined) {
             node.visible = saved.visible;
+          }
+          // Preserve metadata including _visibilitySnapshot
+          if (saved.metadata) {
+            node.metadata = {
+              ...(node.metadata || {}),
+              ...saved.metadata
+            };
           }
         }
         if (node.children) restoreVisual(node.children);
