@@ -1084,23 +1084,22 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
             perNodeConfigCount: Object.keys(savedLayout.viewConfig?.perNode || {}).length
           });
 
-          // DETAILED: Check actual positions being saved
-          const flattenedNode = savedLayout.nodes.find((n: any) => n.metadata?.['perNodeFlattened']);
-          if (flattenedNode) {
-            const flatChildren = flattenedNode.metadata?.['flattenedChildren'] || [];
-            console.log('[SAVE] Flattened node metadata:', {
-              id: flattenedNode.GUID || flattenedNode.id,
-              flattenedChildCount: flatChildren.length,
-              flattenedEdgeCount: flattenedNode.metadata?.['flattenedEdges']?.length || 0,
-              allChildPositions: flatChildren.map((c: any) => ({
-                id: c.GUID || c.id,
-                x: c.x,
-                y: c.y,
-                width: c.width,
-                height: c.height
-              }))
-            });
-            console.log('[SAVE] Full metadata being saved:', JSON.stringify(flattenedNode.metadata, null, 2).substring(0, 500));
+          // CRITICAL: Before stripping, check if node.children has the custom positions
+          const beforeStripNode = currentData.nodes.find((n: any) => n.GUID === 'parent-1');
+          if (beforeStripNode) {
+            console.log('[SAVE] BEFORE strip - node.children positions:', (beforeStripNode.children || []).map((c: any) => ({
+              id: c.GUID || c.id,
+              x: c.x,
+              y: c.y
+            })));
+            const flatMeta = beforeStripNode.metadata?.['flattenedChildren'] || [];
+            console.log('[SAVE] BEFORE strip - metadata.flattenedChildren positions:', flatMeta.map((c: any) => ({
+              id: c.GUID || c.id,
+              x: c.x,
+              y: c.y
+            })));
+            console.log('[SAVE] Are they same objects?',
+              beforeStripNode.children[0] === flatMeta[0]);
           }
 
           const layoutJson = JSON.stringify(savedLayout);
