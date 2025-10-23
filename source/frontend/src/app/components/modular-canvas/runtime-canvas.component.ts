@@ -687,6 +687,27 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
         }
       });
 
+    // CRITICAL: Restore per-node configs BEFORE setting up subscriptions
+    // This initializes the ViewState with perNode configs from saved layout
+    if (this.viewState?.layout?.perNode) {
+      const nodeConfigManager = this.engine.getLayoutRuntime().getNodeConfigManager();
+      Object.entries(this.viewState.layout.perNode).forEach(([nodeId, config]) => {
+        // Directly update ViewState without triggering subscriptions (not set up yet)
+        const runtime = this.engine.getLayoutRuntime();
+        const currentState = runtime.getCurrentViewState();
+        (runtime as any).viewStateSubject.next({
+          ...currentState,
+          layout: {
+            ...currentState.layout,
+            perNode: {
+              ...(currentState.layout.perNode ?? {}),
+              [nodeId]: config
+            }
+          }
+        });
+      });
+    }
+
     (window as any).__canvasEngine = this.engine;
 
     let initialSnapshot: CanvasData;
@@ -696,14 +717,6 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       if (this.canvasSnapshot) {
         this.engine.getLayoutRuntime().setGraphDataSet(this.graphDataSet, false, 'system');
         this.engine.getLayoutRuntime().setViewConfig(this.viewState.layout.global);
-
-        // CRITICAL: Restore per-node configs to NodeConfigManager
-        if (this.viewState.layout.perNode) {
-          const nodeConfigManager = this.engine.getLayoutRuntime().getNodeConfigManager();
-          Object.entries(this.viewState.layout.perNode).forEach(([nodeId, config]) => {
-            nodeConfigManager.setNodeConfig(nodeId, config);
-          });
-        }
 
         // Sync service state with loaded viewConfig (for Layout Panel to show correct state)
         this.syncServiceWithViewConfig(this.viewState.layout.global);
