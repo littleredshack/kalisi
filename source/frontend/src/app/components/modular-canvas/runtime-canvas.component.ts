@@ -692,19 +692,9 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     if (this.viewState?.layout?.perNode) {
       const nodeConfigManager = this.engine.getLayoutRuntime().getNodeConfigManager();
       Object.entries(this.viewState.layout.perNode).forEach(([nodeId, config]) => {
-        // Directly update ViewState without triggering subscriptions (not set up yet)
-        const runtime = this.engine.getLayoutRuntime();
-        const currentState = runtime.getCurrentViewState();
-        (runtime as any).viewStateSubject.next({
-          ...currentState,
-          layout: {
-            ...currentState.layout,
-            perNode: {
-              ...(currentState.layout.perNode ?? {}),
-              [nodeId]: config
-            }
-          }
-        });
+        // setNodeConfig updates ViewState via BehaviorSubject
+        // Subscriptions aren't set up yet, so no double-layout trigger
+        nodeConfigManager.setNodeConfig(nodeId, config);
       });
     }
 
