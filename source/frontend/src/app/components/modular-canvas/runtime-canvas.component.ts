@@ -278,6 +278,31 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     // No manual reload - ViewState subscription handles it
   }
 
+  /**
+   * Check if metadata needs regeneration for per-node configs
+   * Returns true if any node has perNode config but missing metadata.flattenedChildren
+   */
+  private checkIfMetadataRegenNeeded(nodes: HierarchicalNode[], perNodeConfigs: Record<string, any>): boolean {
+    for (const [nodeId, config] of Object.entries(perNodeConfigs)) {
+      if (config.renderStyle?.nodeMode === 'flat') {
+        const node = this.findNodeById(nodes, nodeId);
+        if (node && !node.metadata?.['flattenedChildren']) {
+          return true; // Has config but no metadata - needs regen
+        }
+      }
+    }
+    return false; // All configs have metadata - preserve saved positions
+  }
+
+  private findNodeById(nodes: HierarchicalNode[], id: string): HierarchicalNode | null {
+    for (const node of nodes) {
+      if ((node.GUID ?? node.id) === id) return node;
+      const found = this.findNodeById(node.children || [], id);
+      if (found) return found;
+    }
+    return null;
+  }
+
   // Panel width methods removed - no longer needed
 
   // Load data from Neo4j with fallback to hardcoded
@@ -711,9 +736,20 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
         // Sync service state with loaded viewConfig (for Layout Panel to show correct state)
         this.syncServiceWithViewConfig(this.viewState.layout.global);
 
-        // CRITICAL: Run layout to regenerate metadata.flattenedChildren from perNode configs
+        // CRITICAL: Preserve saved metadata including flattened nodes with their positions
+        // Only run layout if metadata is missing (old saved layouts)
         this.engine.setData(this.canvasSnapshot, false);
-        await this.engine.runLayout(); // ← Regenerate flattened metadata
+
+        // Check if any node has perNode flatten config but missing metadata
+        const needsMetadataRegeneration = this.checkIfMetadataRegenNeeded(
+          this.canvasSnapshot.nodes,
+          this.viewState.layout.perNode ?? {}
+        );
+
+        if (needsMetadataRegeneration) {
+          await this.engine.runLayout(); // ← Regenerate metadata only if needed
+        }
+
         initialSnapshot = this.engine.getData();
       } else {
         initialSnapshot = await this.engine.loadGraphDataSet(this.graphDataSet, this.viewState, {
