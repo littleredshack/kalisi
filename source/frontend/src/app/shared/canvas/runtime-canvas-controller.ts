@@ -139,7 +139,6 @@ export class RuntimeCanvasController {
   ): Promise<CanvasData> {
     const reason = options.reason ?? 'initial';
 
-    console.log('[RuntimeCanvasController] loadGraphDataSet called with', dataset.nodes.length, 'nodes');
 
     // CRITICAL: Must set view config BEFORE setGraphDataSet so containment mode is correct
     this.layoutRuntime.setViewConfig(viewState.layout.global);
