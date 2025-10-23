@@ -393,18 +393,23 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
             perNodeConfigCount: Object.keys(savedLayoutData.viewConfig?.perNode || {}).length
           });
 
-          // Check flattened node metadata WITH ACTUAL POSITIONS
+          // DETAILED: Check actual positions being loaded
           const flattenedNode = savedLayoutData.nodes?.find((n: any) => n.metadata?.['perNodeFlattened']);
           if (flattenedNode) {
             const flatChildren = flattenedNode.metadata?.['flattenedChildren'] || [];
             console.log('[LOAD] Flattened node metadata:', {
               id: flattenedNode.GUID || flattenedNode.id,
-              hasFlattenedChildren: !!flattenedNode.metadata?.['flattenedChildren'],
-              hasFlattenedEdges: !!flattenedNode.metadata?.['flattenedEdges'],
               flattenedChildCount: flatChildren.length,
               flattenedEdgeCount: flattenedNode.metadata?.['flattenedEdges']?.length || 0,
-              firstChildPosition: flatChildren[0] ? { x: flatChildren[0].x, y: flatChildren[0].y } : null
+              allChildPositions: flatChildren.map((c: any) => ({
+                id: c.GUID || c.id,
+                x: c.x,
+                y: c.y,
+                width: c.width,
+                height: c.height
+              }))
             });
+            console.log('[LOAD] Sample of loaded metadata:', JSON.stringify(flattenedNode.metadata, null, 2).substring(0, 500));
           }
 
           if (savedLayoutData?.nodes?.length && dataset) {
@@ -785,6 +790,17 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
 
         initialSnapshot = this.engine.getData();
         console.log('[Init] Final snapshot edges:', initialSnapshot.edges.length);
+
+        // CRITICAL: Check positions in final snapshot
+        const finalFlatNode = initialSnapshot.nodes.find((n: any) => n.metadata?.['perNodeFlattened']);
+        if (finalFlatNode) {
+          const finalFlatChildren = finalFlatNode.metadata?.['flattenedChildren'] || [];
+          console.log('[Init] Final flattened child positions:', finalFlatChildren.map((c: any) => ({
+            id: c.GUID || c.id,
+            x: c.x,
+            y: c.y
+          })));
+        }
       } else {
         initialSnapshot = await this.engine.loadGraphDataSet(this.graphDataSet, this.viewState, {
           reason: 'initial'
@@ -1075,18 +1091,23 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
             perNodeConfigCount: Object.keys(savedLayout.viewConfig?.perNode || {}).length
           });
 
-          // Check flattened node metadata WITH ACTUAL POSITIONS
+          // DETAILED: Check actual positions being saved
           const flattenedNode = savedLayout.nodes.find((n: any) => n.metadata?.['perNodeFlattened']);
           if (flattenedNode) {
             const flatChildren = flattenedNode.metadata?.['flattenedChildren'] || [];
             console.log('[SAVE] Flattened node metadata:', {
               id: flattenedNode.GUID || flattenedNode.id,
-              hasFlattenedChildren: !!flattenedNode.metadata?.['flattenedChildren'],
-              hasFlattenedEdges: !!flattenedNode.metadata?.['flattenedEdges'],
               flattenedChildCount: flatChildren.length,
               flattenedEdgeCount: flattenedNode.metadata?.['flattenedEdges']?.length || 0,
-              firstChildPosition: flatChildren[0] ? { x: flatChildren[0].x, y: flatChildren[0].y } : null
+              allChildPositions: flatChildren.map((c: any) => ({
+                id: c.GUID || c.id,
+                x: c.x,
+                y: c.y,
+                width: c.width,
+                height: c.height
+              }))
             });
+            console.log('[SAVE] Full metadata being saved:', JSON.stringify(flattenedNode.metadata, null, 2).substring(0, 500));
           }
 
           const layoutJson = JSON.stringify(savedLayout);
