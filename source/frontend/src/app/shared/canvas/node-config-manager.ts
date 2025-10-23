@@ -1,4 +1,6 @@
+import { BehaviorSubject } from 'rxjs';
 import { HierarchicalNode } from './types';
+import { ViewState } from './state/view-state.model';
 
 /**
  * Node-level layout configuration
@@ -57,37 +59,68 @@ const DEFAULT_CONFIG: ResolvedConfig = {
 /**
  * Manages node-level configuration overrides with cascading inheritance
  *
- * Features:
- * - CSS-like cascading from parent to children
- * - Per-node configuration overrides
- * - Caching for performance
- * - Dirty tracking for incremental updates
+ * ARCHITECTURAL CONTRACT:
+ * - NodeConfigManager is a FACADE over ViewState.layout.perNode
+ * - It does NOT own data - ViewState is the single source of truth
+ * - All mutations update ViewState via BehaviorSubject
+ * - Caching for performance, invalidated on ViewState changes
  */
 export class NodeConfigManager {
-  private nodeConfigs = new Map<string, NodeLayoutConfig>();
   private configCache = new Map<string, ResolvedConfig>();
   private dirtyNodes = new Set<string>();
 
+  constructor(private readonly viewStateSubject: BehaviorSubject<ViewState>) {
+    // Subscribe to ViewState changes to invalidate cache
+    this.viewStateSubject.subscribe(() => {
+      this.clearCache();
+    });
+  }
+
   /**
-   * Set configuration for a node
+   * Set configuration for a node - updates ViewState
    */
   setNodeConfig(nodeId: string, config: NodeLayoutConfig): void {
-    this.nodeConfigs.set(nodeId, config);
+    const current = this.viewStateSubject.value;
+    const updatedPerNode = {
+      ...(current.layout.perNode ?? {}),
+      [nodeId]: config
+    };
+
+    this.viewStateSubject.next({
+      ...current,
+      layout: {
+        ...current.layout,
+        perNode: updatedPerNode
+      }
+    });
+
     this.invalidateNode(nodeId, config.applyToDescendants ?? false);
   }
 
   /**
-   * Get configuration for a node (returns the override, not resolved)
+   * Get configuration for a node - reads from ViewState
    */
   getNodeConfig(nodeId: string): NodeLayoutConfig | undefined {
-    return this.nodeConfigs.get(nodeId);
+    const viewState = this.viewStateSubject.value;
+    return viewState.layout.perNode?.[nodeId];
   }
 
   /**
-   * Remove configuration for a node
+   * Remove configuration for a node - updates ViewState
    */
   removeNodeConfig(nodeId: string): void {
-    this.nodeConfigs.delete(nodeId);
+    const current = this.viewStateSubject.value;
+    const updatedPerNode = { ...(current.layout.perNode ?? {}) };
+    delete updatedPerNode[nodeId];
+
+    this.viewStateSubject.next({
+      ...current,
+      layout: {
+        ...current.layout,
+        perNode: updatedPerNode
+      }
+    });
+
     this.invalidateNode(nodeId, true);
   }
 
@@ -117,7 +150,9 @@ export class NodeConfigManager {
    */
   private resolveConfig(node: HierarchicalNode, parentConfig?: ResolvedConfig): ResolvedConfig {
     const nodeId = node.GUID ?? node.id;
-    const nodeConfig = this.nodeConfigs.get(nodeId) ?? node.layoutConfig ?? {};
+    // Read from ViewState (single source of truth)
+    const viewState = this.viewStateSubject.value;
+    const nodeConfig = viewState.layout.perNode?.[nodeId] ?? node.layoutConfig ?? {};
     const baseConfig = parentConfig ?? DEFAULT_CONFIG;
 
     // Resolve layout strategy
@@ -210,9 +245,10 @@ export class NodeConfigManager {
   }
 
   /**
-   * Get all configured node IDs
+   * Get all configured node IDs - reads from ViewState
    */
   getConfiguredNodeIds(): string[] {
-    return Array.from(this.nodeConfigs.keys());
+    const viewState = this.viewStateSubject.value;
+    return Object.keys(viewState.layout.perNode ?? {});
   }
 }

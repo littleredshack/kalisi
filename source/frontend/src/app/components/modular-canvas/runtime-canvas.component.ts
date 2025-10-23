@@ -254,58 +254,28 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       return;
     }
 
+    // Update ViewState via NodeConfigManager (which is a facade)
+    // This triggers ViewState observable which handles layout reload
     const nodeConfigManager = runtime.getNodeConfigManager();
     nodeConfigManager.setNodeConfig(event.nodeId, event.config);
-
-    // If we have GraphDataSet, reload it to restore hierarchy
-    const dataSet = runtime.getGraphDataSet();
-    const viewState = this.viewState;
-    if (dataSet && viewState) {
-      requestAnimationFrame(() => {
-        this.engine?.loadGraphDataSet(dataSet, viewState).then(() => {
-          this.canvasSnapshot = this.engine?.getData() ?? this.canvasSnapshot;
-          this.updateCameraInfo();
-          this.engineDataChanged.emit();
-        });
-      });
-    } else {
-      // No dataset - just run regular layout
-      requestAnimationFrame(() => {
-        this.engine?.runLayout().then(() => {
-          this.canvasSnapshot = this.engine?.getData() ?? this.canvasSnapshot;
-          this.updateCameraInfo();
-          this.engineDataChanged.emit();
-        });
-      });
-    }
+    // No manual reload - ViewState subscription handles it
   }
 
   private handleNodeConfigCleared(event: any): void {
-    if (!event.nodeId) {
+    if (!event.nodeId || !this.engine) {
       return;
     }
 
-    if (!this.engine) {
-      return;
-    }
-
-    // Get the node config manager from the layout runtime
     const runtime = (this.engine as any).layoutRuntime as CanvasLayoutRuntime;
     if (!runtime) {
       return;
     }
 
+    // Update ViewState via NodeConfigManager (which is a facade)
+    // This triggers ViewState observable which handles layout reload
     const nodeConfigManager = runtime.getNodeConfigManager();
     nodeConfigManager.removeNodeConfig(event.nodeId);
-
-    // Trigger relayout asynchronously to avoid blocking UI
-    requestAnimationFrame(() => {
-      this.engine?.runLayout().then(() => {
-        this.canvasSnapshot = this.engine?.getData() ?? this.canvasSnapshot;
-        this.updateCameraInfo();
-        this.engineDataChanged.emit();
-      });
-    });
+    // No manual reload - ViewState subscription handles it
   }
 
   // Panel width methods removed - no longer needed
@@ -773,8 +743,29 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       this.canvasControlService.notifyStateChange();
     });
 
-    // Register callback for expand events that need GraphDataSet reload
-    this.engine.setOnExpandWithDataSet((nodeGuid: string) => {
+    // Subscribe to ViewState changes to trigger layout when perNode configs change
+    const layoutRuntime = this.engine.getLayoutRuntime();
+    let previousPerNodeKeys = '';
+    let isUpdating = false;
+    layoutRuntime.viewState$.subscribe(viewState => {
+      const currentKeys = JSON.stringify(Object.keys(viewState.layout.perNode || {}).sort());
+      if (previousPerNodeKeys && previousPerNodeKeys !== currentKeys && !isUpdating) {
+        // PerNode configs changed - reload from GraphDataSet to restore hierarchy
+        if (this.graphDataSet && this.viewState) {
+          isUpdating = true;
+          this.engine?.loadGraphDataSet(this.graphDataSet, this.viewState).then(() => {
+            this.canvasSnapshot = this.engine?.getData() ?? this.canvasSnapshot;
+            this.updateCameraInfo();
+            this.engineDataChanged.emit();
+            isUpdating = false;
+          });
+        }
+      }
+      previousPerNodeKeys = currentKeys;
+    });
+
+    // Set up reload callback for collapse/expand with per-node configs
+    this.engine.setOnReloadNeeded(() => {
       if (this.graphDataSet && this.viewState) {
         this.engine?.loadGraphDataSet(this.graphDataSet, this.viewState).then(() => {
           this.canvasSnapshot = this.engine?.getData() ?? this.canvasSnapshot;

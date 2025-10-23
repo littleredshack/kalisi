@@ -30,7 +30,7 @@ export class RuntimeCanvasController {
   private animationFrameId: number | null = null;
   private onDataChangedCallback?: (data: CanvasData) => void;
   private onSelectionChanged?: (node: HierarchicalNode | null) => void;
-  private onExpandWithDataSetCallback?: (nodeGuid: string) => void;
+  private onReloadNeededCallback?: () => void;
   // Overlay system removed
 
   constructor(
@@ -724,9 +724,10 @@ export class RuntimeCanvasController {
     }
   }
 
-  setOnExpandWithDataSet(callback: (nodeGuid: string) => void): void {
-    this.onExpandWithDataSetCallback = callback;
+  setOnReloadNeeded(callback: () => void): void {
+    this.onReloadNeededCallback = callback;
   }
+
 
   /**
    * Process interaction event
@@ -993,31 +994,6 @@ export class RuntimeCanvasController {
 
     const currentlyCollapsed = node.collapsed === true;
 
-    // Check if ANY node has per-node configs - if so, always reload from GraphDataSet
-    const nodeConfigManager = this.layoutRuntime.getNodeConfigManager();
-    const hasAnyPerNodeConfigs = nodeConfigManager.getConfiguredNodeIds().length > 0;
-    const graphDataSet = this.layoutRuntime.getGraphDataSet();
-
-    if (hasAnyPerNodeConfigs && graphDataSet && this.onExpandWithDataSetCallback) {
-      // Reload from GraphDataSet to preserve all per-node configurations
-      // Toggle the collapse state first, then reload
-      if (!currentlyCollapsed) {
-        this.saveVisibilityState(node);
-        node.collapsed = true;
-        this.hideAllDescendants(node);
-        node.visible = true;
-      } else {
-        node.collapsed = false;
-        this.restoreVisibilityState(node);
-        if (node.metadata && node.metadata['_visibilitySnapshot']) {
-          delete node.metadata['_visibilitySnapshot'];
-        }
-      }
-
-      this.onExpandWithDataSetCallback(nodeGuid);
-      return;
-    }
-
     if (!currentlyCollapsed) {
       this.saveVisibilityState(node);
       node.collapsed = true;
@@ -1030,19 +1006,20 @@ export class RuntimeCanvasController {
       if (node.metadata && node.metadata['_visibilitySnapshot']) {
         delete node.metadata['_visibilitySnapshot'];
       }
-
-      // Check if ANY node has per-node flatten configs (not just this one)
-      const nodeConfigManager = this.layoutRuntime.getNodeConfigManager();
-      const hasAnyPerNodeConfigs = nodeConfigManager.getConfiguredNodeIds().length > 0;
-      const graphDataSet = this.layoutRuntime.getGraphDataSet();
-
-      if (hasAnyPerNodeConfigs && graphDataSet && this.onExpandWithDataSetCallback) {
-        // Reload from GraphDataSet to preserve all per-node flatten configurations
-        this.onExpandWithDataSetCallback(nodeGuid);
-        return;
-      }
     }
 
+    // Check if we need GraphDataSet reload to restore hierarchy
+    const viewState = this.layoutRuntime.getCurrentViewState();
+    const hasPerNodeConfigs = viewState?.layout?.perNode && Object.keys(viewState.layout.perNode).length > 0;
+    const graphDataSet = this.layoutRuntime.getGraphDataSet();
+
+    if (hasPerNodeConfigs && graphDataSet && this.onReloadNeededCallback) {
+      // Trigger reload to restore hierarchy with per-node configs
+      this.onReloadNeededCallback();
+      return;
+    }
+
+    // Standard collapse/expand without per-node configs
     const baseEdges = data.originalEdges || data.edges;
     data.edges = this.computeEdgesWithInheritance(baseEdges);
 

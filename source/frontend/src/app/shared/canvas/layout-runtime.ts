@@ -1,3 +1,4 @@
+import { BehaviorSubject, Observable } from 'rxjs';
 import { CanvasData, HierarchicalNode, Edge, Camera } from './types';
 import { LayoutOrchestrator, LayoutPriority, LayoutRunOptions } from '../layouts/core/layout-orchestrator';
 import { registerDefaultLayoutEngines } from '../layouts/engine-registry';
@@ -10,6 +11,7 @@ import { LayoutWorkerBridge } from '../layouts/async/layout-worker-bridge';
 import { processRawDataToGraph, validateRawData } from '../layouts/utils/raw-data-processor';
 import { GraphDataSet, graphDataSetToRawDataInput } from '../graph/graph-data-set';
 import { NodeConfigManager, NodeLayoutConfig } from './node-config-manager';
+import { ViewState, createDefaultViewState } from './state/view-state.model';
 
 export interface CanvasLayoutRuntimeConfig {
   readonly defaultEngine?: string;
@@ -32,6 +34,8 @@ export class CanvasLayoutRuntime {
   private readonly canvasId: string;
   private readonly store: GraphStore;
   private viewGraph: CanvasData;
+  private readonly viewStateSubject: BehaviorSubject<ViewState>;
+  readonly viewState$: Observable<ViewState>;
   private runtimeConfig: RuntimeViewConfig;
   private frame: LayoutResult | null = null;
   private lensId: string | undefined;
@@ -44,7 +48,6 @@ export class CanvasLayoutRuntime {
     this.canvasId = canvasId;
     this.orchestrator = registerDefaultLayoutEngines(new LayoutOrchestrator());
     this.workerBridge = new LayoutWorkerBridge(this.orchestrator, { useWorker: config.useWorker });
-    this.nodeConfigManager = new NodeConfigManager();
 
     const defaultProfile: RuntimeViewConfig = {
       containmentMode: 'containers',
@@ -57,6 +60,18 @@ export class CanvasLayoutRuntime {
       ...(config.initialViewConfig ?? {})
     };
 
+    // Initialize ViewState as observable - single source of truth
+    const initialViewState = createDefaultViewState(
+      canvasId,
+      'default-dataset', // Will be updated when GraphDataSet is loaded
+      this.runtimeConfig
+    );
+    this.viewStateSubject = new BehaviorSubject<ViewState>(initialViewState);
+    this.viewState$ = this.viewStateSubject.asObservable();
+
+    // NodeConfigManager is a facade over ViewState
+    this.nodeConfigManager = new NodeConfigManager(this.viewStateSubject);
+
     this.viewGraph = this.initialiseViewGraph(initialData);
 
     const initialGraph = canvasDataToLayoutGraph(this.viewGraph);
@@ -65,6 +80,9 @@ export class CanvasLayoutRuntime {
     this.defaultEngine = config.defaultEngine ?? this.inferEngineFromData(this.viewGraph);
     this.orchestrator.setActiveEngine(canvasId, this.defaultEngine);
     this.eventBus = this.orchestrator.getEventBus(canvasId);
+
+    // ViewState subscription will be set up by RuntimeCanvasComponent
+    // to avoid circular dependencies and infinite loops
 
     if (config.runLayoutOnInit) {
       const result = this.orchestrator.runLayout(canvasId, initialGraph, {
@@ -110,6 +128,10 @@ export class CanvasLayoutRuntime {
 
   getNodeConfigManager(): NodeConfigManager {
     return this.nodeConfigManager;
+  }
+
+  getCurrentViewState(): ViewState {
+    return this.viewStateSubject.value;
   }
 
   setNodeLayoutConfig(nodeId: string, config: NodeLayoutConfig): void {
