@@ -298,7 +298,14 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     // Flatten hierarchy and extract CONTAINS edges
     const flatResult = flattenHierarchyWithEdges(visibleChildren, hiddenByCollapse);
 
-    // Apply grid layout to flattened nodes
+    // CRITICAL: Set flattened nodes to minimum size (no longer contain children)
+    flatResult.nodes.forEach(flatNode => {
+      const minSize = LayoutPrimitives.getMinimumNodeSize(flatNode.type);
+      flatNode.width = minSize.width;
+      flatNode.height = minSize.height;
+    });
+
+    // Apply grid layout to flattened nodes WITHIN parent bounds
     this.applyGridLayoutToNodes(flatResult.nodes, metrics);
 
     // Collect generated CONTAINS edges
@@ -318,7 +325,7 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
       }
     };
 
-    // Resize parent to fit flattened children
+    // Resize parent to fit flattened children in grid layout
     LayoutPrimitives.resizeToFitChildren(result, metrics.padding, metrics.padding);
 
     return this.ensureDefaults(result);
