@@ -35,31 +35,14 @@ export function flattenHierarchyWithEdges(
       return;
     }
 
-    // Create flattened clone with empty children
-    const clone: HierarchicalNode = {
-      id: node.id,
-      GUID: node.GUID,
-      type: node.type,
-      x: node.x,
-      y: node.y,
-      width: node.width,
-      height: node.height,
-      text: node.text,
-      children: [], // MUST be empty - all nodes at root level
-      style: node.style ? { ...node.style } : node.style,
-      metadata: node.metadata ? { ...node.metadata } : undefined,
-      selected: node.selected,
-      visible: node.visible,
-      collapsed: node.collapsed,
-      dragging: node.dragging
-    };
-
-    flatNodes.push(clone);
+    // CRITICAL: NO CLONING - store REFERENCE to original node
+    // Single source of truth - metadata.flattenedChildren contains same objects as node.children
+    flatNodes.push(node);
 
     // Generate CONTAINS edge from parent to this node
     if (parent) {
       const parentGUID = parent.GUID ?? parent.id;
-      const childGUID = clone.GUID ?? clone.id;
+      const childGUID = node.GUID ?? node.id;
 
       if (parentGUID && childGUID) {
         containsEdges.push({
