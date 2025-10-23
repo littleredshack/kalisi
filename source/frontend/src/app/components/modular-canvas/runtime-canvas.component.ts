@@ -381,6 +381,19 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       if (viewNode.layout) {
         try {
           const savedLayoutData = JSON.parse(viewNode.layout);
+
+          // Debug: Check what we're loading
+          const flattenedNode = savedLayoutData.nodes?.find((n: any) => n.metadata?.perNodeFlattened);
+          if (flattenedNode) {
+            console.log('[LOAD] Flattened node metadata:', {
+              id: flattenedNode.GUID || flattenedNode.id,
+              hasFlattenedChildren: !!flattenedNode.metadata?.flattenedChildren,
+              hasFlattenedEdges: !!flattenedNode.metadata?.flattenedEdges,
+              flattenedChildCount: flattenedNode.metadata?.flattenedChildren?.length || 0,
+              flattenedEdgeCount: flattenedNode.metadata?.flattenedEdges?.length || 0
+            });
+          }
+
           if (savedLayoutData?.nodes?.length && dataset) {
             // Skip coordinate normalization for saved layouts - positions are already correct
             this.normaliseCanvasData(savedLayoutData, true);
@@ -1018,6 +1031,18 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
               perNode: currentViewState.layout.perNode ?? {} // ← Save per-node configs!
             }
           };
+
+          // Debug: Check what we're actually saving
+          const flattenedNode = savedLayout.nodes.find((n: any) => n.metadata?.perNodeFlattened);
+          if (flattenedNode) {
+            console.log('[SAVE] Flattened node metadata:', {
+              id: flattenedNode.GUID || flattenedNode.id,
+              hasFlattenedChildren: !!flattenedNode.metadata?.flattenedChildren,
+              hasFlattenedEdges: !!flattenedNode.metadata?.flattenedEdges,
+              flattenedChildCount: flattenedNode.metadata?.flattenedChildren?.length || 0,
+              flattenedEdgeCount: flattenedNode.metadata?.flattenedEdges?.length || 0
+            });
+          }
 
           const layoutJson = JSON.stringify(savedLayout);
 
