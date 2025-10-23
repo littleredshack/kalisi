@@ -313,10 +313,24 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
       containsEdgeCollector.push(...flatResult.containsEdges);
     }
 
+    // Calculate parent size to fit flattened children
+    let maxX = 0;
+    let maxY = 0;
+    flatResult.nodes.forEach(child => {
+      maxX = Math.max(maxX, child.x + child.width);
+      maxY = Math.max(maxY, child.y + child.height);
+    });
+
+    const headerOffset = LayoutPrimitives.computeHeaderOffset(node);
+    const requiredWidth = maxX + metrics.padding;
+    const requiredHeight = maxY + metrics.padding;
+
     // CRITICAL: Keep original children intact, store flattened view in metadata
     const result = {
       ...node,
       children: node.children,  // ← PRESERVE original hierarchy
+      width: requiredWidth,     // ← Size to fit flattened grid
+      height: requiredHeight,   // ← Size to fit flattened grid
       metadata: {
         ...(node.metadata ?? {}),
         perNodeFlattened: true,
@@ -324,9 +338,6 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
         flattenedEdges: flatResult.containsEdges    // ← Generated edges
       }
     };
-
-    // Resize parent to fit flattened children in grid layout
-    LayoutPrimitives.resizeToFitChildren(result, metrics.padding, metrics.padding);
 
     return this.ensureDefaults(result);
   }
