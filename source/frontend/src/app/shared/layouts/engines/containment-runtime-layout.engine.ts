@@ -14,7 +14,7 @@ interface ContainmentMetrics {
 
 interface EngineRuntimeConfig {
   readonly containmentMode: 'containers' | 'flat';
-  readonly layoutMode: 'grid' | 'force';
+  readonly layoutMode: 'grid' | 'force' | 'tree';
   readonly edgeRouting: 'orthogonal' | 'straight';
 }
 
@@ -197,109 +197,190 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     nodeConfigManager?: NodeConfigManager,
     containsEdgeCollector?: Edge[]
   ): HierarchicalNode {
-    const guid = node.GUID ?? node.id;
-    const isCollapsed = guid ? collapsedNodes.has(guid) : false;
-
+    // Early exits for simple cases
     if (!node.children || node.children.length === 0) {
-      // Return shallow copy with defaults
       return this.ensureDefaults({ ...node, children: [] });
     }
 
+    const guid = node.GUID ?? node.id;
+    const isCollapsed = guid ? collapsedNodes.has(guid) : false;
     if (isCollapsed) {
-      // Collapsed: preserve size, hide children
       return this.ensureDefaults({ ...node, children: [] });
     }
 
     const visibleChildren = node.children.filter(child => !hiddenByCollapse.has(child.GUID ?? child.id));
+    if (visibleChildren.length === 0) {
+      return this.ensureDefaults({ ...node, children: [] });
+    }
 
-    // Check for per-node containment mode override
-    let effectiveContainmentMode = config.containmentMode;
-    let effectiveLayoutMode = config.layoutMode;
+    // Resolve effective configuration for this node
+    const effectiveConfig = this.resolveEffectiveConfiguration(node, config, nodeConfigManager);
 
-    if (nodeConfigManager && guid) {
-      const resolved = nodeConfigManager.getResolvedConfig(node);
+    // Branch on containment mode: flat vs hierarchical
+    if (effectiveConfig.containmentMode === 'flat') {
+      return this.layoutNodeAsFlat(node, visibleChildren, metrics, hiddenByCollapse, containsEdgeCollector);
+    } else {
+      return this.layoutNodeAsHierarchical(
+        node,
+        visibleChildren,
+        metrics,
+        config,
+        hiddenByCollapse,
+        collapsedNodes,
+        nodeConfigManager,
+        containsEdgeCollector,
+        effectiveConfig
+      );
+    }
+  }
 
-      // Per-node containment mode: 'container' = nested, 'flat' = flatten children
-      if (resolved.renderStyle.nodeMode === 'flat') {
-        effectiveContainmentMode = 'flat';
-      } else if (resolved.renderStyle.nodeMode === 'container' || resolved.renderStyle.nodeMode === 'compact') {
-        effectiveContainmentMode = 'containers';
-      }
+  /**
+   * Resolve effective configuration for a node (global + per-node overrides)
+   */
+  private resolveEffectiveConfiguration(
+    node: HierarchicalNode,
+    globalConfig: EngineRuntimeConfig,
+    nodeConfigManager?: NodeConfigManager
+  ): { containmentMode: 'containers' | 'flat'; layoutMode: 'grid' | 'force' | 'tree' } {
+    let containmentMode = globalConfig.containmentMode;
+    let layoutMode = globalConfig.layoutMode;
 
-      // Per-node layout strategy
-      if (resolved.layoutStrategy !== 'manual') {
-        effectiveLayoutMode = resolved.layoutStrategy as 'grid' | 'force';
+    if (nodeConfigManager) {
+      const guid = node.GUID ?? node.id;
+      if (guid) {
+        const resolved = nodeConfigManager.getResolvedConfig(node);
+
+        // Override containment mode if specified
+        if (resolved.renderStyle.nodeMode === 'flat') {
+          containmentMode = 'flat';
+        } else if (resolved.renderStyle.nodeMode === 'container' || resolved.renderStyle.nodeMode === 'compact') {
+          containmentMode = 'containers';
+        }
+
+        // Override layout strategy if specified
+        if (resolved.layoutStrategy !== 'manual') {
+          layoutMode = resolved.layoutStrategy as 'grid' | 'force' | 'tree';
+        }
       }
     }
 
-    // If this node uses flat mode, use the EXISTING flattenHierarchyWithEdges helper
-    if (effectiveContainmentMode === 'flat' && visibleChildren.length > 0) {
-      const flatResult = flattenHierarchyWithEdges(visibleChildren, hiddenByCollapse);
+    return { containmentMode, layoutMode };
+  }
 
-      // Apply grid layout
-      const cols = Math.ceil(Math.sqrt(flatResult.nodes.length));
-      let x = metrics.padding;
-      let y = metrics.padding + 40;
+  /**
+   * Layout node in FLAT mode - children become siblings with CONTAINS edges
+   */
+  private layoutNodeAsFlat(
+    node: HierarchicalNode,
+    visibleChildren: HierarchicalNode[],
+    metrics: ContainmentMetrics,
+    hiddenByCollapse: Set<string>,
+    containsEdgeCollector?: Edge[]
+  ): HierarchicalNode {
+    // Flatten hierarchy and extract CONTAINS edges
+    const flatResult = flattenHierarchyWithEdges(visibleChildren, hiddenByCollapse);
 
-      flatResult.nodes.forEach((flatNode, idx) => {
-        flatNode.x = x;
-        flatNode.y = y;
-        x += (flatNode.width ?? 180) + metrics.gap;
-        if ((idx + 1) % cols === 0) {
-          x = metrics.padding;
-          y += (flatNode.height ?? 100) + metrics.gap;
-        }
-      });
+    // Apply grid layout to flattened nodes
+    this.applyGridLayoutToNodes(flatResult.nodes, metrics);
 
-      // Collect the generated CONTAINS edges
-      if (containsEdgeCollector) {
-        containsEdgeCollector.push(...flatResult.containsEdges);
-      }
-
-      // Create result with flattened children
-      const result = {
-        ...node,
-        children: flatResult.nodes,
-        metadata: {
-          ...(node.metadata ?? {}),
-          perNodeFlattened: true
-        }
-      };
-
-      // Resize parent to fit flattened children
-      LayoutPrimitives.resizeToFitChildren(result, metrics.padding, metrics.padding);
-
-      return this.ensureDefaults(result);
+    // Collect generated CONTAINS edges
+    if (containsEdgeCollector) {
+      containsEdgeCollector.push(...flatResult.containsEdges);
     }
 
-    // Recursively layout children first to get their sizes
-    const laidOutChildren = visibleChildren.map(child => this.layoutContainer(child, metrics, config, hiddenByCollapse, collapsedNodes, nodeConfigManager, containsEdgeCollector));
+    // Create result with flattened children
+    const result = {
+      ...node,
+      children: flatResult.nodes,
+      metadata: {
+        ...(node.metadata ?? {}),
+        perNodeFlattened: true
+      }
+    };
 
-    // Create result object with calculated positions
-    let result = {
+    // Resize parent to fit flattened children
+    LayoutPrimitives.resizeToFitChildren(result, metrics.padding, metrics.padding);
+
+    return this.ensureDefaults(result);
+  }
+
+  /**
+   * Layout node in HIERARCHICAL mode - children nested with containment
+   */
+  private layoutNodeAsHierarchical(
+    node: HierarchicalNode,
+    visibleChildren: HierarchicalNode[],
+    metrics: ContainmentMetrics,
+    globalConfig: EngineRuntimeConfig,
+    hiddenByCollapse: Set<string>,
+    collapsedNodes: Set<string>,
+    nodeConfigManager: NodeConfigManager | undefined,
+    containsEdgeCollector: Edge[] | undefined,
+    effectiveConfig: { layoutMode: 'grid' | 'force' | 'tree' }
+  ): HierarchicalNode {
+    // Recursively layout children first
+    const laidOutChildren = visibleChildren.map(child =>
+      this.layoutContainer(child, metrics, globalConfig, hiddenByCollapse, collapsedNodes, nodeConfigManager, containsEdgeCollector)
+    );
+
+    // Create result with positioned children
+    const result = {
       ...node,
       children: laidOutChildren
     };
 
-    // Apply layout algorithm based on effective layout mode
-    if (effectiveLayoutMode === 'grid') {
-      this.applyAdaptiveGrid(result, laidOutChildren, metrics);
-    } else if (effectiveLayoutMode === 'force') {
-      // TODO: Implement force-directed layout
-      this.applyAdaptiveGrid(result, laidOutChildren, metrics);
-    } else if (effectiveLayoutMode === 'tree') {
-      // TODO: Implement tree layout
-      this.applyAdaptiveGrid(result, laidOutChildren, metrics);
-    } else {
-      this.applyAdaptiveGrid(result, laidOutChildren, metrics);
-    }
+    // Apply layout strategy to position children within parent
+    this.applyLayoutStrategy(result, laidOutChildren, metrics, effectiveConfig.layoutMode);
 
-    // In 'containers' mode: resize parent to fit children
-    if (effectiveContainmentMode === 'containers') {
-      LayoutPrimitives.resizeToFitChildren(result, metrics.padding, metrics.padding);
-    }
+    // Resize parent to fit children
+    LayoutPrimitives.resizeToFitChildren(result, metrics.padding, metrics.padding);
 
     return this.ensureDefaults(result);
+  }
+
+  /**
+   * Apply layout strategy to position children (strategy pattern entry point)
+   */
+  private applyLayoutStrategy(
+    parent: HierarchicalNode,
+    children: HierarchicalNode[],
+    metrics: ContainmentMetrics,
+    strategy: 'grid' | 'force' | 'tree'
+  ): void {
+    switch (strategy) {
+      case 'grid':
+        this.applyAdaptiveGrid(parent, children, metrics);
+        break;
+      case 'force':
+        // TODO: Implement force-directed layout
+        this.applyAdaptiveGrid(parent, children, metrics);
+        break;
+      case 'tree':
+        // TODO: Implement tree layout
+        this.applyAdaptiveGrid(parent, children, metrics);
+        break;
+      default:
+        this.applyAdaptiveGrid(parent, children, metrics);
+    }
+  }
+
+  /**
+   * Apply grid layout to flat list of nodes
+   */
+  private applyGridLayoutToNodes(nodes: HierarchicalNode[], metrics: ContainmentMetrics): void {
+    const cols = Math.ceil(Math.sqrt(nodes.length));
+    let x = metrics.padding;
+    let y = metrics.padding + 40; // Header offset
+
+    nodes.forEach((node, idx) => {
+      node.x = x;
+      node.y = y;
+      x += (node.width ?? 180) + metrics.gap;
+      if ((idx + 1) % cols === 0) {
+        x = metrics.padding;
+        y += (node.height ?? 100) + metrics.gap;
+      }
+    });
   }
 
   private addInheritedEdges(
