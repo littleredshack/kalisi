@@ -411,19 +411,29 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
 
   /**
    * Apply grid layout to flat list of nodes
+   * Positions nodes in a grid WITHIN parent container bounds
    */
   private applyGridLayoutToNodes(nodes: HierarchicalNode[], metrics: ContainmentMetrics): void {
+    if (nodes.length === 0) return;
+
     const cols = Math.ceil(Math.sqrt(nodes.length));
     let x = metrics.padding;
     let y = metrics.padding + 40; // Header offset
+    let rowHeight = 0;
 
     nodes.forEach((node, idx) => {
       node.x = x;
       node.y = y;
-      x += (node.width ?? 180) + metrics.gap;
+
+      // Track max height in current row
+      rowHeight = Math.max(rowHeight, node.height);
+
+      // Move to next column or wrap to new row
+      x += node.width + metrics.gap;
       if ((idx + 1) % cols === 0) {
         x = metrics.padding;
-        y += (node.height ?? 100) + metrics.gap;
+        y += rowHeight + metrics.gap;
+        rowHeight = 0;
       }
     });
   }
