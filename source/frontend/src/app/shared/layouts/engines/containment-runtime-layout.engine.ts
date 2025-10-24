@@ -325,16 +325,17 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     const requiredWidth = maxX + metrics.padding;
     const requiredHeight = maxY + metrics.padding;
 
-    // CRITICAL: Keep original children intact, store flattened view in metadata
+    // CRITICAL: UPDATE node.children to be the flat list (canonical data)
+    // metadata.flattenedChildren becomes redundant - same as node.children
     const result = {
       ...node,
-      children: node.children,  // ← PRESERVE original hierarchy
-      width: requiredWidth,     // ← Size to fit flattened grid
-      height: requiredHeight,   // ← Size to fit flattened grid
+      children: flatResult.nodes,  // ← Canonical flat structure with custom positions
+      width: requiredWidth,
+      height: requiredHeight,
       metadata: {
         ...(node.metadata ?? {}),
         perNodeFlattened: true,
-        flattenedChildren: flatResult.nodes,        // ← Visual transform
+        flattenedChildren: flatResult.nodes,        // ← References to same objects (for renderer check)
         flattenedEdges: flatResult.containsEdges    // ← Generated edges
       }
     };
