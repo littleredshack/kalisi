@@ -298,8 +298,10 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     // Flatten hierarchy and extract CONTAINS edges
     const flatResult = flattenHierarchyWithEdges(visibleChildren, hiddenByCollapse);
 
-    // CRITICAL: Set flattened nodes to minimum size (no longer contain children)
+    // CRITICAL: Clear children arrays to prevent circular references
+    // Set to minimum size since they no longer contain children
     flatResult.nodes.forEach(flatNode => {
+      flatNode.children = [];  // ← Must clear to avoid circular refs
       const minSize = LayoutPrimitives.getMinimumNodeSize(flatNode.type);
       flatNode.width = minSize.width;
       flatNode.height = minSize.height;
