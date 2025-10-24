@@ -279,19 +279,26 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
   }
 
   /**
+   * Strip transient metadata before save (references can't survive JSON serialization)
+   */
+  private stripTransientMetadata(nodes: HierarchicalNode[]): HierarchicalNode[] {
+    return nodes.map(node => ({
+      ...node,
+      metadata: node.metadata ? {
+        ...node.metadata,
+        flattenedChildren: undefined,
+        flattenedEdges: undefined
+      } : undefined,
+      children: node.children ? this.stripTransientMetadata(node.children) : []
+    }));
+  }
+
+  /**
    * Check if metadata needs regeneration for per-node configs
-   * Returns true if any node has perNode config but missing metadata.flattenedChildren
    */
   private checkIfMetadataRegenNeeded(nodes: HierarchicalNode[], perNodeConfigs: Record<string, any>): boolean {
-    for (const [nodeId, config] of Object.entries(perNodeConfigs)) {
-      if (config.renderStyle?.nodeMode === 'flat') {
-        const node = this.findNodeById(nodes, nodeId);
-        if (node && !node.metadata?.['flattenedChildren']) {
-          return true; // Has config but no metadata - needs regen
-        }
-      }
-    }
-    return false; // All configs have metadata - preserve saved positions
+    // Always regenerate if we have perNode flatten configs (metadata was stripped)
+    return Object.values(perNodeConfigs).some(cfg => cfg.renderStyle?.nodeMode === 'flat');
   }
 
   private findNodeById(nodes: HierarchicalNode[], id: string): HierarchicalNode | null {
