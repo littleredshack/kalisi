@@ -946,9 +946,20 @@ export class RuntimeCanvasController {
    * PORTED FROM ComposableHierarchicalCanvasEngine
    */
   private toggleNodeCollapsed(nodeGuid: string): void {
+    console.log('[Collapse] Toggling node:', nodeGuid);
     const data = this.layoutRuntime.getCanvasData();
     const node = this.findNodeByGuid(data.nodes, nodeGuid);
     if (!node) return;
+
+    // DIAGNOSTIC: Check other nodes before collapse/expand
+    const allRootNodes = data.nodes.map(n => ({
+      id: n.GUID || n.id,
+      width: n.width,
+      height: n.height,
+      childCount: n.children?.length || 0,
+      hasFlattened: !!n.metadata?.['flattenedChildren']
+    }));
+    console.log('[Collapse] BEFORE - all root nodes:', allRootNodes);
 
     const currentlyCollapsed = node.collapsed === true;
 
@@ -979,6 +990,17 @@ export class RuntimeCanvasController {
       // Use updated.edges (includes generated CONTAINS edges from metadata) as base
       updated.edges = this.computeEdgesWithInheritance(updated.edges);
       this.layoutRuntime.setCanvasData(updated, false, 'system');
+
+      // DIAGNOSTIC: Check other nodes after layout
+      const afterNodes = updated.nodes.map(n => ({
+        id: n.GUID || n.id,
+        width: n.width,
+        height: n.height,
+        childCount: n.children?.length || 0,
+        hasFlattened: !!n.metadata?.['flattenedChildren']
+      }));
+      console.log('[Collapse] AFTER layout - all root nodes:', afterNodes);
+
       if (this.onDataChangedCallback) {
         this.onDataChangedCallback(updated);
       }
