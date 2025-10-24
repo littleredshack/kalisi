@@ -1,5 +1,6 @@
 import { RuntimeContainmentRenderer } from '../composable/renderers/runtime-containment-renderer';
 import { RuntimeFlatRenderer } from '../composable/renderers/runtime-flat-renderer';
+import { ForceDirectedRenderer } from '../composable/renderers/force-directed-renderer';
 
 /**
  * Simplified factory - only containment-runtime exists now
@@ -12,5 +13,9 @@ export class ComponentFactory {
 
   static createFlatRenderer(): RuntimeFlatRenderer {
     return new RuntimeFlatRenderer();
+  }
+
+  static createForceDirectedRenderer(layoutRuntime: any, ctx: CanvasRenderingContext2D, camera: any): ForceDirectedRenderer {
+    return new ForceDirectedRenderer(layoutRuntime, ctx, camera);
   }
 }

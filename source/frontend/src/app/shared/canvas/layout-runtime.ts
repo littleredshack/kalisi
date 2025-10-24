@@ -43,6 +43,7 @@ export class CanvasLayoutRuntime {
   private readonly eventBus: CanvasEventBus;
   private graphDataSet: GraphDataSet | null = null;
   private readonly nodeConfigManager: NodeConfigManager;
+  private viewGraphObservers: Array<() => void> = [];
 
   constructor(canvasId: string, initialData: CanvasData, config: CanvasLayoutRuntimeConfig = {}) {
     this.canvasId = canvasId;
@@ -163,8 +164,27 @@ export class CanvasLayoutRuntime {
     }
   }
 
+  subscribeToViewGraph(callback: () => void): () => void {
+    this.viewGraphObservers.push(callback);
+    return () => {
+      const index = this.viewGraphObservers.indexOf(callback);
+      if (index > -1) {
+        this.viewGraphObservers.splice(index, 1);
+      }
+    };
+  }
+
+  private notifyViewGraphObservers(): void {
+    this.viewGraphObservers.forEach(callback => callback());
+  }
+
+  getViewGraph(): CanvasData {
+    return this.viewGraph;
+  }
+
   setCanvasData(data: CanvasData, runLayout = false, source: CanvasEventSource = 'system'): void {
     this.viewGraph = data;
+    this.notifyViewGraphObservers();
     if (runLayout) {
       void this.runLayout({ reason: 'data-update', source });
     }
@@ -278,6 +298,7 @@ export class CanvasLayoutRuntime {
     }
 
     this.frame = result;
+    this.notifyViewGraphObservers();
   }
 
   private initialiseViewGraph(data: CanvasData): CanvasData {

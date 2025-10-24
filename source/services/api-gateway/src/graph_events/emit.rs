@@ -1,7 +1,7 @@
 use crate::graph_events::{GraphDelta, GraphDeltaPublisher, NodeUpdate};
 use serde_json::Value;
 use std::collections::HashMap;
-use tracing::{debug, error, warn};
+use tracing::{error, warn};
 
 /// Detects if a Cypher query is a write operation
 /// Initial implementation: any query that doesn't start with MATCH is considered a write

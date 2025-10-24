@@ -69,8 +69,8 @@ pub struct RelationshipDisplay {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CanvasRelationshipDto {
     pub guid: String,
-    pub source_guid: String,
-    pub target_guid: String,
+    pub fromGUID: String,
+    pub toGUID: String,
     pub r#type: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display: Option<RelationshipDisplay>,
@@ -91,7 +91,7 @@ pub struct CanvasGraphDto {
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub parameters: HashMap<String, Value>,
     pub nodes: Vec<CanvasNodeDto>,
-    pub relationships: Vec<CanvasRelationshipDto>,
+    pub edges: Vec<CanvasRelationshipDto>,
     pub metadata: QueryMetadataDto,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub telemetry_cursor: Option<String>,

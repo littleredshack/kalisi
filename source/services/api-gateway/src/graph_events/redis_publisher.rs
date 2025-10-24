@@ -64,6 +64,7 @@ impl GraphDeltaPublisher {
 
     /// Creates or ensures a consumer group exists for the stream
     /// This should be called by WebSocket handlers before consuming
+    #[allow(dead_code)]
     pub async fn ensure_consumer_group(
         &mut self,
         group_name: &str,

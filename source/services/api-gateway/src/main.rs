@@ -44,7 +44,7 @@ async fn serve_angular_asset(filename: &str) -> axum::response::Response<axum::b
 
     match tokio::fs::read(&file_path).await {
         Ok(contents) => {
-            let (content_type, cache_control) = match filename.split('.').last() {
+            let (content_type, cache_control) = match filename.split('.').next_back() {
                 Some("js") => (
                     "application/javascript",
                     "public, max-age=31536000, immutable",

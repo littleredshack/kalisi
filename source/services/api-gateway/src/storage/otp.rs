@@ -75,7 +75,7 @@ impl OtpStorage {
                 if otp_data.code == code {
                     // Success! Delete OTP
                     self.redis.del::<_, ()>(&key).await?;
-                    return Ok(true);
+                    Ok(true)
                 } else {
                     // Wrong code, increment attempts
                     otp_data.attempts += 1;
@@ -89,7 +89,7 @@ impl OtpStorage {
                             .await?;
                     }
 
-                    return Ok(false);
+                    Ok(false)
                 }
             }
             None => Ok(false),

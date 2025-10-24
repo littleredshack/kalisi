@@ -103,9 +103,9 @@ impl TotpMfa {
         // Dynamic truncation
         let offset = (hash[19] & 0xf) as usize;
         let code = ((hash[offset] & 0x7f) as u32) << 24
-            | ((hash[offset + 1] & 0xff) as u32) << 16
-            | ((hash[offset + 2] & 0xff) as u32) << 8
-            | (hash[offset + 3] & 0xff) as u32;
+            | (hash[offset + 1] as u32) << 16
+            | (hash[offset + 2] as u32) << 8
+            | hash[offset + 3] as u32;
 
         Ok(code % 1_000_000)
     }

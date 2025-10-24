@@ -2,7 +2,7 @@
 /// Simplified CSP Nonce-Based Style Management for Financial Services
 ///
 /// This module implements a practical nonce-based approach for Angular Material styles
-
+///
 /// Generate style proxy script that intercepts Angular Material style mutations
 pub fn generate_style_proxy_script(nonce: &str) -> String {
     format!(
@@ -181,7 +181,5 @@ pub fn build_nonce_based_style_src(_nonce: &str) -> String {
         "'sha256-Qb66hssXbVZlgcp1hSgrmUK6hl3neEox1fKuSppM294='",
     ];
 
-    format!(
-        "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com"
-    )
+    "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com".to_string()
 }

@@ -24,15 +24,51 @@ fi
 
 # Note: Main cleanup function is defined later before starting services
 
-# Colors
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
+# Colors - disabled for clean output
+GREEN=''
+BLUE=''
+YELLOW=''
+RED=''
+NC=''
 
 echo -e "${BLUE}🚀 Kalisi System Startup${NC}"
 echo "===================="
+
+# Memory cleanup function
+cleanup_memory() {
+    log_message "${BLUE}Cleaning up memory...${NC}"
+
+    # Kill old/duplicate Claude instances (keep current one)
+    CURRENT_PID=$$
+    OLD_CLAUDE_PIDS=$(pgrep -x claude | grep -v "^${CURRENT_PID}$" || true)
+    if [ -n "$OLD_CLAUDE_PIDS" ]; then
+        for pid in $OLD_CLAUDE_PIDS; do
+            # Check if process is older than 1 hour
+            if ps -p "$pid" -o etimes= 2>/dev/null | awk '{if ($1 > 3600) exit 0; else exit 1}'; then
+                kill "$pid" 2>/dev/null || true
+                log_message "  Killed old Claude instance (PID: $pid)"
+            fi
+        done
+    fi
+
+    # Kill ng serve if running (not needed for release builds)
+    NG_SERVE_PID=$(pgrep -f "ng serve" || true)
+    if [ -n "$NG_SERVE_PID" ]; then
+        kill "$NG_SERVE_PID" 2>/dev/null || true
+        log_message "  Stopped ng serve (not needed for release build)"
+        sleep 2
+    fi
+
+    # Try to clear caches (may not work in containers with read-only /proc)
+    if [ -w /proc/sys/vm/drop_caches ] 2>/dev/null; then
+        sync
+        echo 3 | sudo tee /proc/sys/vm/drop_caches >/dev/null 2>&1 || true
+        log_message "  Cleared system caches"
+    fi
+
+    log_message "${GREEN}✅ Memory cleanup complete${NC}"
+    free -h | grep -E "Mem:|Swap:" || true
+}
 
 SOURCE_ROOT="$(pwd)"
 WORKSPACE_ROOT="$(cd .. >/dev/null 2>&1 && pwd)"
@@ -388,6 +424,9 @@ get_owner() {
 
     ls -ld "$path" 2>/dev/null | awk '{print $3}'
 }
+
+# Run memory cleanup at startup
+cleanup_memory
 
 # Check and install dependencies
 echo -e "\n${BLUE}Checking system dependencies...${NC}"
@@ -1134,12 +1173,16 @@ else
         # Cleanup trap won't run with exec, but that's OK in containers
         # The container will be destroyed anyway
         mkdir -p "$SOURCE_ROOT/logs"
+        # Clear the log file to start fresh
+        > "$SOURCE_ROOT/logs/gateway-debug.log"
         echo -e "${BLUE}Debug output logging to: $SOURCE_ROOT/logs/gateway-debug.log${NC}"
         exec "$RUST_BIN" > "$SOURCE_ROOT/logs/gateway-debug.log" 2>&1
     else
         # On host systems, run normally so cleanup happens
         # Redirect all output to debug log file
         mkdir -p "$SOURCE_ROOT/logs"
+        # Clear the log file to start fresh
+        > "$SOURCE_ROOT/logs/gateway-debug.log"
         echo -e "${BLUE}Debug output logging to: $SOURCE_ROOT/logs/gateway-debug.log${NC}"
         "$RUST_BIN" > "$SOURCE_ROOT/logs/gateway-debug.log" 2>&1
         EXIT_CODE=$?

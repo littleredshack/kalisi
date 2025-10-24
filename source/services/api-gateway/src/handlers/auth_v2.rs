@@ -250,7 +250,7 @@ async fn handle_totp_login(
     let mut redis = state.redis.clone();
     if let Err(e) = redis::cmd("SET")
         .arg(&partial_key)
-        .arg(&partial_data.to_string())
+        .arg(partial_data.to_string())
         .arg("EX")
         .arg(600) // 10 minutes
         .query_async::<()>(&mut redis)
@@ -337,7 +337,7 @@ pub async fn mfa_reset(
     let mut redis = state.redis.clone();
     if let Err(e) = redis::cmd("SET")
         .arg(&partial_key)
-        .arg(&partial_data.to_string())
+        .arg(partial_data.to_string())
         .arg("EX")
         .arg(600) // 10 minutes
         .query_async::<()>(&mut redis)
@@ -659,7 +659,7 @@ pub async fn mfa_verify(
 
         // Convert timestamp to human readable for debugging
         let datetime = chrono::DateTime::from_timestamp(current_time as i64, 0)
-            .unwrap_or_else(|| chrono::Utc::now());
+            .unwrap_or_else(chrono::Utc::now);
         info!(
             "🔧 MFA Verify - Current timestamp: {} ({}), time step: {}",
             current_time,
@@ -910,7 +910,7 @@ pub async fn register(
     let mut redis = state.redis.clone();
     if let Err(e) = redis::cmd("SET")
         .arg(&partial_key)
-        .arg(&partial_data.to_string())
+        .arg(partial_data.to_string())
         .arg("EX")
         .arg(600) // 10 minutes
         .query_async::<()>(&mut redis)
@@ -1005,7 +1005,7 @@ pub async fn mfa_reset_request(
     let mut redis = state.redis.clone();
     if let Err(e) = redis::cmd("SET")
         .arg(&reset_key)
-        .arg(&reset_data.to_string())
+        .arg(reset_data.to_string())
         .arg("EX")
         .arg(3600) // 1 hour
         .query_async::<()>(&mut redis)
@@ -1150,7 +1150,7 @@ pub async fn mfa_reset_confirm(
     // Store partial session
     if let Err(e) = redis::cmd("SET")
         .arg(&partial_key)
-        .arg(&partial_data.to_string())
+        .arg(partial_data.to_string())
         .arg("EX")
         .arg(600) // 10 minutes
         .query_async::<()>(&mut redis)

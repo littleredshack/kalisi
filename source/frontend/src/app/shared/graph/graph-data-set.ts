@@ -20,8 +20,8 @@ export interface GraphDataSetNode {
 
 export interface GraphDataSetRelationship {
   readonly guid: string;
-  readonly source_guid: string;
-  readonly target_guid: string;
+  readonly fromGUID: string;
+  readonly toGUID: string;
   readonly type: string;
   readonly display?: {
     color?: string;
@@ -137,8 +137,8 @@ export function graphDataSetToRawDataInput(dataset: GraphDataSet): RawDataInput 
 
     return {
       id: rel.guid,
-      source: rel.source_guid,
-      target: rel.target_guid,
+      source: rel.fromGUID,
+      target: rel.toGUID,
       type: rel.type,
       properties
     };

@@ -23,6 +23,7 @@ export class UiStateService {
   private _panelPushMode = signal<boolean>(true);
   private _showIntro = signal<boolean>(true);
   private _autoOpenLibraryPanel = signal<boolean>(true);
+  private _defaultViewNodeId = signal<string | null>('87a9ac07-5da9-42ab-80f2-0563837b592d'); // Containment - Runtime Merge
 
   // Public read-only signals
   readonly activeItemId = this._activeItemId.asReadonly();
@@ -38,6 +39,7 @@ export class UiStateService {
   readonly panelPushMode = this._panelPushMode.asReadonly();
   readonly showIntro = this._showIntro.asReadonly();
   readonly autoOpenLibraryPanel = this._autoOpenLibraryPanel.asReadonly();
+  readonly defaultViewNodeId = this._defaultViewNodeId.asReadonly();
 
   // Computed signals
   readonly hasActiveItem = computed(() => this._activeItemId() !== null);
@@ -173,6 +175,11 @@ export class UiStateService {
     this.persistPanelStates();
   }
 
+  setDefaultViewNodeId(viewNodeId: string | null) {
+    this._defaultViewNodeId.set(viewNodeId);
+    localStorage.setItem('defaultViewNodeId', viewNodeId || '');
+  }
+
   setPanelPushMode(pushMode: boolean) {
     this._panelPushMode.set(pushMode);
     // Persist to localStorage
@@ -217,6 +224,11 @@ export class UiStateService {
     const autoOpenLibrary = localStorage.getItem('kalisi_auto_open_library');
     if (autoOpenLibrary !== null) {
       this._autoOpenLibraryPanel.set(autoOpenLibrary === 'true');
+    }
+
+    const defaultViewNodeId = localStorage.getItem('defaultViewNodeId');
+    if (defaultViewNodeId) {
+      this._defaultViewNodeId.set(defaultViewNodeId);
     }
   }
 

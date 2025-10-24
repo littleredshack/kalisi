@@ -678,8 +678,15 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
     
     this.resizeCanvas();
 
-    // Simplified: Always use containment-runtime with runtime renderers
-    this.runtimeEngineId = 'containment-runtime';
+    // Check if ViewNode specifies force-directed
+    const isForceDirected = this.selectedViewNode?.layout_engine === 'force-directed' ||
+                           this.selectedViewNode?.renderer === 'force-directed-renderer';
+
+    if (isForceDirected) {
+      this.runtimeEngineId = 'force-directed';
+    } else {
+      this.runtimeEngineId = 'containment-runtime';
+    }
 
     this.containmentRenderer = ComponentFactory.createContainmentRenderer();
     this.flatRenderer = ComponentFactory.createFlatRenderer();
@@ -700,11 +707,16 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       this.canvasControlService.setContainmentMode(initialViewConfig.containmentMode);
     }
 
-    const initialRenderer = initialViewConfig.containmentMode === 'containers'
-      ? this.containmentRenderer
-      : this.flatRenderer;
-
     const seedData = this.canvasSnapshot ?? this.createEmptyCanvasData();
+
+    let initialRenderer: any;
+    if (isForceDirected) {
+      initialRenderer = this.flatRenderer;
+    } else {
+      initialRenderer = initialViewConfig.containmentMode === 'containers'
+        ? this.containmentRenderer
+        : this.flatRenderer;
+    }
 
     this.engine = new RuntimeCanvasController(
       canvas,
@@ -714,6 +726,20 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
       this.runtimeEngineId,
       initialViewConfig
     );
+
+    // Create and set force-directed renderer with observer pattern
+    if (isForceDirected) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        const camera = this.engine.getCameraSystem().getCamera();
+        const forceDirectedRenderer = ComponentFactory.createForceDirectedRenderer(
+          this.engine.getLayoutRuntime(),
+          ctx,
+          camera
+        );
+        this.engine.setRenderer(forceDirectedRenderer);
+      }
+    }
 
     // Register the engine's event bus with the event hub service
     const eventBus = this.engine.getLayoutRuntime().getEventBus();

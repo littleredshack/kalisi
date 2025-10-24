@@ -1,7 +1,7 @@
 /// Angular-specific CSP fixes for financial services compliance
 ///
 /// This module provides a comprehensive solution for Angular's style injection patterns
-
+///
 /// Generate a comprehensive Angular CSP fix script
 pub fn generate_angular_csp_fix_script(nonce: &str) -> String {
     format!(

@@ -427,30 +427,19 @@ export class RuntimeCanvasController {
         return;
       }
 
-      // Clear canvas
-      ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-      // Get current data from layout runtime
-      const data = this.layoutRuntime.getCanvasData();
+      // Update camera in renderer
       const camera = this.cameraSystem.getCamera();
-
-      // Debug first frame only
-      if (frameCount === 0) {
-        const flatNode = data.nodes.find(n => n.metadata?.['perNodeFlattened']);
-        if (flatNode) {
-          const flatChildren = flatNode.metadata?.['flattenedChildren'] as any[] || [];
-          console.log('[RenderLoop] Frame 0 - data from layoutRuntime.getCanvasData():',
-            flatChildren.map(c => ({ id: c.GUID || c.id, x: c.x, y: c.y })));
-        }
-        frameCount++;
+      if (this.renderer.updateCamera) {
+        this.renderer.updateCamera(camera);
       }
 
-      // Render directly - NO transformations
-      this.renderer.render(ctx, data.nodes, data.edges, camera);
+      // Renderer reads from viewGraph via observer pattern - we don't pass data
+      // Note: renderer.render() is also called by observer when viewGraph changes
 
       // Render selection indicator if there's a selected node
       const selectedNode = this.interactionHandler.getSelectedNode();
       if (selectedNode) {
+        const data = this.layoutRuntime.getCanvasData();
         const worldPos = this.interactionHandler.getSelectedNodeWorldPos() ||
                         this.interactionHandler.getAbsolutePosition(selectedNode, data.nodes);
         this.interactionHandler.renderSelectionAtPosition(ctx, selectedNode, worldPos, camera);

@@ -235,14 +235,14 @@ impl SecurityLogger {
 #[macro_export]
 macro_rules! log_auth_success {
     ($email:expr, $ip:expr, $method:expr) => {
-        crate::security_logging::SecurityLogger::log_auth_attempt(true, $email, $ip, $method, None);
+        $crate::security_logging::SecurityLogger::log_auth_attempt(true, $email, $ip, $method, None);
     };
 }
 
 #[macro_export]
 macro_rules! log_auth_failure {
     ($email:expr, $ip:expr, $method:expr, $reason:expr) => {
-        crate::security_logging::SecurityLogger::log_auth_attempt(
+        $crate::security_logging::SecurityLogger::log_auth_attempt(
             false,
             $email,
             $ip,
@@ -255,7 +255,7 @@ macro_rules! log_auth_failure {
 #[macro_export]
 macro_rules! log_suspicious {
     ($desc:expr, $ip:expr, $score:expr, $indicators:expr) => {
-        crate::security_logging::SecurityLogger::log_suspicious_activity(
+        $crate::security_logging::SecurityLogger::log_suspicious_activity(
             $desc,
             $ip,
             $score,

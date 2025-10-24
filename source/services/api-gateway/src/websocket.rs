@@ -5,9 +5,7 @@ use axum::{
     },
     response::Response,
 };
-use futures::StreamExt;
 use redis::AsyncCommands;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tokio::sync::broadcast;
 use tokio::time::{interval, Duration};
@@ -18,15 +16,6 @@ use crate::logging::{LogCategory, LogLevel};
 use crate::AppState;
 
 const GRAPH_DELTA_STREAM: &str = "graph:delta";
-
-/// Message for subscribing to graph changes
-#[derive(Debug, Deserialize)]
-struct SubscribeGraphChanges {
-    #[serde(rename = "type")]
-    message_type: String,
-    #[serde(rename = "viewNodeId")]
-    view_node_id: String,
-}
 
 /// WebSocket connection handler for real-time updates
 pub async fn websocket_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> Response {
@@ -363,20 +352,18 @@ async fn consume_graph_deltas(
                 for stream_key in &reply.keys {
                     for stream_id in &stream_key.ids {
                         // Extract the payload
-                        if let Some(payload) = stream_id.map.get("payload") {
-                            if let redis::Value::BulkString(bytes) = payload {
-                                if let Ok(json_str) = String::from_utf8(bytes.clone()) {
-                                    // Parse to check if it matches our view_node_id
-                                    if let Ok(delta) = serde_json::from_str::<serde_json::Value>(&json_str) {
-                                        if let Some(delta_view_node_id) = delta.get("viewNodeId").and_then(|v| v.as_str()) {
-                                            if delta_view_node_id == view_node_id {
-                                                // Send to WebSocket
-                                                if tx.send(json_str.clone()).await.is_err() {
-                                                    warn!("WebSocket channel closed, stopping consumer");
-                                                    return Ok(());
-                                                }
-                                                debug!("Forwarded delta to WebSocket: {}", stream_id.id);
+                        if let Some(redis::Value::BulkString(bytes)) = stream_id.map.get("payload") {
+                            if let Ok(json_str) = String::from_utf8(bytes.clone()) {
+                                // Parse to check if it matches our view_node_id
+                                if let Ok(delta) = serde_json::from_str::<serde_json::Value>(&json_str) {
+                                    if let Some(delta_view_node_id) = delta.get("viewNodeId").and_then(|v| v.as_str()) {
+                                        if delta_view_node_id == view_node_id {
+                                            // Send to WebSocket
+                                            if tx.send(json_str.clone()).await.is_err() {
+                                                warn!("WebSocket channel closed, stopping consumer");
+                                                return Ok(());
                                             }
+                                            debug!("Forwarded delta to WebSocket: {}", stream_id.id);
                                         }
                                     }
                                 }

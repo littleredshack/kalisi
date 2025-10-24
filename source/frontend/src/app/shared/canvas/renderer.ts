@@ -4,21 +4,24 @@ import { PresentationFrame } from '../render/presentation-frame';
 
 // Base interface for all renderers
 export interface IRenderer {
-  // Core rendering
-  render(ctx: CanvasRenderingContext2D, nodes: HierarchicalNode[], edges: Edge[], camera: Camera, frame?: PresentationFrame): void;
-  
+  // Core rendering - either observer pattern (no params) or direct call (with params)
+  render(ctx?: CanvasRenderingContext2D, nodes?: HierarchicalNode[], edges?: Edge[], camera?: Camera, frame?: PresentationFrame): void;
+
   // Hit testing
   hitTest(worldX: number, worldY: number, nodes: HierarchicalNode[]): NodeEvent | null;
-  
+
   // Node bounds calculation
   getNodeBounds(node: HierarchicalNode): Bounds;
-  
+
   // Selection rendering
   renderSelection(ctx: CanvasRenderingContext2D, node: HierarchicalNode, camera: Camera): void;
 
   // Allow renderers to drop cached state when geometry mutates outside layout frames
   invalidateCache?(affectedNodeIds?: ReadonlyArray<string>): void;
-  
+
+  // Camera updates for observer pattern renderers
+  updateCamera?(camera: Camera): void;
+
   // Renderer-specific configuration
   getName(): string;
   getDefaultNodeStyle(type: string): any;

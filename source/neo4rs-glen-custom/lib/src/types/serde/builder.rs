@@ -257,15 +257,11 @@ impl ElementBuilder {
 }
 
 #[derive(Debug, Copy, Clone)]
+#[derive(Default)]
 pub enum SetOnce<T> {
+    #[default]
     Empty,
     Set(T),
-}
-
-impl<T> Default for SetOnce<T> {
-    fn default() -> Self {
-        Self::Empty
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

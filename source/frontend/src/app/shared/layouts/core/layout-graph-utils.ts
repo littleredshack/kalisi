@@ -165,27 +165,14 @@ export function hierarchicalToLayoutGraph(snapshot: HierarchicalGraphSnapshot): 
     };
   });
 
-  // Freeze geometry objects to prevent mutations
-  Object.values(readonlyNodes).forEach(node => {
-    Object.freeze(node.geometry);
-    Object.freeze(node.state);
-    Object.freeze(node);
-  });
-  Object.values(readonlyEdges).forEach(edge => {
-    Object.freeze(edge);
-  });
-
-  const frozenGraph = {
-    nodes: readonlyNodes as Readonly<Record<string, LayoutNode>>,
-    edges: readonlyEdges as Readonly<Record<string, LayoutEdge>>,
+  // viewGraph must be mutable for layout engines
+  const graph = {
+    nodes: readonlyNodes,
+    edges: readonlyEdges,
     metadata: { ...snapshot.metadata }
   };
-  Object.freeze(frozenGraph.nodes);
-  Object.freeze(frozenGraph.edges);
-  Object.freeze(frozenGraph.metadata);
-  Object.freeze(frozenGraph);
 
-  return frozenGraph;
+  return graph;
 }
 
 function computeRootNodes(
@@ -228,6 +215,8 @@ function createEdgeRecord(edge: Edge): LayoutEdge {
 }
 
 export function canvasDataToLayoutGraph(data: CanvasData, layoutVersion = 1): LayoutGraph {
+  console.log('[canvasDataToLayoutGraph] BEFORE transformation - CanvasData:', JSON.parse(JSON.stringify(data)));
+
   // NO CLONING - engine receives readonly view of ViewGraph
   // Engine contract: must NOT mutate input, must return new objects
   const snapshot: HierarchicalGraphSnapshot = {
@@ -238,7 +227,11 @@ export function canvasDataToLayoutGraph(data: CanvasData, layoutVersion = 1): La
       layoutVersion
     }
   };
-  return hierarchicalToLayoutGraph(snapshot);
+  const result = hierarchicalToLayoutGraph(snapshot);
+
+  console.log('[canvasDataToLayoutGraph] AFTER transformation - LayoutGraph:', JSON.parse(JSON.stringify(result)));
+
+  return result;
 }
 
 // layoutResultToCanvasData removed - was unused dead code

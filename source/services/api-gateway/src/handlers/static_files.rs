@@ -111,10 +111,10 @@ pub async fn handle_static_file(uri: Uri, req: Request) -> impl IntoResponse {
     }
 
     // Determine base directory based on path (use path without query parameters)
-    let (base_dir, file_path) = if path_without_query.starts_with("/assets/") {
-        ("frontend/dist/assets", &path_without_query[8..])
-    } else if path_without_query.starts_with("/lib/") {
-        ("frontend/dist/lib", &path_without_query[5..])
+    let (base_dir, file_path) = if let Some(stripped) = path_without_query.strip_prefix("/assets/") {
+        ("frontend/dist/assets", stripped)
+    } else if let Some(stripped) = path_without_query.strip_prefix("/lib/") {
+        ("frontend/dist/lib", stripped)
     } else {
         // Root-level files (main.js, styles.css, etc.)
         ("frontend/dist", &path_without_query[1..])

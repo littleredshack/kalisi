@@ -179,33 +179,32 @@ fn build_content_security_policy(nonce: &str) -> String {
 
 /// Build Permissions Policy for browser feature control
 fn build_permissions_policy() -> String {
-    let mut policies = Vec::new();
-
     // Disable sensitive features (only non-deprecated ones)
-    policies.push("accelerometer=()");
-    policies.push("autoplay=()");
-    policies.push("camera=()");
-    policies.push("display-capture=()");
-    policies.push("encrypted-media=()");
-    policies.push("fullscreen=()");
-    policies.push("geolocation=()");
-    policies.push("gyroscope=()");
-    policies.push("interest-cohort=()"); // Disable FLoC
-    policies.push("magnetometer=()");
-    policies.push("microphone=()");
-    policies.push("midi=()");
-    policies.push("payment=()");
-    policies.push("picture-in-picture=()");
-    policies.push("publickey-credentials-get=()");
-    policies.push("screen-wake-lock=()");
-    policies.push("sync-xhr=()");
-    policies.push("usb=()");
-    policies.push("web-share=()");
-    policies.push("xr-spatial-tracking=()");
-
-    // Allow clipboard access for copy functionality
-    policies.push("clipboard-read=(self)");
-    policies.push("clipboard-write=(self)");
+    let policies = vec![
+        "accelerometer=()",
+        "autoplay=()",
+        "camera=()",
+        "display-capture=()",
+        "encrypted-media=()",
+        "fullscreen=()",
+        "geolocation=()",
+        "gyroscope=()",
+        "interest-cohort=()", // Disable FLoC
+        "magnetometer=()",
+        "microphone=()",
+        "midi=()",
+        "payment=()",
+        "picture-in-picture=()",
+        "publickey-credentials-get=()",
+        "screen-wake-lock=()",
+        "sync-xhr=()",
+        "usb=()",
+        "web-share=()",
+        "xr-spatial-tracking=()",
+        // Allow clipboard access for copy functionality
+        "clipboard-read=(self)",
+        "clipboard-write=(self)",
+    ];
 
     policies.join(", ")
 }

@@ -591,7 +591,7 @@ pub async fn direct_login(
     let mut redis = state.redis.clone();
     if let Err(e) = redis::cmd("SET")
         .arg(&partial_key)
-        .arg(&partial_data.to_string())
+        .arg(partial_data.to_string())
         .arg("EX")
         .arg(600) // 10 minutes
         .query_async::<()>(&mut redis)

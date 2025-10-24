@@ -32,6 +32,12 @@ pub struct CspViolation {
     pub user_agent: Option<String>,
 }
 
+impl Default for StyleHashRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StyleHashRegistry {
     pub fn new() -> Self {
         let mut registry = Self {

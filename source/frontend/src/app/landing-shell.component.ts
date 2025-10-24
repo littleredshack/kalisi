@@ -1046,9 +1046,18 @@ export class LandingShellComponent implements OnInit, OnDestroy {
     this.viewRegistry.initializeDefaultViews();
     this.treeState.initializeMockData();
 
+    let defaultViewLoaded = false;
     // Subscribe to library items from service (FR-030)
     this.viewNodeState.getLibraryItems().subscribe(items => {
       this.libraryItems = items.length > 0 ? items : this.staticLibraryItems;
+
+      // Load default view once library items are loaded
+      const defaultViewNodeId = this.uiState.defaultViewNodeId();
+      const showIntro = this.uiState.showIntro();
+      if (defaultViewNodeId && items.length > 0 && !showIntro && !defaultViewLoaded) {
+        defaultViewLoaded = true;
+        this.loadDefaultViewNode(defaultViewNodeId);
+      }
     });
 
     // Subscribe to expanded SetNodes
@@ -1103,6 +1112,24 @@ export class LandingShellComponent implements OnInit, OnDestroy {
         window.addEventListener('resize', this.resize);
       }
     }, 100);
+  }
+
+  private loadDefaultViewNode(viewNodeId: string) {
+    const itemDetails = this.viewNodeState.getItemDetails(viewNodeId);
+
+    if (itemDetails) {
+      this.selectedViewNodeDetails = itemDetails;
+
+      if (itemDetails.renderer || itemDetails.layout_engine) {
+        this.viewNodeState.selectViewNodeById(viewNodeId);
+        this.useRuntimeCanvas = itemDetails.layout_engine === 'containment-runtime';
+        this.selectedView = 'modular-canvas';
+        this.uiState.setActiveView('modular-canvas');
+        this.selectedEntityId = viewNodeId;
+        this.selectedEntityLabel = itemDetails.name;
+        this.uiState.setLibraryPanel(false);
+      }
+    }
   }
 
   ngOnDestroy(): void {

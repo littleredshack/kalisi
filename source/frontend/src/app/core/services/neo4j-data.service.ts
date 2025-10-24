@@ -79,10 +79,10 @@ interface RuntimeGraphResponse {
     tags?: Record<string, string[]>;
     properties: Record<string, any>;
   }>;
-  relationships: Array<{
+  edges: Array<{
     guid: string;
-    source_guid: string;
-    target_guid: string;
+    fromGUID: string;
+    toGUID: string;
     type: string;
     display?: {
       color?: string;
@@ -161,16 +161,18 @@ export class Neo4jDataService {
         })
       );
       
-      if (result.success && result.data && result.data.results) {
-        return result.data.results.map((record: any) => ({
-          ...record.vn.properties
+      if (result.success && result.data && result.data.nodes) {
+        const viewNodes = result.data.nodes.filter((node: any) =>
+          node.labels && node.labels.includes('ViewNode')
+        ).map((node: any) => ({
+          ...node,
+          id: node.GUID
         }));
+        return viewNodes;
       }
 
-      console.error('Failed to fetch ViewNodes:', result.error);
       return [];
     } catch (error) {
-      console.error('Error fetching ViewNodes:', error);
       return [];
     }
   }
@@ -239,12 +241,11 @@ export class Neo4jDataService {
         cypher: runtimeResponse.cypher,
         parameters: runtimeResponse.parameters ?? {},
         nodes: runtimeResponse.nodes ?? [],
-        relationships: runtimeResponse.relationships ?? [],
+        relationships: runtimeResponse.edges ?? [],
         metadata: runtimeResponse.metadata,
         rawRows: runtimeResponse.raw_rows ?? []
       };
     } catch (error) {
-      console.error('Error fetching graph dataset for ViewNode:', error);
       return null;
     }
   }
@@ -337,10 +338,10 @@ export class Neo4jDataService {
 
       const relationships = [
         ...derivedRelationships,
-        ...response.relationships.map(rel => ({
+        ...response.edges.map(rel => ({
           id: rel.guid,
-          source: rel.source_guid,
-          target: rel.target_guid,
+          source: rel.fromGUID,
+          target: rel.toGUID,
           type: rel.type,
           properties: rel.properties,
           color: rel.display?.color,
@@ -849,31 +850,30 @@ export class Neo4jDataService {
   private async getQueryFromQueryNode(viewNode: any): Promise<string> {
     try {
       // Primary path: Get query from parent SetNode's QueryNode
+      const viewNodeGuid = viewNode.GUID || viewNode.id;
       const cypherQuery = `
-        MATCH (vn:ViewNode {id: "${viewNode.id}"})<-[:HAS_VIEWNODE]-(sn:SetNode)-[:HAS_QUERYNODE]->(qn:QueryNode)
-        RETURN qn.cypherQuery as query
+        MATCH (vn:ViewNode {GUID: "${viewNodeGuid}"})<-[:HAS_VIEWNODE]-(sn:SetNode)-[:HAS_QUERYNODE]->(qn:QueryNode)
+        RETURN qn
       `;
-      
+
       const result: any = await firstValueFrom(
-        this.http.post('/v0/cypher/unified', { 
+        this.http.post('/v0/cypher/unified', {
           query: cypherQuery,
           parameters: {}
         })
       );
-      
-      if (result.success && result.data && result.data.results && result.data.results.length > 0) {
-        const queryFromQueryNode = result.data.results[0].query;
-        if (queryFromQueryNode && queryFromQueryNode.trim()) {
-          return queryFromQueryNode;
+
+      if (result.success && result.data && result.data.nodes && result.data.nodes.length > 0) {
+        const queryNode = result.data.nodes.find((n: any) => n.labels?.includes('QueryNode'));
+        if (queryNode && queryNode.cypherQuery && queryNode.cypherQuery.trim()) {
+          return queryNode.cypherQuery;
         }
       }
-      
+
       // Secondary path: Fallback to ViewNode's own cypherQuery only if SetNode/QueryNode fails
-      console.warn('No SetNode QueryNode found or empty query, falling back to ViewNode cypherQuery');
       return viewNode.cypherQuery || viewNode.cypher_query || '';
-      
+
     } catch (error) {
-      console.error('Error fetching query from SetNode QueryNode, falling back to ViewNode:', error);
       // Fallback to ViewNode's own cypherQuery only on error
       return viewNode.cypherQuery || viewNode.cypher_query || '';
     }
@@ -884,30 +884,44 @@ export class Neo4jDataService {
     try {
       const cypherQuery = `
         MATCH (sn:SetNode)
-        OPTIONAL MATCH (sn)-[:HAS_VIEWNODE]->(vn:ViewNode)
-        OPTIONAL MATCH (sn)-[:HAS_QUERYNODE]->(qn:QueryNode)
-        WITH sn, collect(DISTINCT vn) as viewNodes, collect(DISTINCT qn) as queryNodes
-        RETURN sn, viewNodes, head(queryNodes) as qn
+        OPTIONAL MATCH (sn)-[r:HAS_VIEWNODE]->(vn:ViewNode)
+        RETURN sn, r, vn
         ORDER BY sn.name ASC
       `;
-      
+
       const result: any = await firstValueFrom(
-        this.http.post('/v0/cypher/unified', { 
+        this.http.post('/v0/cypher/unified', {
           query: cypherQuery,
           parameters: {}
         })
       );
-      
-      if (result.success && result.data && result.data.results) {
-        return result.data.results.map((record: any) => ({
-          ...record.sn.properties,
-          viewNodes: record.viewNodes.map((vn: any) => ({
-            ...vn.properties
-          })),
-          queryDetails: record.qn ? {
-            ...record.qn.properties
-          } : null
-        }));
+
+      if (result.success && result.data) {
+        const allNodes = result.data.nodes || [];
+        const allEdges = result.data.edges || [];
+
+        const setNodes = allNodes.filter((n: any) => n.labels?.includes('SetNode'));
+        const viewNodes = allNodes.filter((n: any) => n.labels?.includes('ViewNode'));
+
+        // Build hierarchy using HAS_VIEWNODE edges
+        const result_array = setNodes.map((sn: any) => {
+          const relevantEdges = allEdges.filter((e: any) => e.fromGUID === sn.GUID && e.type === 'HAS_VIEWNODE');
+
+          const childViewNodes = relevantEdges
+            .map((e: any) => {
+              const vn = viewNodes.find((v: any) => v.GUID === e.toGUID);
+              return vn ? { ...vn, id: vn.GUID } : null;
+            })
+            .filter((v: any) => v !== null);
+
+          return {
+            ...sn,
+            id: sn.GUID,
+            viewNodes: childViewNodes
+          };
+        });
+
+        return result_array;
       }
 
       console.error('Failed to fetch SetNodes:', result.error);

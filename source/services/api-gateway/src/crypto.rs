@@ -69,7 +69,7 @@ impl FieldEncryption {
     pub fn generate_key() -> String {
         let mut key = [0u8; 32];
         OsRng.fill_bytes(&mut key);
-        general_purpose::STANDARD.encode(&key)
+        general_purpose::STANDARD.encode(key)
     }
 
     /// Encrypt a string value
@@ -140,6 +140,12 @@ pub struct KeyManager {
     keys: std::collections::HashMap<String, FieldEncryption>,
 }
 
+impl Default for KeyManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl KeyManager {
     pub fn new() -> Self {
         let default_key_id = "default-v1".to_string();
@@ -169,7 +175,7 @@ impl KeyManager {
         let encryption = self
             .keys
             .get(&self.current_key_id)
-            .ok_or_else(|| CryptoError::InvalidKeyFormat)?;
+            .ok_or(CryptoError::InvalidKeyFormat)?;
 
         let encrypted = encryption.encrypt_string(plaintext)?;
         Ok(EncryptedEnvelope::new(
@@ -182,7 +188,7 @@ impl KeyManager {
         let encryption = self
             .keys
             .get(&envelope.key_id)
-            .ok_or_else(|| CryptoError::InvalidKeyFormat)?;
+            .ok_or(CryptoError::InvalidKeyFormat)?;
 
         encryption.decrypt_string(&envelope.data)
     }

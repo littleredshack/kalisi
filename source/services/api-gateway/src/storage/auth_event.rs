@@ -98,7 +98,7 @@ impl AuthEventStorage {
         let global_key = "auth_events:all";
 
         // Get event IDs sorted by timestamp (newest first)
-        let event_ids: Vec<String> = self.redis.zrevrange(&global_key, 0, limit as isize).await?;
+        let event_ids: Vec<String> = self.redis.zrevrange(global_key, 0, limit as isize).await?;
 
         let mut events = Vec::new();
         for event_id in event_ids {

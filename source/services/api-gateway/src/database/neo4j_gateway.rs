@@ -141,7 +141,7 @@ impl Neo4jGateway {
 
 fn apply_parameter(query: Query, key: &str, value: &Value) -> Result<Query, String> {
     Ok(match value {
-        Value::Null => query.param(key, BoltType::Null(BoltNull::default())),
+        Value::Null => query.param(key, BoltType::Null(BoltNull)),
         Value::Bool(boolean) => query.param(key, *boolean),
         Value::Number(number) => {
             if let Some(int_value) = number.as_i64() {

@@ -125,13 +125,13 @@ impl CentralLogger {
             let _: Result<(), _> = redis.publish("logs:stream", &notification_json).await;
             let _: Result<(), _> = redis
                 .publish(
-                    &format!("logs:category:{}", format!("{:?}", category).to_lowercase()),
+                    format!("logs:category:{}", format!("{:?}", category).to_lowercase()),
                     &notification_json,
                 )
                 .await;
             let _: Result<(), _> = redis
                 .publish(
-                    &format!("logs:level:{}", format!("{:?}", level).to_lowercase()),
+                    format!("logs:level:{}", format!("{:?}", level).to_lowercase()),
                     &notification_json,
                 )
                 .await;
