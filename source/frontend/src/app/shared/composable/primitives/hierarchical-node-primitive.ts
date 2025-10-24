@@ -152,9 +152,9 @@ export class HierarchicalNodePrimitive {
       });
     }
 
-    // Draw child count badge if node is collapsed - EXACT same logic
+    // Draw child count badge if node is collapsed - match runtime UX
     if (node.collapsed) {
-      const childCount = this.countAllDescendants(node);
+      const childCount = this.countImmediateChildren(node);
       if (childCount > 0) {
         this.drawChildCountBadge(ctx, screenX, screenY, screenWidth, screenHeight, childCount);
       }
@@ -333,17 +333,31 @@ export class HierarchicalNodePrimitive {
   }
 
   /**
-   * Count all descendants (for collapsed node badges) - EXACT same logic
+   * Count immediate children for collapsed badge display.
+   *
+   * Prefer the saved visibility snapshot when available so the badge reflects
+   * the number of direct children that were visible prior to collapsing.
+   * Fall back to the current children array (deduplicated by GUID).
    */
-  private static countAllDescendants(node: HierarchicalNode): number {
-    if (!node.children || node.children.length === 0) return 0;
+  private static countImmediateChildren(node: HierarchicalNode): number {
+    const snapshot = node.metadata?.['_visibilitySnapshot'] as { childrenStates?: Map<string, unknown> } | undefined;
+    if (snapshot?.childrenStates instanceof Map) {
+      return snapshot.childrenStates.size;
+    }
 
-    let count = node.children.length;
+    if (!node.children || node.children.length === 0) {
+      return 0;
+    }
+
+    const uniqueChildIds = new Set<string>();
     node.children.forEach(child => {
-      count += this.countAllDescendants(child);
+      const id = child?.GUID ?? child?.id;
+      if (id) {
+        uniqueChildIds.add(id);
+      }
     });
 
-    return count;
+    return uniqueChildIds.size;
   }
 
   /**

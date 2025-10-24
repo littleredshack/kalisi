@@ -87,9 +87,12 @@ export class RuntimeCanvasController {
     // Direct mutation - no cloning
     const currentData = this.layoutRuntime.getCanvasData();
 
-    if (!currentData.originalEdges) {
-      currentData.originalEdges = data.originalEdges || data.edges.filter(e => !e.id.startsWith('inherited-'));
-    }
+    const providedOriginalEdges = data.originalEdges && data.originalEdges.length > 0
+      ? data.originalEdges
+      : data.edges;
+    currentData.originalEdges = providedOriginalEdges
+      ? providedOriginalEdges.filter(edge => edge && edge.id && !edge.id.startsWith('inherited-'))
+      : [];
 
     currentData.nodes = data.nodes;
 
@@ -1368,7 +1371,13 @@ export class RuntimeCanvasController {
 
       if (sourceVisibility.isVisible && targetVisibility.isVisible) {
         // Both endpoints visible - show original edge
-        inheritedEdges.push(edge);
+        inheritedEdges.push({
+          ...edge,
+          metadata: {
+            ...(edge.metadata ?? {}),
+            visible: true
+          }
+        });
       } else if (!sourceVisibility.isVisible || !targetVisibility.isVisible) {
         // One or both endpoints hidden - create inherited edge to visible ancestor
         const finalSourceId = sourceVisibility.isVisible ? edge.from : sourceVisibility.visibleAncestor!;
@@ -1388,6 +1397,11 @@ export class RuntimeCanvasController {
               stroke: '#1e3a8a', // Darker blue for inherited
               strokeWidth: Math.min(6, edge.style.strokeWidth + 1),
               strokeDashArray: [4, 4] // Dashed
+            },
+            metadata: {
+              ...(edge.metadata ?? {}),
+              inherited: true,
+              visible: true
             }
           });
         }

@@ -262,11 +262,8 @@ export class CanvasLayoutRuntime {
     console.log('[LayoutRuntime] applyLayoutResult - OVERWRITING viewGraph.nodes');
     const snapshot = layoutGraphToHierarchical(result.graph);
 
-    // Direct mutation - no cloning
-    if (!this.viewGraph.originalEdges) {
-      this.viewGraph.originalEdges = snapshot.edges;
-    }
-
+    // Direct mutation - keep originalEdges in sync with latest layout outputs
+    this.viewGraph.originalEdges = snapshot.edges;
     this.viewGraph.nodes = snapshot.nodes;
     this.viewGraph.edges = snapshot.edges;
     this.viewGraph.camera = preservedCamera ?? result.camera ?? this.viewGraph.camera;
