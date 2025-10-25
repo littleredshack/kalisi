@@ -15,6 +15,13 @@ export class ForceDirectedLayoutEngine implements LayoutEngine {
     const nodes = Object.values(graph.nodes);
     const edges = Object.values(graph.edges);
 
+    console.log('[ForceDirectedLayoutEngine] Input graph.edges:', edges.length);
+    edges.forEach((edge, i) => {
+      if (i < 10) {
+        console.log(`[ForceDirectedLayoutEngine] Input Edge ${i}:`, edge.id, 'from:', edge.from, 'to:', edge.to, 'label:', edge.label);
+      }
+    });
+
     // Apply force-directed layout (modifies nodes in place)
     applyForceDirectedLayout(nodes as any, edges as any, {
       width: 800,

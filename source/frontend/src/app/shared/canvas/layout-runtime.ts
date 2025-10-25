@@ -282,12 +282,21 @@ export class CanvasLayoutRuntime {
     console.log('[LayoutRuntime] applyLayoutResult - OVERWRITING viewGraph.nodes');
     const snapshot = layoutGraphToHierarchical(result.graph);
 
+    console.log('[LayoutRuntime] applyLayoutResult - snapshot.edges:', snapshot.edges.length);
+    snapshot.edges.forEach((edge, i) => {
+      if (i < 5) {
+        console.log(`[LayoutRuntime] Edge ${i}:`, edge.id, 'from:', edge.fromGUID, 'to:', edge.toGUID, 'label:', edge.label);
+      }
+    });
+
     // Direct mutation - keep originalEdges in sync with latest layout outputs
     this.viewGraph.originalEdges = snapshot.edges;
     this.viewGraph.nodes = snapshot.nodes;
     this.viewGraph.edges = snapshot.edges;
     this.viewGraph.camera = preservedCamera ?? result.camera ?? this.viewGraph.camera;
     this.viewGraph.metadata = snapshot.metadata;
+
+    console.log('[LayoutRuntime] applyLayoutResult - viewGraph.edges after assignment:', this.viewGraph.edges.length);
 
     // Debug: Check if we're overwriting flattened positions
     const flatNode = snapshot.nodes.find(n => n.metadata?.['perNodeFlattened']);

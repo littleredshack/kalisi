@@ -385,6 +385,15 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
       // The dataset is needed for containment mode toggling to rebuild hierarchy
       const dataset = await this.neo4jDataService.fetchGraphDataSet(viewNode);
 
+      console.log('[loadViewNodeData] Dataset received - nodes:', dataset?.nodes?.length || 0, 'relationships:', dataset?.relationships?.length || 0);
+      if (dataset?.relationships && dataset.relationships.length > 0) {
+        dataset.relationships.forEach((rel, i) => {
+          if (i < 10) {
+            console.log(`[loadViewNodeData] Relationship ${i}:`, rel.type, 'from:', rel.fromGUID, 'to:', rel.toGUID);
+          }
+        });
+      }
+
       if (viewNode.layout) {
         try {
           const savedLayoutData = JSON.parse(viewNode.layout);

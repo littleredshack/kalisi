@@ -155,9 +155,10 @@ export function processRawDataToGraph(input: RawDataInput): LayoutGraph {
     }
   });
 
-  // Phase 3: Create edges from non-CONTAINS relationships
+  // Phase 3: Create edges from ALL relationships (including CONTAINS)
   input.relationships.forEach(rel => {
-    if (rel.type !== 'CONTAINS') {
+    // Include ALL relationship types - let renderer/layout decide what to show
+    {
       const fromGUID = (rel as any).fromGUID || rel.source;
       const toGUID = (rel as any).toGUID || rel.target;
 

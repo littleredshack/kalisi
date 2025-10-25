@@ -94,6 +94,15 @@ export class ForceDirectedRenderer {
 
     const viewGraph = this.layoutRuntime.getViewGraph();
 
+    console.log('[ForceDirectedRenderer.render] ViewGraph edges received:', viewGraph.edges?.length || 0);
+    if (viewGraph.edges && viewGraph.edges.length > 0) {
+      viewGraph.edges.forEach((edge: any, i: number) => {
+        if (i < 5) {
+          console.log(`[ForceDirectedRenderer.render] ViewGraph Edge ${i}:`, edge.id, 'from:', edge.fromGUID, 'to:', edge.toGUID, 'label:', edge.label);
+        }
+      });
+    }
+
     console.log('[ForceDirectedRenderer.render] Root nodes:', (viewGraph.nodes || []).length);
     (viewGraph.nodes || []).forEach((n: any, i: number) => {
       console.log(`[ForceDirectedRenderer.render] Root ${i} children:`, n.children?.length || 0);
@@ -118,6 +127,9 @@ export class ForceDirectedRenderer {
     const edgeArray = viewGraph.edges || [];
 
     console.log('[ForceDirectedRenderer.render] After flatten - nodes:', nodeArray.length, 'edges:', edgeArray.length);
+    if (edgeArray.length > 0) {
+      console.log('[ForceDirectedRenderer.render] Sample edge:', edgeArray[0].id, 'from:', edgeArray[0].fromGUID, 'to:', edgeArray[0].toGUID, 'type:', (edgeArray[0] as any).type);
+    }
     if (nodeArray.length > 0) {
       console.log('[ForceDirectedRenderer.render] Sample node:', nodeArray[0].GUID, 'x:', nodeArray[0].x, 'y:', nodeArray[0].y);
     }
