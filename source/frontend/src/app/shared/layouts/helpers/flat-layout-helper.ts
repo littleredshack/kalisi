@@ -47,8 +47,6 @@ export function flattenHierarchyWithEdges(
       if (parentGUID && childGUID) {
         containsEdges.push({
           id: `contains-${parentGUID}-${childGUID}`,
-          from: parentGUID,
-          to: childGUID,
           fromGUID: parentGUID,
           toGUID: childGUID,
           label: 'CONTAINS',

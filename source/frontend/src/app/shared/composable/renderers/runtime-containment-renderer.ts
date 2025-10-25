@@ -102,8 +102,8 @@ export class RuntimeContainmentRenderer extends BaseRenderer {
     }
 
     renderableEdges.forEach(edge => {
-      const fromId = this.getEdgeNodeIdentifier(edge.fromGUID, edge.from);
-      const toId = this.getEdgeNodeIdentifier(edge.toGUID, edge.to);
+      const fromId = edge.fromGUID;
+      const toId = edge.toGUID;
       const requiresUpdate =
         cacheInvalidated ||
         !this.edgeWaypointCache.has(edge.id) ||
@@ -162,8 +162,8 @@ export class RuntimeContainmentRenderer extends BaseRenderer {
    * Calculate orthogonal waypoints for edges - from flat renderer
    */
   private calculateEdgeWaypoints(edge: Edge, edgeCount: number): Point[] | null {
-    const fromId = this.getEdgeNodeIdentifier(edge.fromGUID, edge.from);
-    const toId = this.getEdgeNodeIdentifier(edge.toGUID, edge.to);
+    const fromId = edge.fromGUID;
+    const toId = edge.toGUID;
 
     if (!fromId || !toId) {
       return null;
@@ -325,8 +325,8 @@ export class RuntimeContainmentRenderer extends BaseRenderer {
    */
   private renderOrthogonalEdge(ctx: CanvasRenderingContext2D, edge: Edge, nodes: HierarchicalNode[], camera: Camera): void {
     // Find the nodes for this edge
-    const fromId = edge.fromGUID || edge.from;
-    const toId = edge.toGUID || edge.to;
+    const fromId = edge.fromGUID;
+    const toId = edge.toGUID;
     const fromNode = this.findNodeByGUID(fromId, nodes);
     const toNode = this.findNodeByGUID(toId, nodes);
 

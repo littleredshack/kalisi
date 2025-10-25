@@ -95,8 +95,8 @@ export class RuntimeFlatRenderer extends BaseRenderer {
 
     // Update edge waypoints
     renderableEdges.forEach(edge => {
-      const fromId = this.getEdgeNodeIdentifier(edge.fromGUID, edge.from);
-      const toId = this.getEdgeNodeIdentifier(edge.toGUID, edge.to);
+      const fromId = edge.fromGUID;
+      const toId = edge.toGUID;
 
       const requiresUpdate =
         cacheInvalidated ||
@@ -124,8 +124,8 @@ export class RuntimeFlatRenderer extends BaseRenderer {
 
     // Render edges first (behind nodes)
     renderableEdges.forEach(edge => {
-      const fromNode = this.findNodeByIdentifier(this.getEdgeNodeIdentifier(edge.fromGUID, edge.from), nodeIndex);
-      const toNode = this.findNodeByIdentifier(this.getEdgeNodeIdentifier(edge.toGUID, edge.to), nodeIndex);
+      const fromNode = this.findNodeByIdentifier(edge.fromGUID, nodeIndex);
+      const toNode = this.findNodeByIdentifier(edge.toGUID, nodeIndex);
       const cachedWaypoints = this.edgeWaypointCache.get(edge.id);
       const renderEdge = cachedWaypoints ? { ...edge, waypoints: cachedWaypoints } : edge;
       FlatEdgePrimitive.draw(ctx, renderEdge, fromNode, toNode, camera);
@@ -256,8 +256,8 @@ export class RuntimeFlatRenderer extends BaseRenderer {
     nodeIndex: Map<string, IndexedNode>,
     indexedNodes: IndexedNode[]
   ): Point[] | null {
-    const fromId = this.getEdgeNodeIdentifier(edge.fromGUID, edge.from);
-    const toId = this.getEdgeNodeIdentifier(edge.toGUID, edge.to);
+    const fromId = edge.fromGUID;
+    const toId = edge.toGUID;
     if (!fromId || !toId) {
       return null;
     }

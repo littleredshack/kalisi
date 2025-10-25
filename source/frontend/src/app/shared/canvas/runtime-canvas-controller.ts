@@ -321,8 +321,6 @@ export class RuntimeCanvasController {
   private convertToEdge(data: any): Edge {
     return {
       id: data.guid,
-      from: data.source_guid,
-      to: data.target_guid,
       fromGUID: data.source_guid,
       toGUID: data.target_guid,
       label: data.type || data.display?.label || '',
@@ -1353,8 +1351,8 @@ export class RuntimeCanvasController {
 
     // For each original edge, determine its final representation
     baseEdges.forEach(edge => {
-      const sourceVisibility = visibilityMap[edge.from];
-      const targetVisibility = visibilityMap[edge.to];
+      const sourceVisibility = visibilityMap[edge.fromGUID];
+      const targetVisibility = visibilityMap[edge.toGUID];
 
       // Check if source/target exist in visibility map
       if (!sourceVisibility || !targetVisibility) {
@@ -1372,18 +1370,16 @@ export class RuntimeCanvasController {
         });
       } else if (!sourceVisibility.isVisible || !targetVisibility.isVisible) {
         // One or both endpoints hidden - create inherited edge to visible ancestor
-        const finalSourceId = sourceVisibility.isVisible ? edge.from : sourceVisibility.visibleAncestor!;
-        const finalTargetId = targetVisibility.isVisible ? edge.to : targetVisibility.visibleAncestor!;
+        const finalSourceId = sourceVisibility.isVisible ? edge.fromGUID : sourceVisibility.visibleAncestor!;
+        const finalTargetId = targetVisibility.isVisible ? edge.toGUID : targetVisibility.visibleAncestor!;
 
         // Only create inherited edge if both final endpoints exist and are different
         if (finalSourceId && finalTargetId && finalSourceId !== finalTargetId) {
           inheritedEdges.push({
             ...edge,
             id: `inherited-${edge.id}`,
-            from: finalSourceId,
-            to: finalTargetId,
-            fromGUID: finalSourceId,  // Set GUID fields for composable renderers
-            toGUID: finalTargetId,    // Set GUID fields for composable renderers
+            fromGUID: finalSourceId,
+            toGUID: finalTargetId,
             style: {
               ...edge.style,
               stroke: '#1e3a8a', // Darker blue for inherited

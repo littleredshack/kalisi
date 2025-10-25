@@ -35,10 +35,8 @@ export interface HierarchicalNode {
 
 export interface Edge {
   id: string;
-  from: string;  // Should be GUID
-  to: string;    // Should be GUID
-  fromGUID?: string; // Explicit GUID reference
-  toGUID?: string;   // Explicit GUID reference
+  fromGUID: string; // Source node GUID - ONLY identifier to use
+  toGUID: string;   // Target node GUID - ONLY identifier to use
   label: string;
   style: {
     stroke: string;

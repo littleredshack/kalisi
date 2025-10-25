@@ -57,22 +57,31 @@ export function applyForceDirectedLayout(
 ): void {
   const opts = { ...DEFAULT_OPTIONS, ...options };
 
-  // Initialize positions for nodes - always randomize for force-directed
+  // Initialize positions for nodes - preserve existing positions and dragging state
   console.log('[force-directed] Starting layout for', nodes.length, 'nodes');
   nodes.forEach((node: any, i: number) => {
     if (!node.geometry) {
       node.geometry = { x: 0, y: 0, width: 160, height: 80 };
     }
-    // Always set random initial positions for force-directed
-    node.geometry = {
-      ...node.geometry,
-      x: Math.random() * opts.width,
-      y: Math.random() * opts.height
-    };
+
+    // Only randomize if node doesn't have a position yet
+    // NEVER randomize dragging nodes or nodes with locked positions
+    const hasPosition = node.geometry.x !== 0 || node.geometry.y !== 0;
+    const isDragging = node.metadata?.['dragging'] === true;
+    const isLocked = node.metadata?.['_userLocked'] === true;
+
+    if (!hasPosition && !isDragging && !isLocked) {
+      node.geometry = {
+        ...node.geometry,
+        x: Math.random() * opts.width,
+        y: Math.random() * opts.height
+      };
+    }
+
     if (node.vx === undefined) node.vx = 0;
     if (node.vy === undefined) node.vy = 0;
     if (i < 3) {
-      console.log(`[force-directed] Node ${i} initial pos:`, node.geometry.x, node.geometry.y);
+      console.log(`[force-directed] Node ${i} initial pos:`, node.geometry.x, node.geometry.y, 'dragging:', node.metadata?.['dragging']);
     }
   });
 
@@ -84,7 +93,9 @@ export function applyForceDirectedLayout(
   for (let iter = 0; iter < opts.iterations; iter++) {
     // Reset forces
     nodes.forEach((node: any) => {
-      if (!node.dragging) {
+      const isDragging = node.metadata?.['dragging'] === true;
+      const isLocked = node.metadata?.['_userLocked'] === true;
+      if (!isDragging && !isLocked) {
         node.vx = 0;
         node.vy = 0;
       }
@@ -93,10 +104,14 @@ export function applyForceDirectedLayout(
     // Apply repulsion between all node pairs
     for (let i = 0; i < nodes.length; i++) {
       const nodeA: any = nodes[i];
-      if (nodeA.dragging) continue;
+      const isDraggingA = nodeA.metadata?.['dragging'] === true;
+      const isLockedA = nodeA.metadata?.['_userLocked'] === true;
+      if (isDraggingA || isLockedA) continue;
 
       for (let j = i + 1; j < nodes.length; j++) {
         const nodeB: any = nodes[j];
+        const isDraggingB = nodeB.metadata?.['dragging'] === true;
+        const isLockedB = nodeB.metadata?.['_userLocked'] === true;
 
         const dx = nodeB.geometry.x - nodeA.geometry.x;
         const dy = nodeB.geometry.y - nodeA.geometry.y;
@@ -108,11 +123,11 @@ export function applyForceDirectedLayout(
           const fx = (dx / dist) * force;
           const fy = (dy / dist) * force;
 
-          if (!nodeA.dragging) {
+          if (!isDraggingA && !isLockedA) {
             nodeA.vx -= fx;
             nodeA.vy -= fy;
           }
-          if (!nodeB.dragging) {
+          if (!isDraggingB && !isLockedB) {
             nodeB.vx += fx;
             nodeB.vy += fy;
           }
@@ -122,10 +137,15 @@ export function applyForceDirectedLayout(
 
     // Apply spring forces from edges
     edges.forEach((edge: any) => {
-      const source = nodeMap.get(edge.from);
-      const target = nodeMap.get(edge.to);
+      const source = nodeMap.get(edge.fromGUID);
+      const target = nodeMap.get(edge.toGUID);
 
       if (source && target) {
+        const isDraggingSource = source.metadata?.['dragging'] === true;
+        const isLockedSource = source.metadata?.['_userLocked'] === true;
+        const isDraggingTarget = target.metadata?.['dragging'] === true;
+        const isLockedTarget = target.metadata?.['_userLocked'] === true;
+
         const dx = target.geometry.x - source.geometry.x;
         const dy = target.geometry.y - source.geometry.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
@@ -135,11 +155,11 @@ export function applyForceDirectedLayout(
           const fx = (dx / dist) * force;
           const fy = (dy / dist) * force;
 
-          if (!source.dragging) {
+          if (!isDraggingSource && !isLockedSource) {
             source.vx += fx;
             source.vy += fy;
           }
-          if (!target.dragging) {
+          if (!isDraggingTarget && !isLockedTarget) {
             target.vx -= fx;
             target.vy -= fy;
           }
@@ -149,7 +169,9 @@ export function applyForceDirectedLayout(
 
     // Update positions
     nodes.forEach((node: any) => {
-      if (!node.dragging) {
+      const isDragging = node.metadata?.['dragging'] === true;
+      const isLocked = node.metadata?.['_userLocked'] === true;
+      if (!isDragging && !isLocked) {
         node.vx *= opts.damping;
         node.vy *= opts.damping;
         node.geometry = {

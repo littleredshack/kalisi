@@ -133,8 +133,8 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
         relationType: existingMetadata['relationType'] ?? relationTypeSource,
         visible:
           (shouldShowContainsEdge || !isContainmentEdge) &&
-          !hiddenByCollapse.has(edge.from) &&
-          !hiddenByCollapse.has(edge.to)
+          !hiddenByCollapse.has(edge.fromGUID) &&
+          !hiddenByCollapse.has(edge.toGUID)
       };
 
       return {
@@ -452,8 +452,8 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     const visibilityMap = this.buildVisibilityMap(hierarchyRoots, hiddenByCollapse);
 
     edges.forEach(edge => {
-      const sourceInfo = visibilityMap.get(edge.from);
-      const targetInfo = visibilityMap.get(edge.to);
+      const sourceInfo = visibilityMap.get(edge.fromGUID);
+      const targetInfo = visibilityMap.get(edge.toGUID);
       if (!sourceInfo || !targetInfo) {
         return;
       }
@@ -462,8 +462,8 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
         return;
       }
 
-      const finalSource = sourceInfo.visible ? edge.from : sourceInfo.visibleAncestor;
-      const finalTarget = targetInfo.visible ? edge.to : targetInfo.visibleAncestor;
+      const finalSource = sourceInfo.visible ? edge.fromGUID : sourceInfo.visibleAncestor;
+      const finalTarget = targetInfo.visible ? edge.toGUID : targetInfo.visibleAncestor;
 
       if (!finalSource || !finalTarget || finalSource === finalTarget) {
         return;
@@ -477,8 +477,6 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
       augmented.set(inheritedId, {
         ...edge,
         id: inheritedId,
-        from: finalSource,
-        to: finalTarget,
         fromGUID: finalSource,
         toGUID: finalTarget,
         metadata: {
@@ -652,8 +650,8 @@ export class ContainmentRuntimeLayoutEngine implements LayoutEngine {
     nodes.forEach(root => collect(root));
 
     return edges.map(edge => {
-      const fromNode = nodeMap.get(edge.fromGUID ?? edge.from);
-      const toNode = nodeMap.get(edge.toGUID ?? edge.to);
+      const fromNode = nodeMap.get(edge.fromGUID);
+      const toNode = nodeMap.get(edge.toGUID);
 
       if (!fromNode || !toNode) {
         return edge;

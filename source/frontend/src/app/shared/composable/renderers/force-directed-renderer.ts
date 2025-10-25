@@ -147,6 +147,10 @@ export class ForceDirectedRenderer {
         if (edge.type === 'LINK') {
           this.ctx!.strokeStyle = '#60a5fa';
           this.ctx!.lineWidth = 2;
+        } else if (edge.type === 'CONTAINS') {
+          this.ctx!.strokeStyle = '#3b82f6';
+          this.ctx!.lineWidth = 2;
+          this.ctx!.setLineDash([5, 5]);
         } else {
           this.ctx!.strokeStyle = '#6b7280';
           this.ctx!.lineWidth = 1;

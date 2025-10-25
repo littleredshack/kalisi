@@ -502,8 +502,8 @@ export class RuntimeCanvasComponent implements OnInit, AfterViewInit, OnDestroy,
     const defaultEdges: Edge[] = [
       {
         id: "Link 1",
-        from: "guid-node-1-1",
-        to: "guid-node-2-1", 
+        fromGUID: "guid-node-1-1",
+        toGUID: "guid-node-2-1",
         label: "Link 1",
         style: {
           stroke: "#6ea8fe",
@@ -650,7 +650,7 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
 
     const layoutEdgeKeys = new Set<string>();
     layout.edges?.forEach(edge => {
-      const key = edge.id ?? `${edge.from}->${edge.to}`;
+      const key = edge.id ?? `${edge.fromGUID}->${edge.toGUID}`;
       if (key) {
         layoutEdgeKeys.add(key);
       }
@@ -1474,16 +1474,14 @@ private compareRawGraphWithLayout(rawData: { entities: any[]; relationships: any
         delete edgeAny.guid;
       }
 
-      const sourceNode = this.resolveEdgeNode(edge.fromGUID ?? edge.from, nodesByGuid, nodesById);
+      const sourceNode = this.resolveEdgeNode(edge.fromGUID, nodesByGuid, nodesById);
       if (sourceNode?.GUID) {
         edge.fromGUID = sourceNode.GUID;
-        edge.from = sourceNode.GUID;
       }
 
-      const targetNode = this.resolveEdgeNode(edge.toGUID ?? edge.to, nodesByGuid, nodesById);
+      const targetNode = this.resolveEdgeNode(edge.toGUID, nodesByGuid, nodesById);
       if (targetNode?.GUID) {
         edge.toGUID = targetNode.GUID;
-        edge.to = targetNode.GUID;
       }
     };
 

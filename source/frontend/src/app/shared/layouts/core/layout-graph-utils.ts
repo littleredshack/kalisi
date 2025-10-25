@@ -11,7 +11,7 @@ export interface HierarchicalGraphSnapshot {
 // Engines now work with readonly references and create new objects
 
 function createNodeFromLayout(layoutNode: LayoutNode): HierarchicalNode {
-  return {
+  const node: any = {
     id: layoutNode.label ?? layoutNode.id,
     GUID: layoutNode.id,
     type: layoutNode.type,
@@ -28,9 +28,19 @@ function createNodeFromLayout(layoutNode: LayoutNode): HierarchicalNode {
     selected: layoutNode.state.selected,
     visible: layoutNode.state.visible,
     collapsed: layoutNode.state.collapsed,
-    dragging: false,
+    dragging: (layoutNode.metadata['dragging'] as boolean) ?? false,
     metadata: { ...layoutNode.metadata }
   };
+
+  // Preserve user-locked state
+  if (layoutNode.metadata['_userLocked']) {
+    node._userLocked = layoutNode.metadata['_userLocked'];
+  }
+  if (layoutNode.metadata['_lockedPosition']) {
+    node._lockedPosition = layoutNode.metadata['_lockedPosition'];
+  }
+
+  return node;
 }
 
 export function layoutGraphToHierarchical(graph: LayoutGraph): HierarchicalGraphSnapshot {
@@ -56,8 +66,6 @@ export function layoutGraphToHierarchical(graph: LayoutGraph): HierarchicalGraph
 
   const edges: Edge[] = Object.values(graph.edges).map(edge => ({
     id: edge.id,
-    from: edge.from,
-    to: edge.to,
     fromGUID: edge.from,
     toGUID: edge.to,
     label: edge.label ?? '',
@@ -113,7 +121,9 @@ export function hierarchicalToLayoutGraph(snapshot: HierarchicalGraphSnapshot): 
       },
       metadata: {
         ...(node.metadata ?? {}),
-        style: node.style
+        style: node.style,
+        dragging: node.dragging ?? false,
+        _userLocked: (node as any)._userLocked ?? false
       },
       children: childrenIds,
       edges: []
@@ -204,8 +214,8 @@ function computeRootNodes(
 function createEdgeRecord(edge: Edge): LayoutEdge {
   return {
     id: edge.id,
-    from: edge.from,
-    to: edge.to,
+    from: edge.fromGUID,
+    to: edge.toGUID,
     label: edge.label,
     metadata: {
       ...(edge.metadata ?? {}),

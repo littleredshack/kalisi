@@ -23,8 +23,8 @@ export class HierarchicalEdgePrimitive {
     nodes: HierarchicalNode[],
     camera: Camera
   ): void {
-    const fromNode = this.findNodeById(edge.from, nodes);
-    const toNode = this.findNodeById(edge.to, nodes);
+    const fromNode = this.findNodeById(edge.fromGUID, nodes);
+    const toNode = this.findNodeById(edge.toGUID, nodes);
 
     if (!fromNode || !toNode) {
       return;
@@ -110,8 +110,8 @@ export class HierarchicalEdgePrimitive {
     camera: Camera,
     totalInheritedCount: number
   ): void {
-    const fromNode = this.findNodeById(edge.from, nodes);
-    const toNode = this.findNodeById(edge.to, nodes);
+    const fromNode = this.findNodeById(edge.fromGUID, nodes);
+    const toNode = this.findNodeById(edge.toGUID, nodes);
 
     if (!fromNode || !toNode) {
       return;
