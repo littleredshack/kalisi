@@ -80,12 +80,12 @@ fn visit_value(
             // Neo4j nodes have "labels", relationships have "type" at top level
             if object.contains_key("labels") {
                 if let Some(node) = build_node(object) {
-                    node_map.entry(node.guid.clone()).or_insert(node);
+                    node_map.entry(node.GUID.clone()).or_insert(node);
                     return;
                 }
             } else if object.contains_key("type") {
                 if let Some(rel) = build_edge(object) {
-                    rel_map.entry(rel.guid.clone()).or_insert(rel);
+                    rel_map.entry(rel.GUID.clone()).or_insert(rel);
                     return;
                 }
             }
@@ -132,7 +132,7 @@ fn build_node(object: &Map<String, Value>) -> Option<CanvasNodeDto> {
         .collect();
 
     Some(CanvasNodeDto {
-        guid,
+        GUID: guid,
         labels,
         parent_guid: None,
         position: None,
@@ -182,7 +182,7 @@ fn build_edge(object: &Map<String, Value>) -> Option<CanvasRelationshipDto> {
         .collect::<HashMap<_, _>>();
 
     Some(CanvasRelationshipDto {
-        guid,
+        GUID: guid,
         fromGUID: from_guid,
         toGUID: to_guid,
         r#type: edge_type,

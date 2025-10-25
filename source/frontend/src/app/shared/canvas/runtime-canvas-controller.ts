@@ -430,11 +430,14 @@ export class RuntimeCanvasController {
       // Update camera in renderer
       const camera = this.cameraSystem.getCamera();
       if (this.renderer.updateCamera) {
+        // Observer-pattern renderer (ForceDirectedRenderer)
         this.renderer.updateCamera(camera);
+        this.renderer.render();
+      } else {
+        // Legacy renderers - call with data
+        const data = this.layoutRuntime.getCanvasData();
+        this.renderer.render(ctx, data.nodes, data.edges, camera);
       }
-
-      // Renderer reads from viewGraph via observer pattern - we don't pass data
-      // Note: renderer.render() is also called by observer when viewGraph changes
 
       // Render selection indicator if there's a selected node
       const selectedNode = this.interactionHandler.getSelectedNode();

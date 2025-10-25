@@ -57,24 +57,33 @@ export function applyForceDirectedLayout(
 ): void {
   const opts = { ...DEFAULT_OPTIONS, ...options };
 
-  // Initialize positions for nodes that don't have them
-  nodes.forEach(node => {
-    if (node.x === undefined || node.y === undefined) {
-      node.x = Math.random() * opts.width;
-      node.y = Math.random() * opts.height;
+  // Initialize positions for nodes - always randomize for force-directed
+  console.log('[force-directed] Starting layout for', nodes.length, 'nodes');
+  nodes.forEach((node: any, i: number) => {
+    if (!node.geometry) {
+      node.geometry = { x: 0, y: 0, width: 160, height: 80 };
     }
+    // Always set random initial positions for force-directed
+    node.geometry = {
+      ...node.geometry,
+      x: Math.random() * opts.width,
+      y: Math.random() * opts.height
+    };
     if (node.vx === undefined) node.vx = 0;
     if (node.vy === undefined) node.vy = 0;
+    if (i < 3) {
+      console.log(`[force-directed] Node ${i} initial pos:`, node.geometry.x, node.geometry.y);
+    }
   });
 
   // Build node lookup map
-  const nodeMap = new Map<string, ForceNode>();
-  nodes.forEach(node => nodeMap.set(node.guid, node));
+  const nodeMap = new Map<string, any>();
+  nodes.forEach((node: any) => nodeMap.set(node.id, node));
 
   // Run simulation
   for (let iter = 0; iter < opts.iterations; iter++) {
     // Reset forces
-    nodes.forEach(node => {
+    nodes.forEach((node: any) => {
       if (!node.dragging) {
         node.vx = 0;
         node.vy = 0;
@@ -83,14 +92,14 @@ export function applyForceDirectedLayout(
 
     // Apply repulsion between all node pairs
     for (let i = 0; i < nodes.length; i++) {
-      const nodeA = nodes[i];
+      const nodeA: any = nodes[i];
       if (nodeA.dragging) continue;
 
       for (let j = i + 1; j < nodes.length; j++) {
-        const nodeB = nodes[j];
+        const nodeB: any = nodes[j];
 
-        const dx = nodeB.x! - nodeA.x!;
-        const dy = nodeB.y! - nodeA.y!;
+        const dx = nodeB.geometry.x - nodeA.geometry.x;
+        const dy = nodeB.geometry.y - nodeA.geometry.y;
         const distSq = dx * dx + dy * dy;
 
         if (distSq > 0) {
@@ -100,27 +109,25 @@ export function applyForceDirectedLayout(
           const fy = (dy / dist) * force;
 
           if (!nodeA.dragging) {
-            nodeA.vx! -= fx;
-            nodeA.vy! -= fy;
+            nodeA.vx -= fx;
+            nodeA.vy -= fy;
           }
           if (!nodeB.dragging) {
-            nodeB.vx! += fx;
-            nodeB.vy! += fy;
+            nodeB.vx += fx;
+            nodeB.vy += fy;
           }
         }
       }
     }
 
     // Apply spring forces from edges
-    edges.forEach(edge => {
-      const sourceGuid = edge.properties?.fromGUID || edge.source_guid || '';
-      const targetGuid = edge.properties?.toGUID || edge.target_guid || '';
-      const source = nodeMap.get(sourceGuid);
-      const target = nodeMap.get(targetGuid);
+    edges.forEach((edge: any) => {
+      const source = nodeMap.get(edge.from);
+      const target = nodeMap.get(edge.to);
 
       if (source && target) {
-        const dx = target.x! - source.x!;
-        const dy = target.y! - source.y!;
+        const dx = target.geometry.x - source.geometry.x;
+        const dy = target.geometry.y - source.geometry.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
         if (dist > 0) {
@@ -129,29 +136,43 @@ export function applyForceDirectedLayout(
           const fy = (dy / dist) * force;
 
           if (!source.dragging) {
-            source.vx! += fx;
-            source.vy! += fy;
+            source.vx += fx;
+            source.vy += fy;
           }
           if (!target.dragging) {
-            target.vx! -= fx;
-            target.vy! -= fy;
+            target.vx -= fx;
+            target.vy -= fy;
           }
         }
       }
     });
 
     // Update positions
-    nodes.forEach(node => {
+    nodes.forEach((node: any) => {
       if (!node.dragging) {
-        node.vx! *= opts.damping;
-        node.vy! *= opts.damping;
-        node.x! += node.vx!;
-        node.y! += node.vy!;
+        node.vx *= opts.damping;
+        node.vy *= opts.damping;
+        node.geometry = {
+          ...node.geometry,
+          x: node.geometry.x + node.vx,
+          y: node.geometry.y + node.vy
+        };
 
         // Keep nodes in bounds
-        node.x! = Math.max(opts.nodeRadius, Math.min(opts.width - opts.nodeRadius, node.x!));
-        node.y! = Math.max(opts.nodeRadius, Math.min(opts.height - opts.nodeRadius, node.y!));
+        node.geometry = {
+          ...node.geometry,
+          x: Math.max(opts.nodeRadius, Math.min(opts.width - opts.nodeRadius, node.geometry.x)),
+          y: Math.max(opts.nodeRadius, Math.min(opts.height - opts.nodeRadius, node.geometry.y))
+        };
       }
     });
   }
+
+  // Log final positions
+  nodes.forEach((node: any, i: number) => {
+    if (i < 3) {
+      console.log(`[force-directed] Node ${i} final pos:`, node.geometry.x, node.geometry.y);
+    }
+  });
+  console.log('[force-directed] Layout complete');
 }

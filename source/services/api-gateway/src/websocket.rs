@@ -53,8 +53,6 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
             Some(msg) = socket.recv() => {
                 match msg {
                     Ok(Message::Text(text)) => {
-                        debug!("Received WebSocket message: {}", text);
-
                         // Parse the message as JSON to handle different message types
                         if let Ok(msg_data) = serde_json::from_str::<serde_json::Value>(&text) {
                             match msg_data.get("type").and_then(|t| t.as_str()) {

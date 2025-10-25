@@ -86,9 +86,9 @@ export class WebSocketLoggerService {
       this.websocket.onclose = () => {
         setTimeout(() => this.setupWebSocket(), 5000);
       };
-      
-      this.websocket.onerror = (error) => {
-        this.originalConsole.error('[Kalisi] WebSocket error:', error);
+
+      this.websocket.onerror = () => {
+        // Silently handle errors
       };
     } catch (error) {
         this.originalConsole.error('[Kalisi] Failed to setup WebSocket:', error);
@@ -175,7 +175,7 @@ export class WebSocketLoggerService {
         sessionId: this.sessionId,
         ...extra
       };
-      
+
       try {
         this.websocket.send(JSON.stringify(logData));
       } catch (error) {

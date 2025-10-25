@@ -21,8 +21,8 @@ export class UiStateService {
   private _debugPanelOpen = signal<boolean>(false);
   private _exploreMode = signal<boolean>(false);
   private _panelPushMode = signal<boolean>(true);
-  private _showIntro = signal<boolean>(true);
-  private _autoOpenLibraryPanel = signal<boolean>(true);
+  private _showIntro = signal<boolean>(false);
+  private _autoOpenLibraryPanel = signal<boolean>(false);
   private _defaultViewNodeId = signal<string | null>('87a9ac07-5da9-42ab-80f2-0563837b592d'); // Containment - Runtime Merge
 
   // Public read-only signals

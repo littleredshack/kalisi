@@ -1,7 +1,7 @@
 import { RawDataInput } from '../layouts/core/layout-contract';
 
 export interface GraphDataSetNode {
-  readonly guid: string;
+  readonly GUID: string;
   readonly labels?: ReadonlyArray<string>;
   readonly parent_guid?: string | null;
   readonly position?: { x: number; y: number; z?: number | null };
@@ -19,7 +19,7 @@ export interface GraphDataSetNode {
 }
 
 export interface GraphDataSetRelationship {
-  readonly guid: string;
+  readonly GUID: string;
   readonly fromGUID: string;
   readonly toGUID: string;
   readonly type: string;
@@ -101,10 +101,10 @@ export function graphDataSetToRawDataInput(dataset: GraphDataSet): RawDataInput 
     const name =
       (node.properties?.['name'] as string | undefined) ??
       (node.properties?.['label'] as string | undefined) ??
-      node.guid;
+      node.GUID;
 
     return {
-      id: node.guid,
+      id: node.GUID,
       name,
       type,
       properties
@@ -136,7 +136,7 @@ export function graphDataSetToRawDataInput(dataset: GraphDataSet): RawDataInput 
     }
 
     return {
-      id: rel.guid,
+      id: rel.GUID,
       source: rel.fromGUID,
       target: rel.toGUID,
       type: rel.type,

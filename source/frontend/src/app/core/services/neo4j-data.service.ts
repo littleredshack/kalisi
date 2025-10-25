@@ -59,7 +59,7 @@ interface RuntimeGraphResponse {
   cypher: string;
   parameters: Record<string, any>;
   nodes: Array<{
-    guid: string;
+    GUID: string;
     labels?: string[];
     parent_guid?: string | null;
     position?: {
@@ -80,7 +80,7 @@ interface RuntimeGraphResponse {
     properties: Record<string, any>;
   }>;
   edges: Array<{
-    guid: string;
+    GUID: string;
     fromGUID: string;
     toGUID: string;
     type: string;
@@ -226,24 +226,27 @@ export class Neo4jDataService {
         `;
       }
 
-      const runtimeResponse = await firstValueFrom(
-        this.http.post<RuntimeGraphResponse>('/runtime/canvas/data', {
+      const result: any = await firstValueFrom(
+        this.http.post('/v0/cypher/unified', {
           query: queryToExecute,
-          parameters: {},
-          include_raw_rows: true
+          parameters: {}
         })
       );
 
+      if (!result.success || !result.data) {
+        return null;
+      }
+
       return {
-        id: `${viewNode.id ?? 'anonymous'}::${runtimeResponse.query_id}`,
+        id: `${viewNode.id ?? 'anonymous'}::query`,
         viewNodeId: viewNode.id,
-        queryId: runtimeResponse.query_id,
-        cypher: runtimeResponse.cypher,
-        parameters: runtimeResponse.parameters ?? {},
-        nodes: runtimeResponse.nodes ?? [],
-        relationships: runtimeResponse.edges ?? [],
-        metadata: runtimeResponse.metadata,
-        rawRows: runtimeResponse.raw_rows ?? []
+        queryId: 'unified',
+        cypher: queryToExecute,
+        parameters: {},
+        nodes: result.data.nodes ?? [],
+        relationships: result.data.edges ?? [],
+        metadata: { elapsed_ms: result.execution_time_ms, rows_returned: result.rows_returned },
+        rawRows: []
       };
     } catch (error) {
       return null;
@@ -339,7 +342,7 @@ export class Neo4jDataService {
       const relationships = [
         ...derivedRelationships,
         ...response.edges.map(rel => ({
-          id: rel.guid,
+          id: rel.GUID,
           source: rel.fromGUID,
           target: rel.toGUID,
           type: rel.type,
@@ -435,8 +438,8 @@ export class Neo4jDataService {
       null;
 
     return {
-      id: node.guid,
-      name: node.properties?.['name'] || node.guid,
+      id: node.GUID,
+      name: node.properties?.['name'] || node.GUID,
       x: typeof position?.x === 'number' ? position.x : fallbackX,
       y: typeof position?.y === 'number' ? position.y : fallbackY,
       width: baseWidth,
@@ -496,7 +499,7 @@ export class Neo4jDataService {
     const relationshipLabel = relationshipDisplay['label'] as string | undefined;
     const relationshipId =
       this.extractGuidFromValue(properties['GUID']) ??
-      node.guid ??
+      node.GUID ??
       `${source}-${target}`;
 
     return {

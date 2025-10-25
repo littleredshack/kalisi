@@ -17,8 +17,8 @@ export class ForceDirectedLayoutEngine implements LayoutEngine {
 
     // Apply force-directed layout (modifies nodes in place)
     applyForceDirectedLayout(nodes as any, edges as any, {
-      width: 1200,
-      height: 800,
+      width: 800,
+      height: 600,
       iterations: 100
     });
 

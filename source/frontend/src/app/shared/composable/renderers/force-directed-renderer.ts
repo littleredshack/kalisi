@@ -86,11 +86,43 @@ export class ForceDirectedRenderer {
   }
 
   render(): void {
-    if (!this.ctx || !this.camera) return;
+    console.log('[ForceDirectedRenderer.render] Called');
+    if (!this.ctx || !this.camera) {
+      console.log('[ForceDirectedRenderer.render] Missing ctx or camera');
+      return;
+    }
 
     const viewGraph = this.layoutRuntime.getViewGraph();
-    const nodeArray = viewGraph.nodes || [];
+
+    console.log('[ForceDirectedRenderer.render] Root nodes:', (viewGraph.nodes || []).length);
+    (viewGraph.nodes || []).forEach((n: any, i: number) => {
+      console.log(`[ForceDirectedRenderer.render] Root ${i} children:`, n.children?.length || 0);
+    });
+
+    // Flatten hierarchical nodes for force-directed rendering
+    const flattenNodes = (nodes: any[]): any[] => {
+      const flat: any[] = [];
+      const traverse = (nodeList: any[]) => {
+        nodeList.forEach(node => {
+          flat.push(node);
+          if (node.children && node.children.length > 0) {
+            traverse(node.children);
+          }
+        });
+      };
+      traverse(nodes);
+      return flat;
+    };
+
+    const nodeArray = flattenNodes(viewGraph.nodes || []);
     const edgeArray = viewGraph.edges || [];
+
+    console.log('[ForceDirectedRenderer.render] After flatten - nodes:', nodeArray.length, 'edges:', edgeArray.length);
+    if (nodeArray.length > 0) {
+      console.log('[ForceDirectedRenderer.render] Sample node:', nodeArray[0].GUID, 'x:', nodeArray[0].x, 'y:', nodeArray[0].y);
+    }
+    console.log('[ForceDirectedRenderer.render] Camera:', this.camera.x, this.camera.y, 'zoom:', this.camera.zoom);
+    console.log('[ForceDirectedRenderer.render] Canvas:', this.ctx.canvas.width, 'x', this.ctx.canvas.height);
 
     this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
     this.ctx.save();
@@ -103,8 +135,8 @@ export class ForceDirectedRenderer {
     edgeArray.forEach((edge: any) => {
       const sourceGuid = edge.fromGUID;
       const targetGuid = edge.toGUID;
-      const sourceNode = nodeArray.find((n: any) => (n.guid || n.GUID || n.id) === sourceGuid);
-      const targetNode = nodeArray.find((n: any) => (n.guid || n.GUID || n.id) === targetGuid);
+      const sourceNode = nodeArray.find((n: any) => n.GUID === sourceGuid);
+      const targetNode = nodeArray.find((n: any) => n.GUID === targetGuid);
 
       if (sourceNode && targetNode && sourceNode.x !== undefined && targetNode.x !== undefined) {
         this.ctx!.beginPath();
@@ -127,8 +159,13 @@ export class ForceDirectedRenderer {
     });
 
     // Draw nodes
+    let drawnCount = 0;
     nodeArray.forEach((node: any) => {
-      if (node.x === undefined || node.y === undefined) return;
+      if (node.x === undefined || node.y === undefined) {
+        console.log('[ForceDirectedRenderer.render] Skipping node - no x/y:', node.GUID);
+        return;
+      }
+      drawnCount++;
 
       this.ctx!.beginPath();
       this.ctx!.arc(node.x, node.y, this.nodeRadius, 0, Math.PI * 2);
@@ -151,14 +188,15 @@ export class ForceDirectedRenderer {
       this.ctx!.stroke();
 
       // Draw label
-      const guid = node.guid || node.GUID || node.id || '';
-      const label = node.properties?.name || guid.substring(0, 8);
+      const label = node.properties?.name || (node.GUID || '').substring(0, 8);
       this.ctx!.fillStyle = '#e6edf3';
       this.ctx!.font = '12px sans-serif';
       this.ctx!.textAlign = 'center';
       this.ctx!.textBaseline = 'middle';
       this.ctx!.fillText(label, node.x, node.y);
     });
+
+    console.log('[ForceDirectedRenderer.render] Drew', drawnCount, 'nodes');
 
     this.ctx!.restore();
   }

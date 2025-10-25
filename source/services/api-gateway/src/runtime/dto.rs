@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CanvasNodeDto {
-    pub guid: String,
+    pub GUID: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub labels: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -68,7 +68,7 @@ pub struct RelationshipDisplay {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CanvasRelationshipDto {
-    pub guid: String,
+    pub GUID: String,
     pub fromGUID: String,
     pub toGUID: String,
     pub r#type: String,
